@@ -1,6 +1,6 @@
 {
   "name": "sniff",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Token-cheap code-smell skills. A self-serve, private SonarCloud-style scan built from small skills you grow one at a time: pattern rules, AST node metrics, and file metrics that return a compact findings table instead of dumping source into the conversation.",
   "author": {
     "name": "Amber van den Berg",
@@ -14,5 +14,18 @@
     "refactoring",
     "token-efficient",
     "clean-code"
-  ]
+  ],
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/skills/sniff-forge/scripts/detect_costly_search.py\""
+          }
+        ]
+      }
+    ]
+  }
 }

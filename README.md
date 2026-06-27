@@ -48,6 +48,7 @@ Update later with `git pull` on the marketplace or the `/plugin` update flow.
 | --- | --- |
 | `largest-methods` | Rank the longest methods/functions by line count. |
 | `large-classes` | Rank the longest classes by line count. |
+| `largest-files` | Rank the largest source files by non-blank line count (no AST). |
 | `sniff-lint` | Run the rule catalog in one `ast-grep scan` pass; compact findings table. |
 | `sniff-forge` | Scaffold a new smell skill or catalog rule from a short conversation. |
 
@@ -58,16 +59,46 @@ underscore prefix and missing description keep it from triggering as a skill.
 ## Layout
 
 ```
-.claude-plugin/   plugin.json + marketplace.json
+.claude-plugin/   plugin.json (skills, Stop hook) + marketplace.json
 skills/
   _ast-harness/   shared engine + its tests
   largest-methods/
   large-classes/
+  largest-files/
   sniff-lint/     rule catalog (ast-grep scan)
-  sniff-forge/    the skill/rule generator
-hooks/            suggest-forge detection hook (planned)
+  sniff-forge/    the skill/rule generator + suggest-forge detection hook
 docs/             design spec
 ```
+
+## Suggest-forge hook
+
+A `Stop` hook (declared in `plugin.json`) watches each turn and, when it spots a
+costly repeated structural search (>= 6 read/grep/glob calls plus a structural
+prompt), prints one line suggesting you run `sniff-forge` to turn it into a
+token-cheap skill. Suggest-only: it never creates anything and never blocks.
+The detector lives in `skills/sniff-forge/scripts/detect_costly_search.py`.
+
+### Tuning
+
+| Env var | Default | Effect |
+| --- | --- | --- |
+| `SNIFF_FORGE_NUDGE` | on | Set to `0`/`off`/`false`/`no` to silence the nudge entirely. |
+| `SNIFF_MIN_CALLS` | `6` | Read/grep/glob calls in a turn needed to trip the heuristic. |
+
+### Caveats
+
+It is a **heuristic**, not a judgement of intent. The hook sees the turn's tool
+calls and the prompt text, never your reasoning, so:
+
+- Expect the occasional **miss** (a real repeated search the prompt did not phrase
+  structurally) and the occasional **false positive** (lots of reads for an
+  unrelated reason). Both are cheap: a missed nudge costs nothing, a stray one is a
+  single ignorable line.
+- It only inspects the **most recent turn**; a search spread across several turns
+  does not accumulate.
+- Raise `SNIFF_MIN_CALLS` if a project trips it too often; lower it to catch
+  searches sooner. Turn it off per session with `SNIFF_FORGE_NUDGE=0` when it is
+  noise for the task at hand.
 
 ## Tests
 
