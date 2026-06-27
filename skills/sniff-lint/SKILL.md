@@ -37,6 +37,10 @@ Filter with `--severity` or a single `--rule`. Vendored/build dirs are skipped.
 summarize it to prose or drop rows. You may add ONE takeaway line after the table
 (e.g. the worst rule), but the full table comes first and in full.
 
+A "Clean: 0 findings. Ran N rules (...)" line is a **valid, complete result**: the
+codebase passed every rule. Relay it as-is. Do NOT speculate that the plugin "has no
+rules" or is "new/empty", the line already names the rules that ran; trust it.
+
 ## Adding rules
 
 Use `sniff-forge` (rule mode) to add a rule, or drop a standard ast-grep rule file

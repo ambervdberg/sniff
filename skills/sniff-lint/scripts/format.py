@@ -26,6 +26,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SGCONFIG = os.path.normpath(os.path.join(HERE, "..", "sgconfig.yml"))
+RULES_DIR = os.path.normpath(os.path.join(HERE, "..", "rules"))
 
 # Same vendored/build dirs the harness ignores; kept local so this script has no
 # import dependency on _ast-harness (it speaks ast-grep's scan JSON, not Match).
@@ -45,6 +46,26 @@ def _require_ast_grep() -> None:
 
 def _in_ignored_dir(path: str) -> bool:
     return any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", path))
+
+
+def catalog_rule_ids() -> list[str]:
+    """Rule ids in the catalog, read from the `id:` line of each rules/*.yml.
+
+    Used so a clean result can say how many rules ran, distinguishing 'no smells'
+    from 'no rules loaded'."""
+    ids: list[str] = []
+    if not os.path.isdir(RULES_DIR):
+        return ids
+
+    for name in sorted(os.listdir(RULES_DIR)):
+        if not name.endswith((".yml", ".yaml")):
+            continue
+        with open(os.path.join(RULES_DIR, name), "r", encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith("id:"):
+                    ids.append(line.split(":", 1)[1].strip())
+                    break
+    return ids
 
 
 def run_scan(path: str) -> list[dict]:
@@ -73,6 +94,12 @@ def main() -> None:
     args = parser.parse_args()
 
     _require_ast_grep()
+
+    rule_ids = catalog_rule_ids()
+    if not rule_ids:
+        print(f"No rules in the catalog ({RULES_DIR}). Add one with sniff-forge.")
+        return
+
     matches = run_scan(args.path)
     matches = [m for m in matches if not _in_ignored_dir(m.get("file", ""))]
 
@@ -93,7 +120,13 @@ def main() -> None:
             entry["locs"].append(f"{m['file'].replace(chr(92), '/')}:{line}")
 
     if not by_rule:
-        print("No findings.")
+        scope = ""
+        if args.rule:
+            scope = f" matching --rule {args.rule}"
+        elif args.severity:
+            scope = f" at --severity {args.severity}"
+        print(f"Clean: 0 findings{scope}. Ran {len(rule_ids)} rules "
+              f"({', '.join(rule_ids)}) over {args.path!r}.")
         return
 
     rows = sorted(by_rule.items(),

@@ -53,7 +53,8 @@ class CatalogTest(unittest.TestCase):
 
     def test_severity_filter_excludes_others(self):
         out = self._run("--severity", "error")
-        self.assertIn("No findings.", out)  # all seeded rules are warnings
+        self.assertIn("0 findings", out)  # all seeded rules are warnings
+        self.assertIn("Ran", out)         # still reports rules ran, so clean != broken
 
     def test_clean_only_reports_nothing(self):
         empty = tempfile.mkdtemp()
@@ -62,7 +63,8 @@ class CatalogTest(unittest.TestCase):
                 fh.write("const n: number = 1;\n")
             proc = subprocess.run([sys.executable, FORMAT, empty],
                                   capture_output=True, text=True)
-            self.assertIn("No findings.", proc.stdout)
+            self.assertIn("0 findings", proc.stdout)
+            self.assertIn("Ran", proc.stdout)  # clean repo still names the rules that ran
         finally:
             shutil.rmtree(empty, ignore_errors=True)
 
