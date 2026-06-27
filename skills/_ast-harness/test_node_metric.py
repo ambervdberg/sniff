@@ -153,6 +153,36 @@ class NestingDepthTest(unittest.TestCase):
         self.assertEqual(nm.count_params("(a, b: Map<x, y>)"), 2)
         self.assertEqual(nm.count_params("(a = {x, y}, b)"), 2)
 
+    def _cognitive(self) -> dict[str, int]:
+        return {m.name: m.metrics["cognitive"] for m in nm.cognitive(self.root)}
+
+    def test_cognitive_weights_nesting(self):
+        self._write("j.py",
+            "def flat(a):\n"
+            "    return a\n"
+            "\n"
+            "def two(a):\n"               # two sibling ifs: 1 + 1 = 2
+            "    if a:\n"
+            "        return 1\n"
+            "    if not a:\n"
+            "        return 2\n"
+            "\n"
+            "def deep(a, b):\n"           # if/for/while/if nested: 1+2+3+4 = 10
+            "    if a:\n"
+            "        for x in b:\n"
+            "            while x:\n"
+            "                if x > 1:\n"
+            "                    return x\n"
+        )
+        c = self._cognitive()
+        self.assertEqual(c["flat"], 0)
+        self.assertEqual(c["two"], 2)
+        self.assertEqual(c["deep"], 10)
+
+    def test_cognitive_skips_unsupported(self):
+        self._write("k.txt", "if (x) {}\n")
+        self.assertEqual(nm.cognitive(self.root), [])
+
 
 if __name__ == "__main__":
     unittest.main()

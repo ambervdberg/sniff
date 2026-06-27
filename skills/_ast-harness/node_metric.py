@@ -269,22 +269,36 @@ def _depth_within(func: h.Match, nodes: list[h.Match]) -> int:
     return best
 
 
-def nesting_depth(
-    path: str = ".",
-    langs: "list[str] | None" = None,
-    include_tests: bool = False,
-) -> list[h.Match]:
-    """Score every function under `path` by its maximum control-flow nesting depth.
+def _cognitive_within(func: h.Match, nodes: list[h.Match]) -> int:
+    """Cognitive-complexity score for one function from its nesting nodes.
 
-    Returns the function Matches with `metrics['depth']` set. Unsupported
-    languages (no NESTING_KINDS entry) are simply skipped."""
+    Each control structure costs 1, plus a nesting penalty equal to how many
+    other control structures enclose it (SonarSource's nesting increment). So a
+    branch three levels deep costs 1 + 3 = 4, while two sibling branches cost
+    1 + 1 = 2. The sum over all the function's control structures is its score."""
+    inside = [n for n in nodes if _contains(func, n)]
+
+    total = 0
+    for node in inside:
+        enclosing = sum(1 for other in inside if _contains(other, node))
+        total += 1 + enclosing
+
+    return total
+
+
+def _functions_and_nesting(
+    path: str, langs: "list[str] | None", include_tests: bool,
+) -> "tuple[list[h.Match], dict[str, list[h.Match]]]":
+    """Shared scan for the nesting-based metrics (depth, cognitive).
+
+    Returns the folded functions and the file -> nesting-nodes index. Returns
+    ([], {}) when no scorable language is present."""
     if langs is None:
         langs = sorted(h.detect_languages(path))
 
-    # Only score languages we have nesting kinds for.
     langs = [l for l in langs if l in NESTING_KINDS]
     if not langs:
-        return []
+        return [], {}
 
     functions = h.fold_nested(
         h.run(FUNCTION_KINDS, path, lang=langs, include_tests=include_tests)
@@ -298,8 +312,44 @@ def nesting_depth(
     for node in nodes:
         by_file.setdefault(node.file, []).append(node)
 
+    return functions, by_file
+
+
+def nesting_depth(
+    path: str = ".",
+    langs: "list[str] | None" = None,
+    include_tests: bool = False,
+) -> list[h.Match]:
+    """Score every function under `path` by its maximum control-flow nesting depth.
+
+    Returns the function Matches with `metrics['depth']` set. Unsupported
+    languages (no NESTING_KINDS entry) are simply skipped."""
+    functions, by_file = _functions_and_nesting(path, langs, include_tests)
+
     for func in functions:
         func.metrics["depth"] = _depth_within(func, by_file.get(func.file, []))
+
+    return functions
+
+
+def cognitive(
+    path: str = ".",
+    langs: "list[str] | None" = None,
+    include_tests: bool = False,
+) -> list[h.Match]:
+    """Score every function under `path` by cognitive complexity.
+
+    Each control structure costs 1 plus a nesting penalty for how deeply it sits
+    (SonarSource's nesting increment), so deeply nested branching scores far above
+    the same number of flat branches. Returns the function Matches with
+    `metrics['cognitive']` set. Unsupported languages are skipped.
+
+    Note: boolean-operator sequences (which Sonar also scores) are not yet
+    counted here; use cyclomatic complexity for boolean-heavy code."""
+    functions, by_file = _functions_and_nesting(path, langs, include_tests)
+
+    for func in functions:
+        func.metrics["cognitive"] = _cognitive_within(func, by_file.get(func.file, []))
 
     return functions
 

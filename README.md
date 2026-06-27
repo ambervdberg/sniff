@@ -51,6 +51,7 @@ Update later with `git pull` on the marketplace or the `/plugin` update flow.
 | `largest-files` | Rank the largest source files by non-blank line count (no AST). |
 | `deepest-nesting` | Rank functions by control-flow nesting depth (S134). |
 | `cyclomatic-complexity` | Rank functions by cyclomatic complexity (S1541). |
+| `cognitive-complexity` | Rank functions by cognitive complexity (nesting-weighted read difficulty). |
 | `most-parameters` | Rank functions by parameter count (long-parameter-list smell). |
 | `sniff-lint` | Run the rule catalog in one `ast-grep scan` pass; compact findings table. |
 | `sniff-forge` | Scaffold a new smell skill or catalog rule from a short conversation. |
@@ -70,6 +71,7 @@ skills/
   largest-files/
   deepest-nesting/
   cyclomatic-complexity/
+  cognitive-complexity/
   most-parameters/
   sniff-lint/     rule catalog (ast-grep scan)
   sniff-forge/    the skill/rule generator + suggest-forge detection hook
