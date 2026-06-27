@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Scaffold a new ast-search skill, or a new ast-lint rule, from resolved inputs.
+"""Scaffold a new smell skill, or a new sniff-lint rule, from resolved inputs.
 
-This is the mechanical half of ast-skill-forge. The conversational half (gather
+This is the mechanical half of sniff-forge. The conversational half (gather
 intent, draft the ast-grep rule, validate it on the current repo) lives in the
 forge SKILL.md and is driven by the agent. Once the rule is confirmed, the agent
 calls this script to write the files.
@@ -32,11 +32,11 @@ import json
 import os
 import sys
 
-# Resolve repo paths relative to this file: scripts/ -> ast-skill-forge/ -> skills/ -> repo.
+# Resolve repo paths relative to this file: scripts/ -> sniff-forge/ -> skills/ -> repo.
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES = os.path.join(HERE, "..", "templates")
 SKILLS_DIR = os.path.normpath(os.path.join(HERE, "..", ".."))
-RULES_DIR = os.path.join(SKILLS_DIR, "ast-lint", "rules")
+RULES_DIR = os.path.join(SKILLS_DIR, "sniff-lint", "rules")
 
 
 def _load_template(name: str) -> str:
@@ -108,7 +108,7 @@ def cmd_standalone(args: argparse.Namespace) -> None:
         print(f"\nNext: validate it, then make it live.\n"
               f"  python \"{skill_dir}/scripts/{args.name}.py\" <some-repo> --top 10\n"
               f"  git -C \"{SKILLS_DIR}/..\" add skills/{args.name} && git commit -m \"feat: add {args.name} skill\"\n"
-              f"  /plugin update ast-skills   (to make the new skill live on this PC)")
+              f"  /plugin update sniff   (to make the new skill live on this PC)")
 
 
 def cmd_rule(args: argparse.Namespace) -> None:
@@ -135,11 +135,11 @@ def cmd_rule(args: argparse.Namespace) -> None:
            _fill(_load_template("rule.yml.tmpl"), tokens), args.dry_run)
 
     if not args.dry_run:
-        print("\nNext: run the ast-lint skill to see it in the catalog scan.")
+        print("\nNext: run the sniff-lint skill to see it in the catalog scan.")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Scaffold an ast-search skill or an ast-lint rule.")
+    parser = argparse.ArgumentParser(description="Scaffold a smell skill or a sniff-lint rule.")
     parser.add_argument("--dry-run", action="store_true", help="print what would be written, touch nothing")
     sub = parser.add_subparsers(dest="mode", required=True)
 
@@ -154,7 +154,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--pattern", help="ast-grep pattern string (alternative to --kinds)")
     s.set_defaults(func=cmd_standalone)
 
-    r = sub.add_parser("rule", help="scaffold an ast-lint catalog rule")
+    r = sub.add_parser("rule", help="scaffold a sniff-lint catalog rule")
     r.add_argument("--name", required=True, help="kebab-case rule id (also the file name)")
     r.add_argument("--title", required=True, help="one-line human title (comment header)")
     r.add_argument("--language", required=True, help="ast-grep language id")

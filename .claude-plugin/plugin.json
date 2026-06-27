@@ -1,13 +1,14 @@
 {
-  "name": "ast-skills",
+  "name": "sniff",
   "version": "0.1.0",
-  "description": "Token-cheap structural code search skills built on ast-grep. Each skill pushes all AST work into a bundled script and returns only a small ranked table, never raw source or AST JSON into the conversation.",
+  "description": "Token-cheap code-smell skills. A self-serve, private SonarCloud-style scan built from small skills you grow one at a time: pattern rules, AST node metrics, and file metrics that return a compact findings table instead of dumping source into the conversation.",
   "author": {
     "name": "Amber van den Berg"
   },
   "keywords": [
     "ast-grep",
-    "code-search",
+    "code-smells",
+    "linter",
     "static-analysis",
     "refactoring",
     "token-efficient"
