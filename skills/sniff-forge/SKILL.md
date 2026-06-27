@@ -26,7 +26,7 @@ Every check fits exactly one engine. Pick before anything else; it decides the t
 | --- | --- | --- |
 | **pattern rule** | a specific code shape, flagged with a severity (e.g. `any` type, empty `imports: []`) | yes |
 | **node-span** | "largest X" ranked by line count (methods, classes, ...) | yes |
-| **node-metric** | a *computed score* per method/class: nesting depth, cyclomatic / cognitive complexity, inline-template line count | not yet (`sniff-...6`) |
+| **node-metric** | a *computed score* per method/class: nesting depth, cyclomatic / cognitive complexity, inline-template line count | engine yes (`_ast-harness.node_metric`, depth done, see `deepest-nesting`); other metrics + forge generator in progress (`sniff-...6.x`) |
 | **file-metric** | a number per *file*, no AST: largest files, lines of code | engine yes (`largest-files`); no forge generator yet |
 | **cross-file** | needs a whole-project graph: inheritance depth | not yet (`sniff-...8`) |
 
@@ -37,10 +37,14 @@ Every check fits exactly one engine. Pick before anything else; it decides the t
   `count_code_lines`, see the `largest-files` skill) but no forge generator yet; add
   a new file-metric skill by hand against those helpers, the same shape as
   `largest-files`.
-- **node-metric** and **cross-file** engines are not built. Do NOT hand-write a
-  one-off script to fake them. Say so and file a bead to add the engine first. A
-  bespoke bypass defeats the shared-engine design, the exact thing this forge exists
-  to prevent.
+- **node-metric** has a working engine (`_ast-harness.node_metric`); nesting
+  depth is done (see the `deepest-nesting` skill). Add another metric by extending
+  `node_metric.py` the same two-pass way (functions + the nodes the metric counts)
+  and writing a thin skill like `deepest-nesting`; there is no forge generator for
+  it yet (`sniff-...6.5`).
+- **cross-file** engine is not built. Do NOT hand-write a one-off script to fake
+  it. Say so and file a bead to add the engine first. A bespoke bypass defeats the
+  shared-engine design, the exact thing this forge exists to prevent.
 
 ## Step 2 — Intake
 

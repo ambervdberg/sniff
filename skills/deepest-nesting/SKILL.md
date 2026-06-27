@@ -1,0 +1,88 @@
+---
+name: deepest-nesting
+description: >-
+  Find the most deeply nested functions/methods in a codebase, ranked by
+  control-flow nesting depth (SonarSource S134), using ast-grep structural
+  matching. Use whenever the user wants to know which functions are too deeply
+  nested, asks "what's the most nested / deepest function", hunts for arrow-code
+  or pyramid-of-doom refactor candidates, wants a nesting-depth hotspot list, or
+  asks where to flatten guards / extract methods. Prefer this over grep or
+  reading files manually: it runs one bundled command and returns only a small
+  ranked table, so it answers for a tiny number of tokens instead of pulling
+  source or AST JSON into context.
+---
+
+# Deepest Nesting
+
+Rank functions/methods by how deeply their control flow nests, cheaply.
+
+## Why this exists
+
+Deeply nested loops and branches (the "pyramid of doom") are a top refactor
+smell, but spotting them by eye means reading files and burning thousands of
+tokens. This skill pushes the work into a bundled script: it asks `ast-grep` for
+the functions and the nesting constructs, derives each function's depth from
+node containment, and prints a ~20-row table. You only ever see the table. Keep
+it that way, never pipe raw `ast-grep --json` output into your own context.
+
+## What "depth" means
+
+Depth is the deepest stack of control-flow blocks inside a function: an `if`
+holding a `for` holding a `while` is depth 3. Sibling blocks at the same level do
+NOT add up (two sequential `if`s are still depth 1). This is the structural
+nesting behind SonarSource rule **S134**. It is computed from the AST node
+ranges, not from indentation or braces in text.
+
+## Prerequisites
+
+- `ast-grep` on PATH (`ast-grep --version`). Install: https://ast-grep.github.io
+- Python 3 (any recent version) to run the bundled script.
+
+## Usage
+
+Run the script and report the table. `PATH` defaults to the current directory.
+
+```bash
+python "<skill_dir>/scripts/deepest_nesting.py" [PATH] [--top N] [--lang L] [--min-depth N] [--include-tests]
+```
+
+`<skill_dir>` is the directory containing this SKILL.md. Examples:
+
+```bash
+# Whole repo, top 20, languages auto-detected, tests excluded
+python "<skill_dir>/scripts/deepest_nesting.py"
+
+# Just the frontend, only functions nested 3+ deep
+python "<skill_dir>/scripts/deepest_nesting.py" apps/web --min-depth 3
+
+# Force a language when auto-detect is too broad
+python "<skill_dir>/scripts/deepest_nesting.py" src --lang typescript
+```
+
+The output is already final-form, a `DEPTH / NAME / LOCATION` table sorted
+deepest-first.
+
+**Print the entire table to the user verbatim.** It IS the answer. Do NOT replace
+it with a summary or describe it in prose, the user wants every row. You may add
+ONE optional takeaway line after the table (e.g. the worst offender), but the full
+table comes first and in full. Do not re-read the listed files unless the user
+then asks you to actually refactor one.
+
+## What it counts, and the caveats worth stating
+
+- **Languages**: auto-detected. TypeScript/TSX, JavaScript and Python are the
+  best-tested; Java, C#, Go, Rust, Ruby, C/C++, PHP, Kotlin are mapped but less
+  battle-tested. A language with no nesting-kinds mapping is skipped (not scored);
+  if something you expected shows nothing, pass `--lang` and sanity-check.
+- **Depth, not size or complexity.** A deep function isn't automatically the
+  longest or the most complex, present it as a refactor *candidate*. Cyclomatic
+  and cognitive complexity are separate metrics (their own skills).
+- **`else if` counts as deeper.** Physical nesting is measured, so a long
+  `if/else if` chain reads deeper than Sonar's cognitive model would score it.
+  Treat the ranking as a hotspot finder, not an exact S134 value.
+- **`--min-depth` defaults to 1**, hiding flat functions. Raise it to focus on
+  the worst, or pass `--min-depth 0` to list everything.
+- **Tests excluded by default** (`*.spec.*`, `*.test.*`); add `--include-tests`.
+  `node_modules`, `dist`, `build` and similar are always skipped.
+- **Names are best-effort**, read from the definition's first line; `LOCATION` is
+  authoritative.

@@ -49,6 +49,7 @@ Update later with `git pull` on the marketplace or the `/plugin` update flow.
 | `largest-methods` | Rank the longest methods/functions by line count. |
 | `large-classes` | Rank the longest classes by line count. |
 | `largest-files` | Rank the largest source files by non-blank line count (no AST). |
+| `deepest-nesting` | Rank functions by control-flow nesting depth (S134). |
 | `sniff-lint` | Run the rule catalog in one `ast-grep scan` pass; compact findings table. |
 | `sniff-forge` | Scaffold a new smell skill or catalog rule from a short conversation. |
 
@@ -61,10 +62,11 @@ underscore prefix and missing description keep it from triggering as a skill.
 ```
 .claude-plugin/   plugin.json (skills, Stop hook) + marketplace.json
 skills/
-  _ast-harness/   shared engine + its tests
+  _ast-harness/   shared engine (+ node_metric) + tests
   largest-methods/
   large-classes/
   largest-files/
+  deepest-nesting/
   sniff-lint/     rule catalog (ast-grep scan)
   sniff-forge/    the skill/rule generator + suggest-forge detection hook
 docs/             design spec
