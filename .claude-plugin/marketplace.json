@@ -1,7 +1,8 @@
 {
   "name": "sniff",
   "owner": {
-    "name": "Amber van den Berg"
+    "name": "Amber van den Berg",
+    "email": "info@codequest.nl"
   },
   "plugins": [
     {

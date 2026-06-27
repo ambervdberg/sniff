@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "description": "Token-cheap code-smell skills. A self-serve, private SonarCloud-style scan built from small skills you grow one at a time: pattern rules, AST node metrics, and file metrics that return a compact findings table instead of dumping source into the conversation.",
   "author": {
-    "name": "Amber van den Berg"
+    "name": "Amber van den Berg",
+    "email": "info@codequest.nl"
   },
   "keywords": [
     "ast-grep",
@@ -11,6 +12,7 @@
     "linter",
     "static-analysis",
     "refactoring",
-    "token-efficient"
+    "token-efficient",
+    "clean-code"
   ]
 }
