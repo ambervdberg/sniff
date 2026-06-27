@@ -37,7 +37,7 @@
       }
     ],
     "SessionStart": [
-       {
+      {
         "matcher": "",
         "hooks": [
           {
@@ -52,5 +52,8 @@
         ]
       }
     ]
+  },
+  "worktree": {
+    "bgIsolation": "none"
   }
 }
