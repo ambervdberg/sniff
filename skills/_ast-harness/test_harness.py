@@ -142,5 +142,45 @@ class ScanIntegrationTest(unittest.TestCase):
         self.assertEqual(matches[0].name, "big")
 
 
+class FileMetricTest(unittest.TestCase):
+    """The file-metric engine helpers: iter_source_files + count_code_lines."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self._write("src/app.ts", "const a = 1;\n\n\nconst b = 2;\n")   # 2 non-blank
+        self._write("src/app.test.ts", "test('x', () => {});\n")
+        self._write("node_modules/dep.ts", "export const x = 1;\n")
+        self._write(".astro/content.d.ts", "declare module {}\n")        # generated, ignored
+        self._write("README.md", "# not source\n")                       # unknown ext, ignored
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def _write(self, rel, body):
+        path = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(body)
+
+    def test_iter_excludes_vendor_generated_and_unknown(self):
+        files = h.iter_source_files(self.root, include_tests=True)
+        names = {os.path.basename(f) for f in files}
+        self.assertIn("app.ts", names)
+        self.assertIn("app.test.ts", names)        # tests included when asked
+        self.assertNotIn("dep.ts", names)          # node_modules pruned
+        self.assertNotIn("content.d.ts", names)    # .astro pruned
+        self.assertNotIn("README.md", names)       # unknown extension
+
+    def test_iter_excludes_tests_by_flag(self):
+        files = h.iter_source_files(self.root, include_tests=False)
+        names = {os.path.basename(f) for f in files}
+        self.assertIn("app.ts", names)
+        self.assertNotIn("app.test.ts", names)
+
+    def test_count_code_lines_skips_blanks(self):
+        path = next(f for f in h.iter_source_files(self.root) if f.endswith("app.ts"))
+        self.assertEqual(h.count_code_lines(path), 2)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

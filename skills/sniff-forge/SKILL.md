@@ -27,16 +27,20 @@ Every check fits exactly one engine. Pick before anything else; it decides the t
 | **pattern rule** | a specific code shape, flagged with a severity (e.g. `any` type, empty `imports: []`) | yes |
 | **node-span** | "largest X" ranked by line count (methods, classes, ...) | yes |
 | **node-metric** | a *computed score* per method/class: nesting depth, cyclomatic / cognitive complexity, inline-template line count | not yet (`sniff-...6`) |
-| **file-metric** | a number per *file*, no AST: largest files, lines of code | not yet |
-| **cross-file** | needs a whole-project graph: inheritance depth | not yet |
+| **file-metric** | a number per *file*, no AST: largest files, lines of code | engine yes (`largest-files`); no forge generator yet |
+| **cross-file** | needs a whole-project graph: inheritance depth | not yet (`sniff-...8`) |
 
 ### Scope gate
 
-- If the smell is **node-metric, file-metric, or cross-file**, the engine is not
-  built yet. Do NOT hand-write a one-off script to fake it. Say so, and either file
-  a bead to add the engine or extend the harness first. A bespoke bypass defeats the
-  shared-engine design and is the exact thing this forge exists to prevent.
-- Only **pattern rule** and **node-span** can be scaffolded today.
+- `forge.py` can scaffold **pattern rule** and **node-span** skills today.
+- **file-metric** has a working engine (`_ast-harness.iter_source_files` /
+  `count_code_lines`, see the `largest-files` skill) but no forge generator yet; add
+  a new file-metric skill by hand against those helpers, the same shape as
+  `largest-files`.
+- **node-metric** and **cross-file** engines are not built. Do NOT hand-write a
+  one-off script to fake them. Say so and file a bead to add the engine first. A
+  bespoke bypass defeats the shared-engine design, the exact thing this forge exists
+  to prevent.
 
 ## Step 2 — Intake
 

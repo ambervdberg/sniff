@@ -60,7 +60,8 @@ EXT_LANG = {
 # Directories that never contain hand-written source worth ranking.
 IGNORE_DIRS = {
     "node_modules", "dist", "build", "out", "coverage", ".git", ".nx",
-    ".angular", ".next", "vendor", "target", "__pycache__", ".venv", "venv",
+    ".angular", ".astro", ".next", ".svelte-kit", ".nuxt", ".turbo",
+    "vendor", "target", "__pycache__", ".venv", "venv",
 }
 
 # Files that look like tests, excluded unless the caller opts in.
@@ -136,6 +137,38 @@ def detect_languages(root: str) -> set[str]:
                 found.add(lang)
 
     return found
+
+
+def iter_source_files(root: str, include_tests: bool = True) -> "list[str]":
+    """Yield supported source file paths (forward-slashed) under root.
+
+    The file-metric engine's counterpart to detect_languages: it walks once,
+    prunes ignored directories, keeps only known source extensions, and (unless
+    include_tests) drops *.spec.* / *.test.* files."""
+    out: list[str] = []
+
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
+
+        for name in filenames:
+            if EXT_LANG.get(os.path.splitext(name)[1].lower()) is None:
+                continue
+            path = os.path.join(dirpath, name).replace("\\", "/")
+            if not include_tests and TEST_RE.search(path):
+                continue
+            out.append(path)
+
+    return out
+
+
+def count_code_lines(path: str) -> int:
+    """Count non-blank lines in a file. A cheap proxy for 'how big is this file',
+    deliberately not a comment-aware SLOC count (that is a separate tool's job)."""
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            return sum(1 for line in fh if line.strip())
+    except OSError:
+        return 0
 
 
 def _kinds_rule(lang: str, kinds: Sequence[str]) -> str:
