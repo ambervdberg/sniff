@@ -185,6 +185,77 @@ def count_params(list_text: str) -> int:
     return params
 
 
+# Angular components live in TypeScript; the decorator node carries the inline
+# template, so this metric only applies to these languages.
+TEMPLATE_LANGS = ["typescript", "tsx"]
+
+# Pull the inline template literal and the selector out of an @Component decorator.
+# `template:` followed by a backtick string; selector by its quoted string. The
+# template regex is non-greedy and stops at the first backtick, so it does not
+# span past the literal (nested backticks in Angular templates are vanishingly rare).
+import re as _re  # noqa: E402  (kept local-ish; harness already imports re)
+
+_TEMPLATE_RE = _re.compile(r"template\s*:\s*`([^`]*)`", _re.DOTALL)
+_SELECTOR_RE = _re.compile(r"selector\s*:\s*['\"]([^'\"]+)['\"]")
+
+
+def count_template_lines(decorator_text: str) -> int:
+    """Line count of an @Component's inline template, or 0 if there is none.
+
+    Reads the `template: \\`...\\`` literal from the decorator's source text. An
+    external `templateUrl` (no inline template) scores 0, as does an empty
+    template."""
+    m = _TEMPLATE_RE.search(decorator_text)
+    if not m:
+        return 0
+
+    body = m.group(1).strip("\n")
+    if not body.strip():
+        return 0
+
+    return body.count("\n") + 1
+
+
+def inline_template_lines(
+    path: str = ".",
+    langs: "list[str] | None" = None,
+    include_tests: bool = False,
+) -> list[h.Match]:
+    """Score each Angular @Component by its inline-template line count.
+
+    Large inline templates belong in their own `.html` file; this ranks the
+    worst offenders. Returns decorator Matches with `metrics['template_lines']`
+    set and `name` taken from the component selector. Components with no inline
+    template (e.g. `templateUrl`) are dropped."""
+    if langs is None:
+        langs = sorted(h.detect_languages(path))
+
+    langs = [l for l in langs if l in TEMPLATE_LANGS]
+    if not langs:
+        return []
+
+    decorators = h.run(
+        {l: ["decorator"] for l in langs}, path, lang=langs,
+        include_tests=include_tests, with_name=False,
+    )
+
+    scored: list[h.Match] = []
+    for dec in decorators:
+        if "@Component" not in dec.text:
+            continue
+
+        lines = count_template_lines(dec.text)
+        if lines == 0:
+            continue  # external or no template: not an inline-template smell
+
+        sel = _SELECTOR_RE.search(dec.text)
+        dec.name = sel.group(1) if sel else "(component)"
+        dec.metrics["template_lines"] = lines
+        scored.append(dec)
+
+    return scored
+
+
 def params(
     path: str = ".",
     langs: "list[str] | None" = None,

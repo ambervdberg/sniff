@@ -183,6 +183,32 @@ class NestingDepthTest(unittest.TestCase):
         self._write("k.txt", "if (x) {}\n")
         self.assertEqual(nm.cognitive(self.root), [])
 
+    def test_count_template_lines_helper(self):
+        self.assertEqual(nm.count_template_lines("templateUrl: './x.html'"), 0)
+        self.assertEqual(nm.count_template_lines("template: `<p>hi</p>`"), 1)
+        self.assertEqual(nm.count_template_lines("template: `<div>\n<p>a</p>\n</div>`"), 3)
+
+    def test_inline_template_lines(self):
+        self._write("x.component.ts",
+            "@Component({\n"
+            "  selector: 'app-big',\n"
+            "  template: `<div>\n"
+            "  <p>two</p>\n"
+            "  <p>three</p>\n"
+            "</div>`\n"
+            "})\n"
+            "export class BigComponent {}\n"
+            "\n"
+            "@Component({\n"
+            "  selector: 'app-ext',\n"
+            "  templateUrl: './ext.html'\n"
+            "})\n"
+            "export class ExtComponent {}\n"
+        )
+        scored = {m.name: m.metrics["template_lines"]
+                  for m in nm.inline_template_lines(self.root, langs=["typescript"])}
+        self.assertEqual(scored, {"app-big": 4})  # 4 template lines; templateUrl skipped
+
 
 if __name__ == "__main__":
     unittest.main()

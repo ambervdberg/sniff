@@ -26,7 +26,7 @@ Every check fits exactly one engine. Pick before anything else; it decides the t
 | --- | --- | --- |
 | **pattern rule** | a specific code shape, flagged with a severity (e.g. `any` type, empty `imports: []`) | yes |
 | **node-span** | "largest X" ranked by line count (methods, classes, ...) | yes |
-| **node-metric** | a *computed score* per method/class: nesting depth, cyclomatic / cognitive complexity, params, inline-template line count | engine yes (`_ast-harness.node_metric`): depth (`deepest-nesting`), cyclomatic (`cyclomatic-complexity`), cognitive (`cognitive-complexity`), params (`most-parameters`) done; inline-template LOC + forge generator in progress (`sniff-...6.x`) |
+| **node-metric** | a *computed score* per method/class: nesting depth, cyclomatic / cognitive complexity, params, inline-template line count | engine yes (`_ast-harness.node_metric`): depth (`deepest-nesting`), cyclomatic (`cyclomatic-complexity`), cognitive (`cognitive-complexity`), params (`most-parameters`), inline-template LOC (`large-inline-templates`) done; forge generator in progress (`sniff-...6.5`) |
 | **file-metric** | a number per *file*, no AST: largest files, lines of code | engine yes (`largest-files`); no forge generator yet |
 | **cross-file** | needs a whole-project graph: inheritance depth | not yet (`sniff-...8`) |
 
