@@ -54,6 +54,28 @@ CODE_NOUNS = re.compile(
     re.IGNORECASE,
 )
 
+# The single suggest-only line printed when the heuristic fires. One line, never
+# more: this is a nudge, not a wall of text, and it must never block the Stop
+# event. It points at the sniff-forge skill, which turns a repeated structural
+# query into a token-cheap skill.
+NUDGE = (
+    "[sniff-forge] That looked like a repeated structural search. "
+    "Run the sniff-forge skill to turn it into a token-cheap skill. "
+    "(silence: SNIFF_FORGE_NUDGE=0)"
+)
+
+# Env values that switch the nudge off. The hook is opt-out: on by default,
+# silenced by setting SNIFF_FORGE_NUDGE to any of these.
+OFF_VALUES = frozenset({"0", "off", "false", "no"})
+
+
+def nudge_enabled(env: dict | None = None) -> bool:
+    """False when SNIFF_FORGE_NUDGE is set to an off value (opt-out switch)."""
+
+    env = os.environ if env is None else env
+
+    return env.get("SNIFF_FORGE_NUDGE", "").strip().lower() not in OFF_VALUES
+
 
 @dataclass
 class Detection:
@@ -248,6 +270,8 @@ def main() -> None:
 
     result = detect(_read_transcript(path), min_calls=args.min_calls)
 
+    enabled = nudge_enabled()
+
     if args.json:
         print(
             json.dumps(
@@ -256,11 +280,17 @@ def main() -> None:
                     "search_calls": result.search_calls,
                     "structural_prompt": result.structural_prompt,
                     "prompt": result.prompt,
+                    "nudge_enabled": enabled,
                 }
             )
         )
 
-    # Exit 0 = heuristic fired (caller emits the nudge), 1 = stay silent.
+    # Emit the one-line nudge only when the heuristic fired AND the user has not
+    # opted out. Suggest-only: never auto-create a skill, never block the Stop
+    # event (a non-zero exit here is just a signal, the line is the payload).
+    if result.fired and enabled:
+        print(NUDGE)
+
     sys.exit(0 if result.fired else 1)
 
 

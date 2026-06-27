@@ -104,5 +104,22 @@ class DetectTest(unittest.TestCase):
         self.assertTrue(d.detect(lines).fired)
 
 
+class NudgeSwitchTest(unittest.TestCase):
+    def test_nudge_is_a_single_line(self):
+        self.assertNotIn("\n", d.NUDGE)
+        self.assertIn("sniff-forge", d.NUDGE)
+
+    def test_enabled_by_default(self):
+        self.assertTrue(d.nudge_enabled({}))
+
+    def test_off_values_disable(self):
+        for v in ("0", "off", "false", "no", "OFF", " No "):
+            self.assertFalse(d.nudge_enabled({"SNIFF_FORGE_NUDGE": v}), v)
+
+    def test_other_values_keep_it_on(self):
+        for v in ("1", "on", "yes", ""):
+            self.assertTrue(d.nudge_enabled({"SNIFF_FORGE_NUDGE": v}), v)
+
+
 if __name__ == "__main__":
     unittest.main()
