@@ -94,6 +94,7 @@ class Match:
     byte_start: int
     byte_end: int
     name: str = "(anon)"
+    text: str = ""                  # the matched node's source (as ast-grep reports it)
     metrics: dict = field(default_factory=dict)  # skill-specific extras (e.g. params, depth)
 
     @property
@@ -254,6 +255,7 @@ def _to_match(raw: dict, with_name: bool) -> Match:
         byte_start=rng["byteOffset"]["start"],
         byte_end=rng["byteOffset"]["end"],
         name=_line_name(file, start_line) if with_name else "(anon)",
+        text=raw.get("text", ""),
     )
 
 

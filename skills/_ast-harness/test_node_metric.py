@@ -120,6 +120,39 @@ class NestingDepthTest(unittest.TestCase):
         self._write("g.txt", "if (x) {}\n")
         self.assertEqual(nm.cyclomatic(self.root), [])
 
+    def _params(self) -> dict[str, int]:
+        return {m.name: m.metrics["params"] for m in nm.params(self.root)}
+
+    def test_python_param_counts(self):
+        self._write("h.py",
+            "def none():\n"
+            "    return 1\n"
+            "\n"
+            "def three(a, b, c):\n"
+            "    return a\n"
+            "\n"
+            "def splat(a, *args, **kw):\n"
+            "    return a\n"
+        )
+        p = self._params()
+        self.assertEqual(p["none"], 0)
+        self.assertEqual(p["three"], 3)
+        self.assertEqual(p["splat"], 3)
+
+    def test_generic_comma_is_one_param(self):
+        # The comma inside Map<string, number> must not split into two params.
+        self._write("i.ts",
+            "function g(a: string, b: Map<string, number>, c: number) { return a; }\n"
+        )
+        self.assertEqual(self._params()["g"], 3)
+
+    def test_count_params_helper(self):
+        self.assertEqual(nm.count_params("()"), 0)
+        self.assertEqual(nm.count_params("(a)"), 1)
+        self.assertEqual(nm.count_params("(a, b, c)"), 3)
+        self.assertEqual(nm.count_params("(a, b: Map<x, y>)"), 2)
+        self.assertEqual(nm.count_params("(a = {x, y}, b)"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

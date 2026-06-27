@@ -130,6 +130,99 @@ DECISION_PATTERNS = {
 # Languages this metric can score.
 CYCLOMATIC_LANGS = sorted(DECISION_KINDS)
 
+# The node kind wrapping a function's formal parameter list, per language. There
+# is exactly one such node per function signature; counting its top-level entries
+# gives the parameter count.
+PARAM_LIST_KINDS = {
+    "python": ["parameters"],
+    "typescript": ["formal_parameters"],
+    "tsx": ["formal_parameters"],
+    "javascript": ["formal_parameters"],
+    "java": ["formal_parameters"],
+    "csharp": ["parameter_list"],
+    "go": ["parameter_list"],
+    "rust": ["parameters"],
+    "c": ["parameter_list"],
+    "cpp": ["parameter_list"],
+    "ruby": ["method_parameters"],
+    "php": ["formal_parameters"],
+    "kotlin": ["function_value_parameters"],
+}
+
+PARAM_LANGS = sorted(PARAM_LIST_KINDS)
+
+# Bracket pairs whose interior commas must NOT be counted as parameter separators
+# (generics, default lists/objects/tuples). Only top-level commas split params.
+_OPEN = {"(": ")", "[": "]", "{": "}", "<": ">"}
+_CLOSE = set(_OPEN.values())
+
+
+def count_params(list_text: str) -> int:
+    """Count parameters in a formal-parameter-list node's source text.
+
+    Strips the outer delimiters, then counts commas at bracket depth zero so a
+    nested generic (`Map<string, number>`) or default (`x = {a, b}`) counts as one
+    parameter, not several. An empty list is zero."""
+    text = list_text.strip()
+
+    # Drop a single pair of outer delimiters: ( ), [ ] used by Go/Rust receivers, etc.
+    if text and text[0] in _OPEN and text[-1] == _OPEN[text[0]]:
+        text = text[1:-1]
+
+    if not text.strip():
+        return 0
+
+    depth = 0
+    params = 1
+    for ch in text:
+        if ch in _OPEN:
+            depth += 1
+        elif ch in _CLOSE:
+            depth = max(0, depth - 1)
+        elif ch == "," and depth == 0:
+            params += 1
+
+    return params
+
+
+def params(
+    path: str = ".",
+    langs: "list[str] | None" = None,
+    include_tests: bool = False,
+) -> list[h.Match]:
+    """Score every function under `path` by its parameter count.
+
+    Returns the function Matches with `metrics['params']` set. A function's own
+    parameter list is the earliest-starting list node inside it (the signature,
+    which precedes any nested function); nested functions' lists are ignored for
+    the enclosing function. Languages without a PARAM_LIST_KINDS entry are
+    skipped."""
+    if langs is None:
+        langs = sorted(h.detect_languages(path))
+
+    langs = [l for l in langs if l in PARAM_LIST_KINDS]
+    if not langs:
+        return []
+
+    functions = h.fold_nested(
+        h.run(FUNCTION_KINDS, path, lang=langs, include_tests=include_tests)
+    )
+    lists = h.run(
+        PARAM_LIST_KINDS, path, lang=langs, include_tests=include_tests, with_name=False
+    )
+
+    by_file: dict[str, list[h.Match]] = {}
+    for node in lists:
+        by_file.setdefault(node.file, []).append(node)
+
+    for func in functions:
+        # The signature's list starts first among the lists inside this function.
+        owned = [l for l in by_file.get(func.file, []) if _contains(func, l)]
+        own_list = min(owned, key=lambda l: l.byte_start, default=None)
+        func.metrics["params"] = count_params(own_list.text) if own_list else 0
+
+    return functions
+
 
 def _decision_rule(lang: str) -> "str | None":
     """Inline ast-grep rule matching every decision point in `lang`.
