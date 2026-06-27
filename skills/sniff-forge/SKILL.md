@@ -1,12 +1,14 @@
 ---
 name: sniff-forge
 description: >-
-  Create a new code-smell skill or sniff-lint rule from a short conversation. Use
-  when the user wants to "make a skill that finds X", "add a lint/smell check",
-  "bake this search", turn a repeated structural query into a reusable token-cheap
-  skill, or scaffold a new code-pattern/metric check. Picks the right engine,
-  drafts and validates the rule on the current repo before writing anything, then
-  generates a standalone skill or a catalog rule.
+  Create a new code-smell skill or sniff-lint rule from a short
+  conversation. Use when the user wants to "make a skill that finds X", "add a
+  lint/smell check", "find a code smell", "enforce a clean-code rule", 
+  turn a repeated structural query into a reusable token-cheap skill, or
+  scaffold a new code-pattern/metric check (complexity, nesting, duplication,
+  anti-patterns). Picks the right engine, drafts and validates the rule on the
+  current repo before writing anything, then generates a standalone skill or a
+  catalog rule which is a token efficient way to improve the code base.
 ---
 
 # sniff-forge
