@@ -16,12 +16,6 @@ small findings table. Adding rules costs nothing here: they are inert data files
 loaded only when this skill runs, so the catalog can grow to hundreds of rules
 without bloating context.
 
-## Run it in a subagent
-
-The scan can produce many raw matches. **Dispatch a subagent** to run the command
-and return only the final table, so the main context never sees the per-match JSON.
-The subagent's whole job is: run the command below, relay the table, stop.
-
 ## Command
 
 ```bash

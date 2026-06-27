@@ -3,7 +3,7 @@
 
 One `ast-grep scan` pass loads every rule under sniff-lint/rules/ and reports its
 matches. This script folds that JSON into a small RULE / SEVERITY / COUNT /
-TOP LOCATIONS table so the calling agent (ideally a subagent) only ever sees the
+TOP LOCATIONS table so the calling agent only ever sees the
 summary, never the raw per-match JSON.
 
 Usage:
@@ -48,24 +48,49 @@ def _in_ignored_dir(path: str) -> bool:
     return any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", path))
 
 
-def catalog_rule_ids() -> list[str]:
-    """Rule ids in the catalog, read from the `id:` line of each rules/*.yml.
+def catalog_rules() -> list[tuple[str, str]]:
+    """(id, severity) for each rule in the catalog, read from rules/*.yml.
 
-    Used so a clean result can say how many rules ran, distinguishing 'no smells'
-    from 'no rules loaded'."""
-    ids: list[str] = []
+    Used so a clean result can list every rule that ran (and its severity),
+    distinguishing 'no smells' from 'no rules loaded'. Severity defaults to
+    'warning' to match ast-grep when a rule omits the field."""
+    rules: list[tuple[str, str]] = []
     if not os.path.isdir(RULES_DIR):
-        return ids
+        return rules
 
     for name in sorted(os.listdir(RULES_DIR)):
         if not name.endswith((".yml", ".yaml")):
             continue
+
+        rule_id = ""
+        severity = "warning"
         with open(os.path.join(RULES_DIR, name), "r", encoding="utf-8") as fh:
             for line in fh:
                 if line.startswith("id:"):
-                    ids.append(line.split(":", 1)[1].strip())
-                    break
-    return ids
+                    rule_id = line.split(":", 1)[1].strip()
+                elif line.startswith("severity:"):
+                    severity = line.split(":", 1)[1].strip()
+
+        if rule_id:
+            rules.append((rule_id, severity))
+    return rules
+
+
+def print_rule_table(rows: list[tuple[str, str, int, str]]) -> None:
+    """Print the RULE / SEVERITY / COUNT / TOP LOCATIONS table.
+
+    Shared by both the findings result and the clean result so a 0-finding run
+    looks like a real table (every rule, count 0) instead of a prose sentence.
+    `rows` is already sorted; each is (rule_id, severity, count, locations)."""
+    if not rows:
+        return
+
+    rule_w = max(len("RULE"), *(len(r[0]) for r in rows))
+    sev_w = max(len("SEVERITY"), *(len(r[1]) for r in rows))
+
+    print(f"{'RULE':<{rule_w}}  {'SEVERITY':<{sev_w}}  {'COUNT':>5}  TOP LOCATIONS")
+    for rule_id, severity, count, locs in rows:
+        print(f"{rule_id:<{rule_w}}  {severity:<{sev_w}}  {count:>5}  {locs}")
 
 
 def run_scan(path: str) -> list[dict]:
@@ -95,8 +120,8 @@ def main() -> None:
 
     _require_ast_grep()
 
-    rule_ids = catalog_rule_ids()
-    if not rule_ids:
+    rules = catalog_rules()
+    if not rules:
         print(f"No rules in the catalog ({RULES_DIR}). Add one with sniff-forge.")
         return
 
@@ -120,28 +145,34 @@ def main() -> None:
             entry["locs"].append(f"{m['file'].replace(chr(92), '/')}:{line}")
 
     if not by_rule:
+        # Clean result: show every rule that ran as a 0-count table row, honoring
+        # any --rule / --severity filter, so a pass still reads as a real table.
+        clean_rows = [
+            (rid, sev, 0, "-")
+            for rid, sev in rules
+            if (not args.rule or rid == args.rule)
+            and (not args.severity or sev == args.severity)
+        ]
+        clean_rows.sort(key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[0]))
+
         scope = ""
         if args.rule:
             scope = f" matching --rule {args.rule}"
         elif args.severity:
             scope = f" at --severity {args.severity}"
-        print(f"Clean: 0 findings{scope}. Ran {len(rule_ids)} rules "
-              f"({', '.join(rule_ids)}) over {args.path!r}.")
+        print(f"sniff-lint: 0 findings{scope} across {len(clean_rows)} rules in {args.path!r}\n")
+        print_rule_table(clean_rows)
         return
 
-    rows = sorted(by_rule.items(),
-                  key=lambda kv: (SEVERITY_ORDER.get(kv[1]["severity"], 9), -kv[1]["count"]))
+    sorted_rules = sorted(by_rule.items(),
+                          key=lambda kv: (SEVERITY_ORDER.get(kv[1]["severity"], 9), -kv[1]["count"]))
 
-    total = sum(e["count"] for _, e in rows)
+    rows = [(rid, e["severity"], e["count"], ", ".join(e["locs"])) for rid, e in sorted_rules]
+
+    total = sum(r[2] for r in rows)
     print(f"sniff-lint: {total} findings across {len(rows)} rules in {args.path!r}\n")
 
-    rule_w = max(len("RULE"), *(len(r) for r, _ in rows))
-    sev_w = max(len("SEVERITY"), *(len(e["severity"]) for _, e in rows))
-
-    print(f"{'RULE':<{rule_w}}  {'SEVERITY':<{sev_w}}  {'COUNT':>5}  TOP LOCATIONS")
-    for rule_id, e in rows:
-        locs = ", ".join(e["locs"])
-        print(f"{rule_id:<{rule_w}}  {e['severity']:<{sev_w}}  {e['count']:>5}  {locs}")
+    print_rule_table(rows)
 
 
 if __name__ == "__main__":

@@ -53,10 +53,10 @@ class CatalogTest(unittest.TestCase):
 
     def test_severity_filter_excludes_others(self):
         out = self._run("--severity", "error")
-        self.assertIn("0 findings", out)  # all seeded rules are warnings
-        self.assertIn("Ran", out)         # still reports rules ran, so clean != broken
+        self.assertIn("0 findings", out)   # all seeded rules are warnings
+        self.assertIn("0 rules", out)      # no error-severity rules, so no table rows
 
-    def test_clean_only_reports_nothing(self):
+    def test_clean_reports_table_of_rules(self):
         empty = tempfile.mkdtemp()
         try:
             with open(os.path.join(empty, "ok.ts"), "w", encoding="utf-8") as fh:
@@ -64,7 +64,10 @@ class CatalogTest(unittest.TestCase):
             proc = subprocess.run([sys.executable, FORMAT, empty],
                                   capture_output=True, text=True)
             self.assertIn("0 findings", proc.stdout)
-            self.assertIn("Ran", proc.stdout)  # clean repo still names the rules that ran
+            # Clean repo still renders the full table: header + every rule as a 0 row.
+            self.assertIn("RULE", proc.stdout)
+            self.assertIn("no-explicit-any", proc.stdout)
+            self.assertIn("no-nested-ternary", proc.stdout)
         finally:
             shutil.rmtree(empty, ignore_errors=True)
 
