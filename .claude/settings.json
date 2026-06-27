@@ -1,3 +1,56 @@
 {
-  "hooks": {}
+  "hooks": {
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bd prime"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "async": true,
+            "command": "read -r i; printf '%s' \"$i\" | grep -qE 'bd (create|update|close|dep|label|reopen|defer|supersede|remember|comment|delete) ' && bd dolt push || true",
+            "statusMessage": "Pushing beads to remote...",
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "command": "bd dolt push || true",
+            "statusMessage": "Flushing beads to remote...",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+       {
+        "matcher": "",
+        "hooks": [
+          {
+            "command": "bd dolt pull || true",
+            "statusMessage": "Syncing beads from remote...",
+            "type": "command"
+          },
+          {
+            "type": "command",
+            "command": "bd prime"
+          }
+        ]
+      }
+    ]
+  }
 }
