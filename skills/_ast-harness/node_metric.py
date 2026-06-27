@@ -86,6 +86,66 @@ NESTING_KINDS = {
 # Languages this metric can actually score (have a nesting-kinds entry).
 SUPPORTED_LANGS = sorted(NESTING_KINDS)
 
+# Decision-point node kinds per language for cyclomatic complexity (S1541).
+# Each is one branch in the control-flow graph: a branch, loop, case, or catch.
+# Boolean operators (&&/||/and/or) and ternaries add branches too, but in some
+# grammars they share a node kind with other operators, so those are matched by
+# pattern instead (DECISION_PATTERNS) rather than by kind.
+DECISION_KINDS = {
+    "python": ["if_statement", "elif_clause", "for_statement", "while_statement",
+               "except_clause", "case_clause", "conditional_expression", "boolean_operator"],
+    "typescript": ["if_statement", "for_statement", "for_in_statement", "while_statement",
+                   "do_statement", "switch_case", "catch_clause", "ternary_expression"],
+    "tsx": ["if_statement", "for_statement", "for_in_statement", "while_statement",
+            "do_statement", "switch_case", "catch_clause", "ternary_expression"],
+    "javascript": ["if_statement", "for_statement", "for_in_statement", "while_statement",
+                   "do_statement", "switch_case", "catch_clause", "ternary_expression"],
+    "java": ["if_statement", "for_statement", "enhanced_for_statement", "while_statement",
+             "do_statement", "switch_label", "catch_clause", "ternary_expression"],
+    "csharp": ["if_statement", "for_statement", "for_each_statement", "while_statement",
+               "do_statement", "switch_section", "catch_clause", "conditional_expression"],
+    "go": ["if_statement", "for_statement", "expression_case", "type_case",
+           "communication_case"],
+    "ruby": ["if", "unless", "while", "until", "for", "when", "rescue"],
+    "c": ["if_statement", "for_statement", "while_statement", "do_statement",
+          "case_statement", "conditional_expression"],
+    "cpp": ["if_statement", "for_statement", "while_statement", "do_statement",
+            "case_statement", "catch_clause", "conditional_expression"],
+}
+
+# Boolean operators that each add a decision point but are not reliably their own
+# node kind. Matched by ast-grep pattern instead. `and`/`or` in Python already
+# have a kind (boolean_operator) so Python is absent here.
+DECISION_PATTERNS = {
+    "typescript": ["$A && $B", "$A || $B"],
+    "tsx": ["$A && $B", "$A || $B"],
+    "javascript": ["$A && $B", "$A || $B"],
+    "java": ["$A && $B", "$A || $B"],
+    "csharp": ["$A && $B", "$A || $B"],
+    "go": ["$A && $B", "$A || $B"],
+    "c": ["$A && $B", "$A || $B"],
+    "cpp": ["$A && $B", "$A || $B"],
+}
+
+# Languages this metric can score.
+CYCLOMATIC_LANGS = sorted(DECISION_KINDS)
+
+
+def _decision_rule(lang: str) -> "str | None":
+    """Inline ast-grep rule matching every decision point in `lang`.
+
+    Combines the decision node kinds with the boolean-operator patterns into one
+    `any:` rule, so a single scan returns all branches that bump complexity."""
+    kinds = DECISION_KINDS.get(lang)
+    if not kinds:
+        return None
+
+    parts = [f"    - kind: {k}" for k in kinds]
+    for pat in DECISION_PATTERNS.get(lang, []):
+        parts.append(f"    - pattern: {pat}")
+
+    return "id: h\nlanguage: {}\nrule:\n  any:\n{}".format(lang, "\n".join(parts))
+
 
 def _contains(outer: h.Match, inner: h.Match) -> bool:
     """True when `outer`'s byte range strictly encloses `inner`'s.
@@ -147,5 +207,42 @@ def nesting_depth(
 
     for func in functions:
         func.metrics["depth"] = _depth_within(func, by_file.get(func.file, []))
+
+    return functions
+
+
+def cyclomatic(
+    path: str = ".",
+    langs: "list[str] | None" = None,
+    include_tests: bool = False,
+) -> list[h.Match]:
+    """Score every function under `path` by cyclomatic complexity (S1541).
+
+    Complexity = 1 + the number of decision points (branches, loops, cases,
+    catches, boolean operators, ternaries) inside the function. Returns the
+    function Matches with `metrics['cyclomatic']` set. Languages without a
+    DECISION_KINDS entry are skipped."""
+    if langs is None:
+        langs = sorted(h.detect_languages(path))
+
+    langs = [l for l in langs if l in DECISION_KINDS]
+    if not langs:
+        return []
+
+    functions = h.fold_nested(
+        h.run(FUNCTION_KINDS, path, lang=langs, include_tests=include_tests)
+    )
+    # _decision_rule is a per-language callable, the engine's escape-hatch shape.
+    decisions = h.run(
+        _decision_rule, path, lang=langs, include_tests=include_tests, with_name=False
+    )
+
+    by_file: dict[str, list[h.Match]] = {}
+    for node in decisions:
+        by_file.setdefault(node.file, []).append(node)
+
+    for func in functions:
+        contained = sum(1 for d in by_file.get(func.file, []) if _contains(func, d))
+        func.metrics["cyclomatic"] = 1 + contained
 
     return functions

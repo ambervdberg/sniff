@@ -87,6 +87,39 @@ class NestingDepthTest(unittest.TestCase):
         self._write("d.txt", "if (x) { if (y) {} }\n")
         self.assertEqual(nm.nesting_depth(self.root), [])
 
+    def _cyclo(self) -> dict[str, int]:
+        return {m.name: m.metrics["cyclomatic"] for m in nm.cyclomatic(self.root)}
+
+    def test_python_cyclomatic(self):
+        self._write("e.py",
+            "def simple(a):\n"
+            "    return a\n"
+            "\n"
+            "def branchy(a, b):\n"
+            "    if a and b:\n"          # if + and = 2
+            "        return 1\n"
+            "    for x in b:\n"          # for = 1
+            "        if x:\n"            # if = 1
+            "            return x\n"
+            "    return 0\n"
+        )
+        c = self._cyclo()
+        self.assertEqual(c["simple"], 1)      # no decisions
+        self.assertEqual(c["branchy"], 5)     # 1 + (if + and + for + if)
+
+    def test_typescript_cyclomatic_counts_boolean_ops(self):
+        self._write("f.ts",
+            "function g(a: boolean, b: boolean) {\n"
+            "  if (a || b) { return 1; }\n"   # if + || = 2
+            "  return 0;\n"
+            "}\n"
+        )
+        self.assertEqual(self._cyclo()["g"], 3)  # 1 + if + ||
+
+    def test_cyclomatic_skips_unsupported(self):
+        self._write("g.txt", "if (x) {}\n")
+        self.assertEqual(nm.cyclomatic(self.root), [])
+
 
 if __name__ == "__main__":
     unittest.main()
