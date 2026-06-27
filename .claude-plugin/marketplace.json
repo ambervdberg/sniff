@@ -1,0 +1,14 @@
+{
+  "name": "ast-skills",
+  "owner": {
+    "name": "Amber van den Berg"
+  },
+  "plugins": [
+    {
+      "name": "ast-skills",
+      "source": "./",
+      "description": "Token-cheap structural code search skills built on ast-grep (largest-methods, an ast-lint catalog, and a forge that scaffolds new search skills).",
+      "version": "0.1.0"
+    }
+  ]
+}
