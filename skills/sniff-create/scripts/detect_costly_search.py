@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Stop-hook detection heuristic: did this turn do a costly structural search?
 
-Phase 4 of the suggest-forge hook. This module is the *detection* half only: it
+Phase 4 of the suggest-create hook. This module is the *detection* half only: it
 decides whether the last turn looks like an expensive, repeatable structural
-search that the agent should have turned into a forged skill. The nudge wording
+search that the agent should have turned into a created skill. The nudge wording
 and the off-switch live in a sibling task; here we only answer yes/no and expose
 the signals behind that answer so the wiring layer can act on it.
 
@@ -39,7 +39,7 @@ from dataclasses import dataclass
 SEARCH_TOOLS = frozenset({"Read", "Grep", "Glob"})
 
 # Default trip point: six search calls in one turn is enough scanning that a
-# forged skill would have paid for itself. Overridable per project.
+# created skill would have paid for itself. Overridable per project.
 DEFAULT_MIN_CALLS = 6
 
 # A structural prompt pairs a lookup word with a code noun. Kept as two separate
@@ -56,25 +56,25 @@ CODE_NOUNS = re.compile(
 
 # The single suggest-only line printed when the heuristic fires. One line, never
 # more: this is a nudge, not a wall of text, and it must never block the Stop
-# event. It points at the sniff-forge skill, which turns a repeated structural
+# event. It points at the sniff-create skill, which turns a repeated structural
 # query into a token-cheap skill.
 NUDGE = (
-    "[sniff-forge] That looked like a repeated structural search. "
-    "Run the sniff-forge skill to turn it into a token-cheap skill. "
-    "(silence: SNIFF_FORGE_NUDGE=0)"
+    "[sniff-create] That looked like a repeated structural search. "
+    "Run the sniff-create skill to turn it into a token-cheap skill. "
+    "(silence: SNIFF_CREATE_NUDGE=0)"
 )
 
 # Env values that switch the nudge off. The hook is opt-out: on by default,
-# silenced by setting SNIFF_FORGE_NUDGE to any of these.
+# silenced by setting SNIFF_CREATE_NUDGE to any of these.
 OFF_VALUES = frozenset({"0", "off", "false", "no"})
 
 
 def nudge_enabled(env: dict | None = None) -> bool:
-    """False when SNIFF_FORGE_NUDGE is set to an off value (opt-out switch)."""
+    """False when SNIFF_CREATE_NUDGE is set to an off value (opt-out switch)."""
 
     env = os.environ if env is None else env
 
-    return env.get("SNIFF_FORGE_NUDGE", "").strip().lower() not in OFF_VALUES
+    return env.get("SNIFF_CREATE_NUDGE", "").strip().lower() not in OFF_VALUES
 
 
 @dataclass
@@ -97,7 +97,7 @@ def _content_items(message: dict) -> list:
     """Return the content array of a transcript message, tolerating shapes.
 
     Claude Code transcript lines wrap the real payload in a "message" object,
-    but older/forged lines sometimes put "content" at the top level. Accept
+    but older/created lines sometimes put "content" at the top level. Accept
     either, and a bare string, so the heuristic never crashes on a malformed
     line mid-turn.
     """

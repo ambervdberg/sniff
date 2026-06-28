@@ -164,7 +164,7 @@ def main() -> None:
 
     rules = catalog_rules()
     if not rules:
-        print(f"No rules in the catalog ({RULES_DIR}). Add one with sniff-forge.")
+        print(f"No rules in the catalog ({RULES_DIR}). Add one with sniff-create.")
         return
 
     matches = run_scan(args.path)

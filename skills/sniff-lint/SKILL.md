@@ -40,7 +40,7 @@ rules" or is "new/empty", the line already names the rules that ran; trust it.
 
 ## Adding rules
 
-Use `sniff-forge` (rule mode) to add a rule, or drop a standard ast-grep rule file
+Use `sniff-create` (rule mode) to add a rule, or drop a standard ast-grep rule file
 into `rules/`. Each rule file needs `id`, `language`, `severity`, `message`, `rule`.
 Prerequisites: `ast-grep` on PATH, Python 3.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Tests for the suggest-forge detection heuristic.
+"""Tests for the suggest-create detection heuristic.
 
-Run: python skills/sniff-forge/scripts/test_detect_costly_search.py
+Run: python skills/sniff-create/scripts/test_detect_costly_search.py
 
 Pure-Python, no external tools: the heuristic only reads transcript dicts.
 """
@@ -107,18 +107,18 @@ class DetectTest(unittest.TestCase):
 class NudgeSwitchTest(unittest.TestCase):
     def test_nudge_is_a_single_line(self):
         self.assertNotIn("\n", d.NUDGE)
-        self.assertIn("sniff-forge", d.NUDGE)
+        self.assertIn("sniff-create", d.NUDGE)
 
     def test_enabled_by_default(self):
         self.assertTrue(d.nudge_enabled({}))
 
     def test_off_values_disable(self):
         for v in ("0", "off", "false", "no", "OFF", " No "):
-            self.assertFalse(d.nudge_enabled({"SNIFF_FORGE_NUDGE": v}), v)
+            self.assertFalse(d.nudge_enabled({"SNIFF_CREATE_NUDGE": v}), v)
 
     def test_other_values_keep_it_on(self):
         for v in ("1", "on", "yes", ""):
-            self.assertTrue(d.nudge_enabled({"SNIFF_FORGE_NUDGE": v}), v)
+            self.assertTrue(d.nudge_enabled({"SNIFF_CREATE_NUDGE": v}), v)
 
 
 if __name__ == "__main__":

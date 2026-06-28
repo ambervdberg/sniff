@@ -54,7 +54,7 @@ it with `--only` / `--skip`; a smarter cap can come then, not before.
 
 ## Adding a detector
 
-Author the detector as its own skill (use `sniff-forge`), then drop a `detector.yml`
+Author the detector as its own skill (use `sniff-create`), then drop a `detector.yml`
 in that skill's directory:
 
 ```yaml

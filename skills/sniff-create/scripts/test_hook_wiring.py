@@ -7,7 +7,7 @@ exactly as the harness would, feeding synthetic Stop-hook JSON on stdin.
 
 AC: a single nudge line on a costly structural turn; nothing on a normal turn.
 
-Run: python skills/sniff-forge/scripts/test_hook_wiring.py
+Run: python skills/sniff-create/scripts/test_hook_wiring.py
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# repo root = plugin root: scripts -> sniff-forge -> skills -> <root>
+# repo root = plugin root: scripts -> sniff-create -> skills -> <root>
 PLUGIN_ROOT = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
 PLUGIN_JSON = os.path.join(PLUGIN_ROOT, ".claude-plugin", "plugin.json")
 
@@ -64,7 +64,7 @@ class HookWiringTest(unittest.TestCase):
     def test_costly_turn_emits_single_nudge(self):
         proc = self._run_turn([_user("which methods call save?"), _assistant(*(["Read"] * 6))])
         self.assertEqual(proc.returncode, 0)
-        nudge_lines = [ln for ln in proc.stdout.splitlines() if "sniff-forge" in ln]
+        nudge_lines = [ln for ln in proc.stdout.splitlines() if "sniff-create" in ln]
         self.assertEqual(len(nudge_lines), 1)  # exactly one nudge, never a wall
 
     def test_normal_turn_is_silent(self):

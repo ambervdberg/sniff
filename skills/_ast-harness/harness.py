@@ -206,7 +206,7 @@ def _scan(root: str, lang: str, rule_yaml: str) -> list[dict]:
     try:
         proc = subprocess.run(
             ["ast-grep", "scan", "--inline-rules", rule_yaml, "--json=compact", root],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
     except FileNotFoundError:
         _require_ast_grep()

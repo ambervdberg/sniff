@@ -1,5 +1,5 @@
 ---
-name: sniff-forge
+name: sniff-create
 description: >-
   Create a new code-smell skill or sniff-lint rule from a short
   conversation. Use when the user wants to "make a skill that finds X", "add a
@@ -11,12 +11,12 @@ description: >-
   catalog rule which is a token efficient way to improve the code base.
 ---
 
-# sniff-forge
+# sniff-create
 
 Turn "I keep checking for X" into a reusable, token-cheap smell skill. Every skill
 it makes returns a small table or findings list; the calling agent never sees raw
 source or AST. Do not hand-write skill files, drive the steps below and let
-`forge.py` scaffold. The point is the **validate-before-write** gate.
+`create.py` scaffold. The point is the **validate-before-write** gate.
 
 ## Step 1 — Classify the smell into an engine (do this first)
 
@@ -26,27 +26,27 @@ Every check fits exactly one engine. Pick before anything else; it decides the t
 | --- | --- | --- |
 | **pattern rule** | a specific code shape, flagged with a severity (e.g. `any` type, empty `imports: []`) | yes |
 | **node-span** | "largest X" ranked by line count (methods, classes, ...) | yes |
-| **node-metric** | a *computed score* per method/class: nesting depth, cyclomatic / cognitive complexity, params, inline-template line count | engine yes (`_ast-harness.node_metric`): depth (`deepest-nesting`), cyclomatic (`cyclomatic-complexity`), cognitive (`cognitive-complexity`), params (`most-parameters`), inline-template LOC (`large-inline-templates`) done; forge generator in progress (`sniff-...6.5`) |
-| **file-metric** | a number per *file*, no AST: largest files, lines of code | engine yes (`largest-files`); no forge generator yet |
+| **node-metric** | a *computed score* per method/class: nesting depth, cyclomatic / cognitive complexity, params, inline-template line count | engine yes (`_ast-harness.node_metric`): depth (`deepest-nesting`), cyclomatic (`cyclomatic-complexity`), cognitive (`cognitive-complexity`), params (`most-parameters`), inline-template LOC (`large-inline-templates`) done; create generator in progress (`sniff-...6.5`) |
+| **file-metric** | a number per *file*, no AST: largest files, lines of code | engine yes (`largest-files`); no create generator yet |
 | **cross-file** | needs a whole-project graph: inheritance depth | not yet (`sniff-...8`) |
 
 ### Scope gate
 
-- `forge.py` can scaffold **pattern rule**, **node-span**, and **node-metric**
+- `create.py` can scaffold **pattern rule**, **node-span**, and **node-metric**
   skills today.
 - **node-metric**: the engine ships five metrics (`depth`, `cyclomatic`,
   `cognitive`, `params`, `template-lines`). Scaffold a skill around one with
-  `forge.py node-metric --metric <m>` (see Step 3). To add a *new* metric the
+  `create.py node-metric --metric <m>` (see Step 3). To add a *new* metric the
   engine does not have yet, extend `node_metric.py` the same two-pass way
   (functions + the nodes the metric counts) and add it to `NODE_METRICS` in
-  `forge.py`, then it is forgeable too.
+  `create.py`, then it is createable too.
 - **file-metric** has a working engine (`_ast-harness.iter_source_files` /
-  `count_code_lines`, see the `largest-files` skill) but no forge generator yet; add
+  `count_code_lines`, see the `largest-files` skill) but no create generator yet; add
   a new file-metric skill by hand against those helpers, the same shape as
   `largest-files`.
 - **cross-file** engine is not built. Do NOT hand-write a one-off script to fake
   it. Say so and file a bead to add the engine first. A bespoke bypass defeats the
-  shared-engine design, the exact thing this forge exists to prevent.
+  shared-engine design, the exact thing this create exists to prevent.
 
 ## Step 2 — Intake
 
@@ -74,12 +74,12 @@ ast-grep scan --inline-rules "<your rule yaml>" <a real repo path> --json=compac
 Show the user ~5 samples and the count. If wrong (false positives, missed cases,
 zero when there should be hits), fix and re-run. Only proceed once it's right.
 
-## Step 5 — Scaffold with forge.py
+## Step 5 — Scaffold with create.py
 
 Standalone skill:
 
 ```bash
-python "<skill_dir>/scripts/forge.py" standalone \
+python "<skill_dir>/scripts/create.py" standalone \
   --name <kebab-name> --noun "<plural noun>" \
   --title "<one-line title>" \
   --description "<triggering description; mention it returns a small table, not source>" \
@@ -92,7 +92,7 @@ node-metric skill (wraps an existing engine score: `depth`, `cyclomatic`,
 already computes the metric:
 
 ```bash
-python "<skill_dir>/scripts/forge.py" node-metric \
+python "<skill_dir>/scripts/create.py" node-metric \
   --metric cognitive \
   --name <kebab-name> \
   --title "<one-line title>" \
@@ -102,7 +102,7 @@ python "<skill_dir>/scripts/forge.py" node-metric \
 sniff-lint rule:
 
 ```bash
-python "<skill_dir>/scripts/forge.py" rule \
+python "<skill_dir>/scripts/create.py" rule \
   --name <kebab-id> --language <lang> --severity warning \
   --title "<one-line title>" --message "<finding message>" \
   --pattern '<ast-grep pattern>'    # OR: --rule-body-file <file with raw rule yaml>
@@ -112,11 +112,11 @@ Add `--dry-run` first to preview. `<skill_dir>` is this skill's directory.
 
 ## Step 6 — Self-test, then make it live
 
-`forge.py` prints the exact follow-up commands. Always:
+`create.py` prints the exact follow-up commands. Always:
 
 1. **Run** the generated script (standalone) or `ast-grep scan` over the new rule and
    confirm the table / findings render.
 2. **Commit** the new files.
-3. **Make it live**: a freshly forged skill is not loaded until the plugin refreshes.
+3. **Make it live**: a freshly created skill is not loaded until the plugin refreshes.
    Run `/plugin update sniff` (or reinstall from the local path). Until then the
    script still works run directly by path.

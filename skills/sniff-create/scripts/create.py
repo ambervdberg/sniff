@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """Scaffold a new smell skill, or a new sniff-lint rule, from resolved inputs.
 
-This is the mechanical half of sniff-forge. The conversational half (gather
+This is the mechanical half of sniff-create. The conversational half (gather
 intent, draft the ast-grep rule, validate it on the current repo) lives in the
-forge SKILL.md and is driven by the agent. Once the rule is confirmed, the agent
+create SKILL.md and is driven by the agent. Once the rule is confirmed, the agent
 calls this script to write the files.
 
 Two modes:
 
-    forge.py standalone --name large-classes --noun classes \\
+    create.py standalone --name large-classes --noun classes \\
         --title "Largest classes by line count" \\
         --description "Find the largest classes ... returns a small ranked table." \\
         --langs typescript,tsx --kinds class_declaration
 
-    forge.py standalone --name big-switches --noun "switch statements" \\
+    create.py standalone --name big-switches --noun "switch statements" \\
         --title "Largest switch statements" --description "..." \\
         --langs typescript --pattern 'switch ($X) { $$$ }'
 
-    forge.py rule --name no-nested-ternary --language typescript \\
+    create.py rule --name no-nested-ternary --language typescript \\
         --severity warning --message "Nested ternary; extract for readability." \\
         --title "Nested ternary expressions" \\
         --pattern '$A ? $B : ($C ? $D : $E)'
@@ -32,7 +32,7 @@ import json
 import os
 import sys
 
-# Resolve repo paths relative to this file: scripts/ -> sniff-forge/ -> skills/ -> repo.
+# Resolve repo paths relative to this file: scripts/ -> sniff-create/ -> skills/ -> repo.
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES = os.path.join(HERE, "..", "templates")
 SKILLS_DIR = os.path.normpath(os.path.join(HERE, "..", ".."))
@@ -114,7 +114,7 @@ def cmd_standalone(args: argparse.Namespace) -> None:
 # The node-metric engine functions, keyed by the --metric value. Each entry maps
 # to the engine function name, the metrics-dict key it writes, the value-column
 # header, the name-column header, the item noun, and the header phrase. This is
-# the whole knowledge the forge needs to wrap an existing metric in a new skill.
+# the whole knowledge the create needs to wrap an existing metric in a new skill.
 NODE_METRICS = {
     "depth": ("nesting_depth", "depth", "DEPTH", "NAME", "functions",
               "by control-flow nesting depth"),

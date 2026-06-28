@@ -13,7 +13,7 @@ portable skill convention.
 
 ## Engines
 
-A smell needs one of four engines. `sniff-forge` picks the right one when you make
+A smell needs one of four engines. `sniff-create` picks the right one when you make
 a new check:
 
 | Engine | For | Example |
@@ -55,7 +55,7 @@ Update later with `git pull` on the marketplace or the `/plugin` update flow.
 | `most-parameters` | Rank functions by parameter count (long-parameter-list smell). |
 | `large-inline-templates` | Rank Angular components by inline-template line count. |
 | `sniff-lint` | Run the rule catalog in one `ast-grep scan` pass; compact findings table. |
-| `sniff-forge` | Scaffold a new smell skill or catalog rule from a short conversation. |
+| `sniff-create` | Scaffold a new smell skill or catalog rule from a short conversation. |
 
 `skills/_ast-harness/` is the shared engine every ast-based skill reuses (running
 ast-grep, parsing JSON, folding nested matches, ranking, printing the table). The
@@ -76,23 +76,23 @@ skills/
   most-parameters/
   large-inline-templates/
   sniff-lint/     rule catalog (ast-grep scan)
-  sniff-forge/    the skill/rule generator + suggest-forge detection hook
+  sniff-create/    the skill/rule generator + suggest-create detection hook
 docs/             design spec
 ```
 
-## Suggest-forge hook
+## Suggest-create hook
 
 A `Stop` hook (declared in `plugin.json`) watches each turn and, when it spots a
 costly repeated structural search (>= 6 read/grep/glob calls plus a structural
-prompt), prints one line suggesting you run `sniff-forge` to turn it into a
+prompt), prints one line suggesting you run `sniff-create` to turn it into a
 token-cheap skill. Suggest-only: it never creates anything and never blocks.
-The detector lives in `skills/sniff-forge/scripts/detect_costly_search.py`.
+The detector lives in `skills/sniff-create/scripts/detect_costly_search.py`.
 
 ### Tuning
 
 | Env var | Default | Effect |
 | --- | --- | --- |
-| `SNIFF_FORGE_NUDGE` | on | Set to `0`/`off`/`false`/`no` to silence the nudge entirely. |
+| `SNIFF_CREATE_NUDGE` | on | Set to `0`/`off`/`false`/`no` to silence the nudge entirely. |
 | `SNIFF_MIN_CALLS` | `6` | Read/grep/glob calls in a turn needed to trip the heuristic. |
 
 ### Caveats
@@ -107,7 +107,7 @@ calls and the prompt text, never your reasoning, so:
 - It only inspects the **most recent turn**; a search spread across several turns
   does not accumulate.
 - Raise `SNIFF_MIN_CALLS` if a project trips it too often; lower it to catch
-  searches sooner. Turn it off per session with `SNIFF_FORGE_NUDGE=0` when it is
+  searches sooner. Turn it off per session with `SNIFF_CREATE_NUDGE=0` when it is
   noise for the task at hand.
 
 ## Tests
