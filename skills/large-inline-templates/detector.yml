@@ -1,0 +1,5 @@
+# sniff detector manifest. Discovered by skills/sniff (sniff --all).
+name: large-inline-templates
+title: Large Angular inline templates
+script: scripts/large_inline_templates.py
+args:

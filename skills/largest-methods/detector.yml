@@ -1,0 +1,5 @@
+# sniff detector manifest. Discovered by skills/sniff (sniff --all).
+name: largest-methods
+title: Longest methods
+script: scripts/largest_methods.py
+args:
