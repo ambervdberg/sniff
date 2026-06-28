@@ -1,0 +1,5 @@
+# sniff detector manifest. Discovered by skills/sniff (sniff --all).
+name: most-imports
+title: Files by import count
+script: scripts/most_imports.py
+args:

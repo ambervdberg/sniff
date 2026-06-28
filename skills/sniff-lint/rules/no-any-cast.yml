@@ -1,0 +1,8 @@
+# Type assertions to 'any'
+# Flag 'as any' casts that defeat type safety
+id: no-any-cast
+language: typescript
+severity: warning
+message: "'as any' defeats type safety; use a precise type or 'unknown'."
+rule:
+  pattern: $_ as any

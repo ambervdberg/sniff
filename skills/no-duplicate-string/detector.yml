@@ -1,0 +1,5 @@
+# sniff detector manifest. Discovered by skills/sniff (sniff --all).
+name: no-duplicate-string
+title: Duplicated string literals (S1192)
+script: scripts/no_duplicate_string.py
+args:

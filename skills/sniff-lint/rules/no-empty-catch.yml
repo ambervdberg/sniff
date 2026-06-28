@@ -1,0 +1,8 @@
+# Empty catch blocks
+# Flag catch blocks with no body or only comments
+id: no-empty-catch
+language: typescript
+severity: error
+message: "Empty catch block swallows errors; add error handling or use a comment explaining why."
+rule:
+  pattern: try { $$$ } catch($_) {}

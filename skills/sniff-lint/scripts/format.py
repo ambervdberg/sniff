@@ -108,11 +108,12 @@ def print_rule_table(rows: list[tuple[str, str, int, list[str]]]) -> None:
         return value.replace("|", "\\|")
 
     for rule_id, severity, count, locs in rows:
+        if not locs:
+            continue
         print(f"### {rule_id} ({severity}): {count}\n")
         print("| LOCATION |")
         print("| --- |")
-        # A 0-finding (clean) rule has no locations: emit a single placeholder row.
-        for loc in (locs or ["-"]):
+        for loc in locs:
             print(f"| {cell(loc)} |")
         print()
 

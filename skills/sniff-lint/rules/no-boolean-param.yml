@@ -1,0 +1,8 @@
+# Boolean-typed parameters
+# Generated for the sniff-lint catalog. Run via the sniff-lint skill.
+id: no-boolean-param
+language: typescript
+severity: warning
+message: "Boolean parameter enables unclear call sites; use a more descriptive type, enum, or extracted method."
+rule:
+  pattern: "$_: boolean"
