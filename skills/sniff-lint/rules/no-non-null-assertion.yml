@@ -1,0 +1,7 @@
+# TypeScript non-null assertion operator
+id: no-non-null-assertion
+language: typescript
+severity: warning
+message: "Non-null assertion operator `!` bypasses type safety; use proper null checks instead."
+rule:
+  kind: non_null_expression
