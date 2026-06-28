@@ -32,16 +32,18 @@ Every check fits exactly one engine. Pick before anything else; it decides the t
 
 ### Scope gate
 
-- `forge.py` can scaffold **pattern rule** and **node-span** skills today.
+- `forge.py` can scaffold **pattern rule**, **node-span**, and **node-metric**
+  skills today.
+- **node-metric**: the engine ships five metrics (`depth`, `cyclomatic`,
+  `cognitive`, `params`, `template-lines`). Scaffold a skill around one with
+  `forge.py node-metric --metric <m>` (see Step 3). To add a *new* metric the
+  engine does not have yet, extend `node_metric.py` the same two-pass way
+  (functions + the nodes the metric counts) and add it to `NODE_METRICS` in
+  `forge.py`, then it is forgeable too.
 - **file-metric** has a working engine (`_ast-harness.iter_source_files` /
   `count_code_lines`, see the `largest-files` skill) but no forge generator yet; add
   a new file-metric skill by hand against those helpers, the same shape as
   `largest-files`.
-- **node-metric** has a working engine (`_ast-harness.node_metric`); nesting
-  depth is done (see the `deepest-nesting` skill). Add another metric by extending
-  `node_metric.py` the same two-pass way (functions + the nodes the metric counts)
-  and writing a thin skill like `deepest-nesting`; there is no forge generator for
-  it yet (`sniff-...6.5`).
 - **cross-file** engine is not built. Do NOT hand-write a one-off script to fake
   it. Say so and file a bead to add the engine first. A bespoke bypass defeats the
   shared-engine design, the exact thing this forge exists to prevent.
@@ -83,6 +85,18 @@ python "<skill_dir>/scripts/forge.py" standalone \
   --description "<triggering description; mention it returns a small table, not source>" \
   --langs <csv ast-grep langs> \
   --kinds <csv node kinds>          # OR: --pattern '<ast-grep pattern>'
+```
+
+node-metric skill (wraps an existing engine score: `depth`, `cyclomatic`,
+`cognitive`, `params`, `template-lines`). No ast-grep drafting needed, the engine
+already computes the metric:
+
+```bash
+python "<skill_dir>/scripts/forge.py" node-metric \
+  --metric cognitive \
+  --name <kebab-name> \
+  --title "<one-line title>" \
+  --description "<triggering description; mention it returns a small table, not source>"
 ```
 
 sniff-lint rule:

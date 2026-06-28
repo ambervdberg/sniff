@@ -111,6 +111,52 @@ def cmd_standalone(args: argparse.Namespace) -> None:
               f"  /plugin update sniff   (to make the new skill live on this PC)")
 
 
+# The node-metric engine functions, keyed by the --metric value. Each entry maps
+# to the engine function name, the metrics-dict key it writes, the value-column
+# header, the name-column header, the item noun, and the header phrase. This is
+# the whole knowledge the forge needs to wrap an existing metric in a new skill.
+NODE_METRICS = {
+    "depth": ("nesting_depth", "depth", "DEPTH", "NAME", "functions",
+              "by control-flow nesting depth"),
+    "cyclomatic": ("cyclomatic", "cyclomatic", "COMPLEXITY", "NAME", "functions",
+                   "by cyclomatic complexity"),
+    "cognitive": ("cognitive", "cognitive", "COGNITIVE", "NAME", "functions",
+                  "by cognitive complexity"),
+    "params": ("params", "params", "PARAMS", "NAME", "functions",
+               "by parameter count"),
+    "template-lines": ("inline_template_lines", "template_lines", "LINES", "SELECTOR",
+                       "Angular components", "by inline-template line count"),
+}
+
+
+def cmd_node_metric(args: argparse.Namespace) -> None:
+    fn, key, value_col, name_col, item, phrase = NODE_METRICS[args.metric]
+
+    tokens = {
+        "NAME": args.name,
+        "TITLE": args.title,
+        "DESCRIPTION": args.description,
+        "ONE_LINE": args.one_line or args.title,
+        "METRIC_FN": fn,
+        "METRIC_KEY": key,
+        "VALUE_COL": value_col,
+        "NAME_COL": name_col,
+        "ITEM": item,
+        "METRIC_PHRASE": phrase,
+    }
+
+    skill_dir = os.path.join(SKILLS_DIR, args.name)
+    _write(os.path.join(skill_dir, "SKILL.md"),
+           _fill(_load_template("node_metric_SKILL.md.tmpl"), tokens), args.dry_run)
+    _write(os.path.join(skill_dir, "scripts", f"{args.name}.py"),
+           _fill(_load_template("node_metric_script.py.tmpl"), tokens), args.dry_run)
+
+    if not args.dry_run:
+        print(f"\nNext: validate it, then make it live.\n"
+              f"  python \"{skill_dir}/scripts/{args.name}.py\" <some-repo> --top 10\n"
+              f"  /plugin update sniff   (to make the new skill live on this PC)")
+
+
 def cmd_rule(args: argparse.Namespace) -> None:
     if not args.pattern and not args.rule_body_file:
         sys.exit("error: provide either --pattern or --rule-body-file")
@@ -153,6 +199,15 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--kinds", help="comma-separated tree-sitter node kinds (applied to every --lang)")
     s.add_argument("--pattern", help="ast-grep pattern string (alternative to --kinds)")
     s.set_defaults(func=cmd_standalone)
+
+    n = sub.add_parser("node-metric", help="scaffold a skill wrapping a node-metric engine score")
+    n.add_argument("--metric", required=True, choices=sorted(NODE_METRICS),
+                   help="which metric to score by")
+    n.add_argument("--name", required=True, help="kebab-case skill name (also the dir + script name)")
+    n.add_argument("--title", required=True, help="one-line human title")
+    n.add_argument("--description", required=True, help="skill description (drives triggering)")
+    n.add_argument("--one-line", help="one-line summary under the heading (defaults to title)")
+    n.set_defaults(func=cmd_node_metric)
 
     r = sub.add_parser("rule", help="scaffold a sniff-lint catalog rule")
     r.add_argument("--name", required=True, help="kebab-case rule id (also the file name)")

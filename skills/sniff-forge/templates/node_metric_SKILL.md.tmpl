@@ -1,0 +1,49 @@
+---
+name: @@NAME@@
+description: >-
+  @@DESCRIPTION@@
+---
+
+# @@TITLE@@
+
+@@ONE_LINE@@
+
+## Why this exists
+
+The naive way to answer this is to read files or dump AST JSON into the
+conversation, both of which burn thousands of tokens. This skill pushes all of
+that into a bundled script: it runs `ast-grep`, computes the metric internally,
+and prints a small ranked table. You only ever see the table. Never pipe raw
+`ast-grep --json` output into your own context to re-rank it by hand.
+
+## Prerequisites
+
+- `ast-grep` on PATH (`ast-grep --version`). Install: https://ast-grep.github.io
+- Python 3 to run the bundled script.
+
+## Usage
+
+```bash
+python "<skill_dir>/scripts/@@NAME@@.py" [PATH] [--top N] [--lang L] [--min N] [--include-tests]
+```
+
+`<skill_dir>` is the directory containing this SKILL.md. `PATH` defaults to the
+current directory; languages are auto-detected unless `--lang` is given.
+
+The output is already final-form, a `@@VALUE_COL@@ / @@NAME_COL@@ / LOCATION`
+table sorted highest-first.
+
+**Print the entire table to the user verbatim.** It IS the answer. Do NOT replace
+it with a summary or describe it in prose, the user wants every row. You may add
+ONE optional takeaway line after the table, but the full table comes first and in
+full. Do not re-read the listed files unless the user then asks you to refactor one.
+
+## Caveats
+
+- The score is a refactor *hotspot* signal, not a verdict; `LOCATION` is
+  authoritative.
+- Only languages the engine supports are scored; pass `--lang` and sanity-check
+  if something you expected shows nothing.
+- `--min` defaults to 1. Raise it to focus on the worst offenders.
+- Tests excluded by default (`*.spec.*`, `*.test.*`); add `--include-tests`.
+  `node_modules`, `dist`, `build` and similar are always skipped.
