@@ -5,7 +5,7 @@ description: >-
   compact findings table. Use when the user wants to "lint the codebase", "find
   code smells", "run the smell checks", "scan for anti-patterns", "sonar-style
   scan", or check many small rules at once (e.g. explicit any, nested ternaries,
-  empty Angular metadata). Returns a RULE / SEVERITY / COUNT / LOCATIONS summary,
+  empty Angular metadata). Returns a RULE / SEVERITY / LOCATION summary,
   never raw per-match output.
 ---
 
@@ -27,9 +27,12 @@ Filter with `--severity` or a single `--rule`. Vendored/build dirs are skipped.
 
 ## Relaying the result
 
-**Print the entire findings table to the user verbatim.** It IS the answer. Do NOT
-summarize it to prose or drop rows. You may add ONE takeaway line after the table
-(e.g. the worst rule), but the full table comes first and in full.
+**Reproduce the entire output (header line + every per-rule table) in your reply
+message, verbatim.** It IS the answer. The script emits one markdown table per rule
+(heading = rule/severity/count, rows = locations); tables only render as real tables
+when they live in your reply, NOT when left inside the tool-output block. Do NOT
+summarize to prose or drop rows. You may add ONE takeaway line at the end (e.g. the
+worst rule), but the full output comes first and in full.
 
 A "Clean: 0 findings. Ran N rules (...)" line is a **valid, complete result**: the
 codebase passed every rule. Relay it as-is. Do NOT speculate that the plugin "has no
@@ -55,5 +58,5 @@ node-metric skills, not catalog rules.
 - Each rule is single-language and single-file (ast-grep). Cross-file smells
   (e.g. inheritance depth) are out of scope, see the cross-file engine.
 - Pattern matches flag a *shape*, not a proven defect. The `message` says why it is
-  worth a look; the `LOCATIONS` column is authoritative.
+  worth a look; the `LOCATION` column is authoritative.
 - Test files are NOT excluded: a lint finding in a test still counts.

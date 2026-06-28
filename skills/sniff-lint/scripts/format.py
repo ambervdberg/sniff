@@ -48,6 +48,20 @@ def _in_ignored_dir(path: str) -> bool:
     return any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", path))
 
 
+def _rel(file: str, root: str) -> str:
+    """File path relative to the scan root, forward-slashed.
+
+    Absolute paths make every table row hundreds of chars wide; stripping the
+    common scan-root prefix keeps rows short so the markdown table renders, while
+    the path stays unambiguous (it is relative to the scanned dir)."""
+    try:
+        rel = os.path.relpath(file, root)
+    except ValueError:
+        # Different drive on Windows: relpath raises, keep the absolute path.
+        rel = file
+    return rel.replace("\\", "/")
+
+
 def catalog_rules() -> list[tuple[str, str]]:
     """(id, severity) for each rule in the catalog, read from rules/*.yml.
 
@@ -76,14 +90,16 @@ def catalog_rules() -> list[tuple[str, str]]:
     return rules
 
 
-def print_rule_table(rows: list[tuple[str, str, int, str]]) -> None:
-    """Print the RULE / SEVERITY / COUNT / TOP LOCATIONS table as markdown.
+def print_rule_table(rows: list[tuple[str, str, int, list[str]]]) -> None:
+    """Print ONE TABLE PER RULE: a heading carries the rule id, severity and count
+    once, and a single-column table lists only the locations.
 
-    A markdown table renders as a real table in any markdown view; space-aligned
-    text collapses (runs of spaces merge) when the caller relays it inline, so it
-    read as prose instead of a table. Shared by both the findings result and the
-    clean result so a 0-finding run still looks like a real table (every rule,
-    count 0). `rows` is already sorted; each is (rule_id, severity, count, locations)."""
+    Repeating the rule id and severity on every location row (the prior layout)
+    wastes tokens when a rule has many hits. Hoisting them into a per-rule heading
+    removes that repetition while keeping each section self-contained: the agent
+    reads the heading for rule+severity, then every row underneath is a location for
+    that rule. Narrow single-column rows always render (no viewport overflow).
+    `rows` is already sorted; each is (rule_id, severity, count, locs)."""
     if not rows:
         return
 
@@ -91,10 +107,14 @@ def print_rule_table(rows: list[tuple[str, str, int, str]]) -> None:
     def cell(value: str) -> str:
         return value.replace("|", "\\|")
 
-    print("| RULE | SEVERITY | COUNT | LOCATIONS |")
-    print("| --- | --- | --: | --- |")
     for rule_id, severity, count, locs in rows:
-        print(f"| {cell(rule_id)} | {cell(severity)} | {count} | {cell(locs)} |")
+        print(f"### {rule_id} ({severity}): {count}\n")
+        print("| LOCATION |")
+        print("| --- |")
+        # A 0-finding (clean) rule has no locations: emit a single placeholder row.
+        for loc in (locs or ["-"]):
+            print(f"| {cell(loc)} |")
+        print()
 
 
 def print_rules_ran(ran: list[tuple[str, str]], cap: int = 30) -> None:
@@ -166,7 +186,7 @@ def main() -> None:
         # them; a positive value caps the list.
         if args.top_locs <= 0 or len(entry["locs"]) < args.top_locs:
             line = m["range"]["start"]["line"] + 1
-            entry["locs"].append(f"{m['file'].replace(chr(92), '/')}:{line}")
+            entry["locs"].append(f"{_rel(m['file'], args.path)}:{line}")
 
     # Rules that actually ran this invocation = whole catalog minus any --rule /
     # --severity filter. Reported so the result names how many and which rules ran,
@@ -181,7 +201,7 @@ def main() -> None:
     if not by_rule:
         # Clean result: show every rule that ran as a 0-count table row so a pass
         # still reads as a real table.
-        clean_rows = [(rid, sev, 0, "-") for rid, sev in ran]
+        clean_rows = [(rid, sev, 0, []) for rid, sev in ran]
         clean_rows.sort(key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[0]))
 
         scope = ""
@@ -197,7 +217,7 @@ def main() -> None:
     sorted_rules = sorted(by_rule.items(),
                           key=lambda kv: (SEVERITY_ORDER.get(kv[1]["severity"], 9), -kv[1]["count"]))
 
-    rows = [(rid, e["severity"], e["count"], ", ".join(e["locs"])) for rid, e in sorted_rules]
+    rows = [(rid, e["severity"], e["count"], e["locs"]) for rid, e in sorted_rules]
 
     total = sum(r[2] for r in rows)
     print(f"sniff-lint: {total} findings, {len(rows)} of {len(ran)} rules matched in {args.path!r}\n")
