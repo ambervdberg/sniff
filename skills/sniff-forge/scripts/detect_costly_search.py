@@ -266,7 +266,7 @@ def main() -> None:
         # No transcript to judge: stay silent, never block the Stop event.
         if args.json:
             print(json.dumps({"fired": False, "reason": "no transcript"}))
-        sys.exit(1)
+        sys.exit(0)
 
     result = detect(_read_transcript(path), min_calls=args.min_calls)
 
@@ -291,7 +291,10 @@ def main() -> None:
     if result.fired and enabled:
         print(NUDGE)
 
-    sys.exit(0 if result.fired else 1)
+    # Always exit 0: this hook is suggest-only and must never look like a failed
+    # Stop hook. The nudge line is the only payload; a non-zero exit gains nothing
+    # and surfaces a spurious "non-blocking status code" error after every turn.
+    sys.exit(0)
 
 
 if __name__ == "__main__":

@@ -70,7 +70,9 @@ class HookWiringTest(unittest.TestCase):
     def test_normal_turn_is_silent(self):
         proc = self._run_turn([_user("fix the login bug"), _assistant("Edit")])
         self.assertEqual(proc.stdout.strip(), "")
-        self.assertNotEqual(proc.returncode, 0)  # non-zero = silent signal, never blocks Stop
+        # Always exit 0: empty stdout is the silence. A non-zero exit would surface
+        # a spurious "non-blocking status code" error after every quiet turn.
+        self.assertEqual(proc.returncode, 0)
 
     def test_hook_is_registered_as_stop(self):
         manifest = json.load(open(PLUGIN_JSON, encoding="utf-8"))
