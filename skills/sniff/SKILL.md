@@ -1,0 +1,75 @@
+---
+name: sniff
+description: >-
+  Run every code-smell detector over a repo in one pass and return one compact
+  section per detector. Use when the user wants the FULL smell scan, "find all
+  code smells", "lint everything", "run all the checks", "sonar-style scan", or
+  does not name a specific metric. Aggregates the sniff-lint pattern catalog plus
+  every node-metric and file-metric detector (complexity, nesting, parameters,
+  method/class/file size, inline-template size). For a single metric, invoke that
+  detector's own skill instead.
+---
+
+# sniff
+
+One umbrella entry point over the whole detector suite. Each detector skill ships a
+`detector.yml` manifest; `sniff` discovers every manifest under the skills root and
+runs each detector's script over the scan path, printing one section per detector.
+
+Adding a detector is zero-cost: drop a `detector.yml` next to its script and it joins
+`sniff --all` automatically, no edit to the runner. This mirrors the sniff-lint rule
+catalog, where adding a rule file costs nothing.
+
+## Command
+
+```bash
+python "<skill_dir>/scripts/run.py" [PATH] [--only a,b] [--skip a,b] [--list]
+```
+
+`<skill_dir>` is this skill's directory. `PATH` defaults to the current directory.
+
+- no flags: run **every** discovered detector (`--all` is the default).
+- `--only a,b`: run just those detectors.
+- `--skip a,b`: run all but those.
+- `--list`: show the discovered detectors and exit.
+
+## Relaying the result
+
+**Reproduce the entire output (the `sniff:` header line + every `## <detector>`
+section, each with its table) in your reply message, verbatim.** It IS the answer.
+The sections only render as real tables when they live in your reply, NOT when left
+inside the tool-output block. Do NOT summarize to prose or drop sections. You may add
+ONE takeaway line at the end (e.g. the worst detector), but the full output comes
+first and in full.
+
+A detector reporting 0 findings is a valid, complete result: that smell is absent.
+Relay its section as-is.
+
+## Token cost
+
+Each detector returns only its own compact table (ranked top-N or a location list),
+never source, so the aggregate stays small for a normal repo. The runner just
+concatenates sections. If a future repo makes `--all` output genuinely large, narrow
+it with `--only` / `--skip`; a smarter cap can come then, not before.
+
+## Adding a detector
+
+Author the detector as its own skill (use `sniff-forge`), then drop a `detector.yml`
+in that skill's directory:
+
+```yaml
+name: my-detector
+title: One-line section heading
+script: scripts/my_detector.py
+args:                 # optional, space-separated extra args appended after PATH
+```
+
+`sniff --list` will then show it and `sniff --all` will run it.
+
+## Caveats
+
+- The runner shells out to each detector's existing script; it never reimplements a
+  detector, so the standalone skill and the aggregate run always agree.
+- A failing detector yields an error section instead of aborting the run, so one
+  broken detector cannot hide the others.
+- Prerequisites: `ast-grep` on PATH (pattern + node-metric detectors), Python 3.

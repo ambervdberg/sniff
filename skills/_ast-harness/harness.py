@@ -61,7 +61,7 @@ EXT_LANG = {
 IGNORE_DIRS = {
     "node_modules", "dist", "build", "out", "coverage", ".git", ".nx",
     ".angular", ".astro", ".next", ".svelte-kit", ".nuxt", ".turbo",
-    "vendor", "target", "__pycache__", ".venv", "venv",
+    "vendor", "target", "__pycache__", ".venv", "venv", ".claude",
 }
 
 # Files that look like tests, excluded unless the caller opts in.
@@ -354,18 +354,19 @@ def print_table(
     headers = [c[0] for c in columns]
     cells = [[_fmt(c[1](m)) for c in columns] for m in rows]
 
-    widths = []
-    for i, h in enumerate(headers):
-        widths.append(max(len(h), *(len(row[i]) for row in cells)))
-
     if header:
         print(header + "\n")
 
-    # rstrip each line so the final column never leaves trailing whitespace.
-    print("  ".join(_align(h, w, right=False) for h, w in zip(headers, widths)).rstrip())
+    # Markdown table: renders as a real table when the agent relays it in a reply
+    # (space-aligned text collapses there). Plain `---` separators only, no `:`
+    # alignment markers, which some strict renderers reject and fall back to raw.
+    def _row(values: Sequence[str]) -> str:
+        return "| " + " | ".join(v.replace("|", "\\|") for v in values) + " |"
+
+    print(_row(headers))
+    print(_row(["---"] * len(headers)))
     for row in cells:
-        # Right-align purely numeric cells, left-align the rest.
-        print("  ".join(_align(v, w, right=_is_num(v)) for v, w in zip(row, widths)).rstrip())
+        print(_row(row))
 
 
 def _fmt(value: object) -> str:

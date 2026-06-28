@@ -32,7 +32,7 @@ RULES_DIR = os.path.normpath(os.path.join(HERE, "..", "rules"))
 # import dependency on _ast-harness (it speaks ast-grep's scan JSON, not Match).
 IGNORE_DIRS = {
     "node_modules", "dist", "build", "out", "coverage", ".git", ".nx",
-    ".angular", ".next", "vendor", "target", "__pycache__", ".venv", "venv",
+    ".angular", ".next", "vendor", "target", "__pycache__", ".venv", "venv", ".claude",
 }
 
 # ast-grep severity ordering, worst first, for sorting the table.

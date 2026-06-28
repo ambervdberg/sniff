@@ -1,0 +1,5 @@
+# sniff detector manifest. Discovered by skills/sniff (sniff --all).
+name: large-classes
+title: Largest classes
+script: scripts/large-classes.py
+args:
