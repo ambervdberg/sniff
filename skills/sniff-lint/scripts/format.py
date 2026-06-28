@@ -77,20 +77,41 @@ def catalog_rules() -> list[tuple[str, str]]:
 
 
 def print_rule_table(rows: list[tuple[str, str, int, str]]) -> None:
-    """Print the RULE / SEVERITY / COUNT / TOP LOCATIONS table.
+    """Print the RULE / SEVERITY / COUNT / TOP LOCATIONS table as markdown.
 
-    Shared by both the findings result and the clean result so a 0-finding run
-    looks like a real table (every rule, count 0) instead of a prose sentence.
-    `rows` is already sorted; each is (rule_id, severity, count, locations)."""
+    A markdown table renders as a real table in any markdown view; space-aligned
+    text collapses (runs of spaces merge) when the caller relays it inline, so it
+    read as prose instead of a table. Shared by both the findings result and the
+    clean result so a 0-finding run still looks like a real table (every rule,
+    count 0). `rows` is already sorted; each is (rule_id, severity, count, locations)."""
     if not rows:
         return
 
-    rule_w = max(len("RULE"), *(len(r[0]) for r in rows))
-    sev_w = max(len("SEVERITY"), *(len(r[1]) for r in rows))
+    # Escape any pipe in a cell so it does not break the markdown column split.
+    def cell(value: str) -> str:
+        return value.replace("|", "\\|")
 
-    print(f"{'RULE':<{rule_w}}  {'SEVERITY':<{sev_w}}  {'COUNT':>5}  TOP LOCATIONS")
+    print("| RULE | SEVERITY | COUNT | LOCATIONS |")
+    print("| --- | --- | --: | --- |")
     for rule_id, severity, count, locs in rows:
-        print(f"{rule_id:<{rule_w}}  {severity:<{sev_w}}  {count:>5}  {locs}")
+        print(f"| {cell(rule_id)} | {cell(severity)} | {count} | {cell(locs)} |")
+
+
+def print_rules_ran(ran: list[tuple[str, str]], cap: int = 30) -> None:
+    """Print a one-line roster of every rule that ran this invocation.
+
+    The findings table only lists rules that matched, so without this a reader
+    cannot tell whether 1 of 2 rules ran or 1 of 200. Names are listed up to
+    `cap`; beyond that only the count is shown to keep the line bounded as the
+    catalog grows."""
+    if not ran:
+        return
+
+    ids = [rid for rid, _ in sorted(ran)]
+    if len(ids) <= cap:
+        print(f"\nRan {len(ids)} rules: {', '.join(ids)}")
+    else:
+        print(f"\nRan {len(ids)} rules ({', '.join(ids[:cap])}, +{len(ids) - cap} more)")
 
 
 def run_scan(path: str) -> list[dict]:
@@ -115,7 +136,8 @@ def main() -> None:
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
     parser.add_argument("--severity", help="only show this severity (error|warning|info|hint)")
     parser.add_argument("--rule", help="only show this rule id")
-    parser.add_argument("--top-locs", type=int, default=3, help="locations to list per rule (default: 3)")
+    parser.add_argument("--top-locs", type=int, default=0,
+                        help="cap locations listed per rule (default: 0 = list every location)")
     args = parser.parse_args()
 
     _require_ast_grep()
@@ -140,19 +162,26 @@ def main() -> None:
 
         entry = by_rule.setdefault(rule_id, {"severity": sev, "count": 0, "locs": []})
         entry["count"] += 1
-        if len(entry["locs"]) < args.top_locs:
+        # top_locs == 0 means list every location so the agent can act on all of
+        # them; a positive value caps the list.
+        if args.top_locs <= 0 or len(entry["locs"]) < args.top_locs:
             line = m["range"]["start"]["line"] + 1
             entry["locs"].append(f"{m['file'].replace(chr(92), '/')}:{line}")
 
+    # Rules that actually ran this invocation = whole catalog minus any --rule /
+    # --severity filter. Reported so the result names how many and which rules ran,
+    # not just the ones that happened to match.
+    ran = [
+        (rid, sev)
+        for rid, sev in rules
+        if (not args.rule or rid == args.rule)
+        and (not args.severity or sev == args.severity)
+    ]
+
     if not by_rule:
-        # Clean result: show every rule that ran as a 0-count table row, honoring
-        # any --rule / --severity filter, so a pass still reads as a real table.
-        clean_rows = [
-            (rid, sev, 0, "-")
-            for rid, sev in rules
-            if (not args.rule or rid == args.rule)
-            and (not args.severity or sev == args.severity)
-        ]
+        # Clean result: show every rule that ran as a 0-count table row so a pass
+        # still reads as a real table.
+        clean_rows = [(rid, sev, 0, "-") for rid, sev in ran]
         clean_rows.sort(key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[0]))
 
         scope = ""
@@ -160,8 +189,9 @@ def main() -> None:
             scope = f" matching --rule {args.rule}"
         elif args.severity:
             scope = f" at --severity {args.severity}"
-        print(f"sniff-lint: 0 findings{scope} across {len(clean_rows)} rules in {args.path!r}\n")
+        print(f"sniff-lint: 0 findings{scope} across {len(ran)} rules in {args.path!r}\n")
         print_rule_table(clean_rows)
+        print_rules_ran(ran)
         return
 
     sorted_rules = sorted(by_rule.items(),
@@ -170,9 +200,10 @@ def main() -> None:
     rows = [(rid, e["severity"], e["count"], ", ".join(e["locs"])) for rid, e in sorted_rules]
 
     total = sum(r[2] for r in rows)
-    print(f"sniff-lint: {total} findings across {len(rows)} rules in {args.path!r}\n")
+    print(f"sniff-lint: {total} findings, {len(rows)} of {len(ran)} rules matched in {args.path!r}\n")
 
     print_rule_table(rows)
+    print_rules_ran(ran)
 
 
 if __name__ == "__main__":
