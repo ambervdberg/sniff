@@ -1,6 +1,6 @@
 # Logical AND guard that should use optional chaining
 id: prefer-optional-chain
-language: [typescript, javascript]
+language: typescript
 severity: warning
 message: "Use optional chaining `?.` instead of `&&` guard for property access."
 rule:

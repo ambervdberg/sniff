@@ -139,7 +139,7 @@ def run_scan(path: str) -> list[dict]:
     """Run the whole catalog over `path`, return ast-grep's raw match list."""
     proc = subprocess.run(
         ["ast-grep", "scan", "-c", SGCONFIG, "--json=compact", path],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     if not proc.stdout.strip():
         # No matches, or a config error: surface stderr so a broken rule is visible.
@@ -150,6 +150,56 @@ def run_scan(path: str) -> list[dict]:
         return json.loads(proc.stdout)
     except json.JSONDecodeError:
         sys.exit("error: could not parse ast-grep scan output.")
+
+
+def scan_multiline_single_comments(path: str) -> list[dict]:
+    """Scan for block comments spanning multiple lines with only one content line.
+
+    Pattern: `/** or /* followed by newline, one content line with `*`, then closing */
+    Returns matches in ast-grep JSON format for integration with other findings."""
+    matches = []
+    # Regex: /\*\*? followed by newline, then content line, then newline, then */
+    pattern = re.compile(
+        r'/\*\*?\s*\n\s*\*\s*\S[^\n]*\n\s*\*/',
+        re.MULTILINE
+    )
+
+    # Handle both direct file paths and directory paths
+    paths_to_scan = []
+    if os.path.isfile(path):
+        paths_to_scan = [path]
+    else:
+        # Find .ts and .js files recursively
+        for root, dirs, files in os.walk(path):
+            # Skip ignored directories
+            dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
+
+            for fname in files:
+                if fname.endswith(('.ts', '.js', '.tsx', '.jsx')):
+                    paths_to_scan.append(os.path.join(root, fname))
+
+    for fpath in paths_to_scan:
+        try:
+            with open(fpath, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+        except (IOError, OSError):
+            continue
+
+        for match in pattern.finditer(content):
+            # Calculate line number from match position
+            line_num = content[:match.start()].count('\n')
+            matches.append({
+                'file': fpath,
+                'ruleId': 'no-multiline-single-comment',
+                'severity': 'warning',
+                'message': 'Block comment spans multiple lines with only one content line; use single-line syntax instead.',
+                'range': {
+                    'start': {'line': line_num, 'column': 0},
+                    'end': {'line': line_num + 2, 'column': 0}
+                }
+            })
+
+    return matches
 
 
 def main() -> None:
@@ -170,6 +220,11 @@ def main() -> None:
 
     matches = run_scan(args.path)
     matches = [m for m in matches if not _in_ignored_dir(m.get("file", ""))]
+
+    # Add custom Python-based detectors (for rules that can't be expressed in ast-grep)
+    custom_matches = scan_multiline_single_comments(args.path)
+    custom_matches = [m for m in custom_matches if not _in_ignored_dir(m.get("file", ""))]
+    matches.extend(custom_matches)
 
     # Group by rule id; track severity and sample locations.
     by_rule: dict[str, dict] = {}

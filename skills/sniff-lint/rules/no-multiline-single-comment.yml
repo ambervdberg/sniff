@@ -1,0 +1,12 @@
+# Block comments with single content line
+# Flag comments that span multiple lines but contain only one line of actual content
+# Note: ast-grep doesn't match comments (not in syntax tree), so this rule uses
+# custom Python detection via format.py's comment scanner.
+id: no-multiline-single-comment
+language: typescript
+severity: warning
+message: "Block comment spans multiple lines with only one content line; use single-line syntax instead."
+rule:
+  # Placeholder rule (matched via Python fallback in format.py)
+  kind: predefined_type
+  regex: "^never_match_placeholder$"
