@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# PreToolUse(Bash) hook: warn when committing skill/rule changes without a
-# plugin.json version bump. Stale-cache guard: marketplace installs key on
-# version, so an unchanged version means other machines keep running old code.
-# Non-blocking: prints to stderr, always exits 0. No model, just git + bash.
+# PreToolUse(Bash) hook: warn when committing skills/ changes without bumping
+# plugin.json and pyproject.toml versions. Stale-cache guard: marketplace
+# installs key on version, so an unchanged version means other machines keep
+# running old code. Non-blocking: prints to stderr, always exits 0.
 set -euo pipefail
 
 # The hook payload arrives as JSON on stdin; pull out the command being run.
@@ -21,8 +21,8 @@ cd "${CLAUDE_PROJECT_DIR:-.}"
 # Files staged for this commit.
 staged=$(git diff --cached --name-only 2>/dev/null || true)
 
-# Did this commit touch skills or rules? If not, nothing to guard.
-if ! printf '%s\n' "$staged" | grep -qE '^(skills|rules)/'; then
+# Did this commit touch skills? If not, nothing to guard.
+if ! printf '%s\n' "$staged" | grep -qE '^skills/'; then
   exit 0
 fi
 
@@ -31,8 +31,17 @@ version_bumped=$(git diff --cached -- .claude-plugin/plugin.json 2>/dev/null \
   | grep -E '^\+[^+].*"version"' || true)
 
 if [ -z "$version_bumped" ]; then
-  echo "WARN: skills/ or rules/ changed but .claude-plugin/plugin.json version not bumped." >&2
+  echo "WARN: skills/ changed but .claude-plugin/plugin.json version not bumped." >&2
   echo "      Marketplace installs cache by version; bump it so other machines get the new code." >&2
+fi
+
+# Was the pyproject.toml version line bumped?
+pyproject_bumped=$(git diff --cached -- pyproject.toml 2>/dev/null \
+  | grep -E '^\+version\s*=' || true)
+
+if [ -z "$pyproject_bumped" ]; then
+  echo "WARN: skills/ changed but pyproject.toml version not bumped." >&2
+  echo "      Keep pyproject.toml version in sync with plugin.json." >&2
 fi
 
 exit 0
