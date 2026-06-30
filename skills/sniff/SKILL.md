@@ -36,15 +36,16 @@ Relay its section as-is.
 ## Command
 
 ```bash
-python "<skill_dir>/scripts/run.py" [PATH] [--only a,b] [--skip a,b] [--list]
+python "<skill_dir>/scripts/run.py" [DIR] [--only a,b] [--skip a,b] [--list] [--list-patterns]
 ```
 
-`<skill_dir>` is this skill's directory. `PATH` defaults to the current directory.
+`<skill_dir>` is this skill's directory. `DIR` defaults to the current directory.
 
-- no flags: run **every** discovered detector (`--all` is the default).
+- no flags: run **every** discovered detector (default is all).
 - `--only a,b`: run just those detectors.
 - `--skip a,b`: run all but those.
 - `--list`: show the discovered detectors and exit.
+- `--list-patterns`: list the pattern rule catalog (RULE / SEVERITY / MESSAGE) and exit.
 
 ## Token cost
 
@@ -65,7 +66,7 @@ script: scripts/my_detector.py
 args:                 # optional, space-separated extra args appended after PATH
 ```
 
-`sniff --list` will then show it and `sniff --all` will run it.
+`sniff --list` will then show it and `sniff` (no flags) will run it.
 
 ## Caveats
 
