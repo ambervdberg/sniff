@@ -75,11 +75,18 @@ No install step — just Python on PATH. The `sniff.bat` in the repo root delega
 | Command | What it does |
 | --- | --- |
 | `sniff [DIR]` | Scan `DIR` (default: `.`) with all detectors. |
+| `sniff --all [DIR]` | Same as above (explicit alias). |
 | `sniff --list` | List all available detectors. |
 | `sniff --list-patterns` | List all pattern rules (RULE / SEVERITY / MESSAGE). |
 | `sniff --only a,b [DIR]` | Run only the named detectors. |
 | `sniff --skip a,b [DIR]` | Run all detectors except the named ones. |
 | `sniff --only sniff-patterns [DIR]` | Run pattern rules only. |
+| `sniff --json [DIR]` | Scan output as JSON instead of markdown (also works with `--list`). |
+| `sniff version` | Print the installed version. |
+| `sniff doctor` | Check prerequisites (Python, ast-grep, manifests, version drift); exits 0/1. |
+| `sniff prime` | Agent-optimized context (version, detectors, prereqs, usage hints); never scans. |
+| `sniff baseline write [DIR]` | Save per-detector finding counts to `.sniff/baseline.json`. |
+| `sniff diff [DIR]` | Compare a fresh scan to the saved baseline; exits 1 if any detector regressed. |
 | `sniff --help` | Show usage and examples. |
 
 ## What's here
@@ -106,6 +113,9 @@ underscore prefix and missing description keep it from triggering as a skill.
 
 ```
 .claude-plugin/   plugin.json (skills, Stop hook) + marketplace.json
+.codex-plugin/    plugin.json (native Codex plugin manifest)
+hooks.json        Codex lifecycle hooks (SessionStart -> sniff prime, Stop -> costly-search nudge)
+evals/            LLM eval harness: cases.jsonl, runner.py (simulated), scorer.py, smoke/ (real-agent)
 skills/
   _ast-harness/   shared engine (+ node_metric) + tests
   largest-methods/

@@ -49,17 +49,42 @@ Relay its section as-is.
 
 ## Command
 
+`sniff` is installed as a CLI on PATH. Use it directly — do NOT use `python "<skill_dir>/scripts/run.py"`.
+
 ```bash
-python "<skill_dir>/scripts/run.py" [DIR] [--only a,b] [--skip a,b] [--list] [--list-patterns]
+sniff [DIR]                          # run every detector (default)
+sniff --all [DIR]                    # same as above (explicit alias)
+sniff --only <detector>[,...]        # targeted scan
+sniff --skip <detector>[,...]        # exclude detectors
+sniff --list                         # list available detectors and exit
+sniff --list-patterns                # list pattern rules and exit
+sniff --json [DIR]                   # scan or --list output as JSON
+sniff version                        # print installed version
+sniff doctor                         # check prerequisites, exit 0/1
+sniff prime                          # agent-optimized context, never scans
+sniff baseline write [DIR]           # save per-detector counts to .sniff/baseline.json
+sniff diff [DIR]                     # compare current scan to the saved baseline
 ```
 
-`<skill_dir>` is this skill's directory. `DIR` defaults to the current directory.
+`DIR` defaults to the current directory.
 
-- no flags: run **every** discovered detector (default is all).
-- `--only a,b`: run just those detectors.
-- `--skip a,b`: run all but those.
-- `--list`: show the discovered detectors and exit.
-- `--list-patterns`: list the pattern rule catalog (RULE / SEVERITY / MESSAGE) and exit.
+## Detector names
+
+Exact names (case-sensitive) for use with `--only` / `--skip`:
+
+| Name | What it finds |
+| --- | --- |
+| `largest-files` | Files with the most lines |
+| `largest-methods` | Methods/functions with the most lines |
+| `large-classes` | Classes with the most lines |
+| `cyclomatic-complexity` | High branching complexity |
+| `cognitive-complexity` | Hard-to-read control flow |
+| `deepest-nesting` | Deepest block nesting |
+| `most-parameters` | Functions with most parameters |
+| `most-imports` | Files with most imports |
+| `no-duplicate-string` | Duplicate string literals |
+| `sniff-patterns` | Pattern rule catalog (ast-grep rules) |
+| `large-inline-templates` | Oversized Angular inline templates |
 
 ## Token cost
 
