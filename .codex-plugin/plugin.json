@@ -1,0 +1,38 @@
+{
+  "name": "sniff",
+  "version": "0.9.5",
+  "description": "Token-cheap code-smell skills. A self-serve, private SonarCloud-style scan built from small skills you grow one at a time: pattern rules, AST node metrics, and file metrics that return a compact findings table instead of dumping source into the conversation.",
+  "author": {
+    "name": "Amber van den Berg",
+    "email": "info@codequest.nl"
+  },
+  "homepage": "https://github.com/ambervdberg/sniff",
+  "repository": "https://github.com/ambervdberg/sniff",
+  "keywords": [
+    "ast-grep",
+    "code-smells",
+    "linter",
+    "static-analysis",
+    "refactoring",
+    "token-efficient",
+    "clean-code"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "sniff",
+    "shortDescription": "Token-cheap code-smell scanning for AI agents",
+    "longDescription": "Run every code-smell detector over a repo in one pass and get back compact findings tables instead of raw source, so an agent can audit a codebase without flooding its own context.",
+    "developerName": "Amber van den Berg",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read"
+    ],
+    "defaultPrompt": [
+      "sniff",
+      "sniff --list",
+      "sniff --help",
+      "sniff-create a detector for TODO comments older than 90 days"
+    ],
+    "screenshots": []
+  }
+}
