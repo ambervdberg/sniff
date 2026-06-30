@@ -81,8 +81,8 @@ def main() -> None:
             "  sniff --only largest-methods,cyclomatic-complexity\n"
             "  sniff --skip sniff-patterns  # skip pattern rules\n"
             "\n"
-            "Pattern rules only:  sniff --only sniff-patterns [PATH]\n"
-            "List pattern rules:  sniff --only sniff-patterns [PATH] (then use sniff:sniff-patterns --list-rules)\n"
+            "Pattern rules only:  sniff --only sniff-patterns [DIR]\n"
+            "List pattern rules:  sniff --list-patterns\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -90,6 +90,7 @@ def main() -> None:
     parser.add_argument("--only", help="comma-separated detector names to run (default: all)")
     parser.add_argument("--skip", help="comma-separated detector names to skip")
     parser.add_argument("--list", action="store_true", help="list discovered detectors and exit")
+    parser.add_argument("--list-patterns", action="store_true", help="list pattern rules catalog (RULE / SEVERITY / MESSAGE) and exit")
     args = parser.parse_args()
 
     detectors, errors = discovery.discover()
@@ -98,6 +99,17 @@ def main() -> None:
 
     if args.list:
         print(discovery.render_list(detectors))
+        return
+
+    if args.list_patterns:
+        patterns = next((d for d in detectors if d.name == "sniff-patterns"), None)
+        if not patterns:
+            print("error: sniff-patterns detector not found (run --list to see available detectors)", file=sys.stderr)
+            sys.exit(1)
+        proc = subprocess.run([sys.executable, patterns.script, "--list-rules"], capture_output=True, text=True)
+        print(proc.stdout.strip())
+        if proc.returncode != 0:
+            sys.exit(proc.returncode)
         return
 
     if not detectors:
