@@ -1,6 +1,6 @@
 {
   "name": "sniff",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Token-cheap code-smell skills. A self-serve, private SonarCloud-style scan built from small skills you grow one at a time: pattern rules, AST node metrics, and file metrics that return a compact findings table instead of dumping source into the conversation.",
   "author": {
     "name": "Amber van den Berg",

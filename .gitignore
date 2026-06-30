@@ -16,3 +16,6 @@ venv/
 # OS / editor
 .DS_Store
 Thumbs.db
+
+evals/results/
+evals/smoke/results/
