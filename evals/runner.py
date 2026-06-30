@@ -147,7 +147,7 @@ Reply with ONLY a JSON object in this exact format — no prose, no markdown fen
 Rules:
 - Output exactly one JSON object, nothing else.
 - The command must be a real shell command you would actually run.
-- Do not use flags that do not exist (e.g. there is no --all flag for sniff).
+- Do not use flags that do not exist (e.g. there is no --verbose or --format flag for sniff).
 - If you need to explore before committing to a specific scan, output an exploration command.
 """
 

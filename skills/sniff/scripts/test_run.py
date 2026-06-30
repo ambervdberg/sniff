@@ -13,6 +13,9 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 RUN = os.path.join(HERE, "run.py")
 
+sys.path.insert(0, HERE)
+import run as run_module  # noqa: E402 (needs sys.path set up first)
+
 
 class SniffCliHelpTest(unittest.TestCase):
     """Verify LLM-facing sniff CLI help stays explicit."""
@@ -160,6 +163,40 @@ class SniffBaselineDiffTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 1)
         self.assertIn("worse", proc.stdout)
         self.assertIn("+1", proc.stdout)
+
+
+class CountFindingsTest(unittest.TestCase):
+    """_count_table_rows handles multiple tables; _count_findings reads the true
+    total from a detector's summary line instead of a possibly-capped table."""
+
+    def test_count_table_rows_does_not_double_count_multiple_tables(self):
+        # sniff-patterns prints one "| LOCATION |" table per matched rule; a
+        # global "first row is the header" flag would miscount the second
+        # table's own header as a finding (3 true rows, would read as 4).
+        output = (
+            "### ruleA (warning): 2\n\n"
+            "| LOCATION |\n| --- |\n| loc1 |\n| loc2 |\n\n"
+            "### ruleB (error): 1\n\n"
+            "| LOCATION |\n| --- |\n| loc3 |\n"
+        )
+        self.assertEqual(run_module._count_table_rows(output), 3)
+
+    def test_count_findings_reads_true_total_from_capped_table(self):
+        # "Largest 20 of 262" — the table only shows 20 rows but the true
+        # count is 262; a capped table must not mask a real regression.
+        output = "Largest 20 of 262 methods/functions (python; tests excluded):\n"
+        self.assertEqual(run_module._count_findings(output), 262)
+
+    def test_count_findings_reads_sniff_patterns_total(self):
+        output = "sniff-patterns: 5 findings across 9 rules in '.'\n"
+        self.assertEqual(run_module._count_findings(output), 5)
+
+    def test_count_findings_reads_duplicate_string_total(self):
+        output = "Strings duplicated in 3+ distinct files (71 found; tests excluded):\n"
+        self.assertEqual(run_module._count_findings(output), 71)
+
+    def test_count_findings_falls_back_to_zero_for_no_matches(self):
+        self.assertEqual(run_module._count_findings("No classes matched.\n"), 0)
 
 
 class SniffMissingDirTest(unittest.TestCase):

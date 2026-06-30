@@ -275,26 +275,58 @@ def run_prime() -> None:
     print("\n".join(lines))
 
 
-def _count_table_rows(output: str) -> int:
-    """Count markdown table data rows in a detector's output (the header row and
-    the `| --- |` separator row are skipped, so only findings rows are counted).
+# Patterns detectors use to report a true total in their summary line, tried in
+# order. Falls back to _count_table_rows() when none match (e.g. "No X found").
+# Catches the common totals so a capped table (e.g. "Largest 20 of 262 methods")
+# doesn't mask a regression that grew the true count but not the displayed rows.
+_TOTAL_COUNT_PATTERNS = [
+    re.compile(r"\b\d+\s+of\s+(\d+)\b"),     # "Largest 20 of 262 methods"
+    re.compile(r"\((\d+)\s+found\b"),         # "(71 found; tests excluded)"
+    re.compile(r"\b(\d+)\s+findings?\b"),     # "0 findings across 9 rules"
+]
 
-    This is a top-N proxy, not always the detector's true total (some detectors
-    cap their table, e.g. "Largest 20 of 262 methods") — good enough to catch a
-    regression (count went up) without parsing each detector's own findings."""
+
+def _count_table_rows(output: str) -> int:
+    """Count markdown table data rows in a detector's output.
+
+    A header row is a non-separator pipe row immediately followed by a
+    `| --- |` separator row; both are skipped. Tracking this per-table (instead
+    of a single global "first row is the header" flag) keeps multi-table output
+    correct: sniff-patterns prints one table per matched rule, and a global flag
+    would count every table-after-the-first's own header as a finding."""
+    lines = [line.strip() for line in output.splitlines()]
+    is_separator = lambda line: bool(re.fullmatch(r"[\s|:-]+", line))
+
     rows = 0
-    seen_header = False
-    for line in output.splitlines():
-        line = line.strip()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         if not line.startswith("|") or not line.endswith("|"):
+            i += 1
             continue
-        if re.fullmatch(r"[\s|:-]+", line):
+        if is_separator(line):
+            i += 1
             continue
-        if not seen_header:
-            seen_header = True
+        if i + 1 < len(lines) and is_separator(lines[i + 1]):
+            i += 2  # header followed by its separator: skip both
             continue
         rows += 1
+        i += 1
     return rows
+
+
+def _count_findings(output: str) -> int:
+    """Best-effort true finding count for one detector's output.
+
+    Tries to read the total straight out of the detector's own summary line
+    (most detectors report it even when their table is capped at top-N);
+    falls back to _count_table_rows() when no recognized pattern matches."""
+    first_line = output.splitlines()[0] if output else ""
+    for pattern in _TOTAL_COUNT_PATTERNS:
+        match = pattern.search(first_line)
+        if match:
+            return int(match.group(1))
+    return _count_table_rows(output)
 
 
 def _scan_counts(detectors: list[discovery.Detector], path: str) -> dict[str, int]:
@@ -302,7 +334,7 @@ def _scan_counts(detectors: list[discovery.Detector], path: str) -> dict[str, in
     counts: dict[str, int] = {}
     for d in detectors:
         result = run_detector_json(d, path)
-        counts[d.name] = _count_table_rows(result.get("output") or "")
+        counts[d.name] = _count_findings(result.get("output") or "")
     return counts
 
 
