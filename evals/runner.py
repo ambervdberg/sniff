@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 import time
@@ -332,7 +331,7 @@ def run_eval(
         latest = output_path.parent / "latest.jsonl"
         shutil.copy2(output_path, latest)
 
-        print(f"\nDone.")
+        print("\nDone.")
         print(f"  Saved : {output_path}")
         print(f"  Latest: {latest}")
         print(f"  Score : python evals/scorer.py --results {output_path}")
