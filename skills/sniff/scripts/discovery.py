@@ -4,18 +4,18 @@
 Each detector skill drops a small `detector.yml` manifest next to its script. The
 umbrella runner (`run.py`) globs every manifest under the skills root and invokes
 the named script uniformly, so adding a detector is zero-cost: drop a manifest and
-it joins `sniff --all` automatically, with no edit to the runner. This mirrors the
-sniff-lint rule catalog, where adding a rule file costs nothing.
+it joins `sniff` automatically, with no edit to the runner. This mirrors the
+sniff-patterns rule catalog, where adding a rule file costs nothing.
 
 The manifest is parsed without PyYAML (the project stays dependency-free, matching
-how sniff-lint hand-parses its rule files). It is therefore a FLAT key: value file:
+how sniff-patterns hand-parses its rule files). It is therefore a FLAT key: value file:
 
     name: cognitive-complexity
     title: High cognitive complexity methods
     script: scripts/cognitive_complexity.py
     args: --top 20
 
-`args` is optional and space-split into extra CLI args appended after the scan PATH.
+`args` is optional and space-split into extra CLI args appended after the scan DIR.
 """
 
 from __future__ import annotations
@@ -95,7 +95,11 @@ def render_list(detectors: list[Detector]) -> str:
     if not detectors:
         return "No detectors found (no skills/*/detector.yml manifests)."
 
-    lines = ["| DETECTOR | TITLE |", "| --- | --- |"]
+    lines = ["| DETECTOR | TITLE | RUN |", "| --- | --- | --- |"]
     for d in detectors:
-        lines.append(f"| {d.name} | {d.title} |")
+        lines.append(f"| {d.name} | {d.title} | `sniff --only {d.name} [DIR]` |")
+
+    if any(d.name == "sniff-patterns" for d in detectors):
+        lines.append("\nTip: `sniff --list-patterns` lists the individual pattern rules.")
+
     return "\n".join(lines)

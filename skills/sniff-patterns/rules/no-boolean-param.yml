@@ -1,5 +1,5 @@
 # Boolean-typed parameters
-# Generated for the sniff-lint catalog. Run via the sniff-lint skill.
+# Generated for the sniff-patterns catalog. Run via the sniff-patterns skill.
 id: no-boolean-param
 language: typescript
 severity: warning

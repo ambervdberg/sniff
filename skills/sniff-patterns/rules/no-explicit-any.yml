@@ -1,5 +1,5 @@
 # Explicit `any` type
-# Generated for the sniff-lint catalog. Run via the sniff-lint skill.
+# Generated for the sniff-patterns catalog. Run via the sniff-patterns skill.
 id: no-explicit-any
 language: typescript
 severity: warning

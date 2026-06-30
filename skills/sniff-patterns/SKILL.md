@@ -1,7 +1,7 @@
 ---
-name: sniff-lint
+name: sniff-patterns
 description: >-
-  Run the sniff-lint code-smell rule catalog over a repo in one pass and return a
+  Run the sniff-patterns code-smell rule catalog over a repo in one pass and return a
   compact findings table. Use when the user wants to "lint the codebase", "find
   code smells", "run the smell checks", "scan for anti-patterns", "sonar-style
   scan", or check many small rules at once (e.g. explicit any, nested ternaries,
@@ -9,21 +9,12 @@ description: >-
   never raw per-match output.
 ---
 
-# sniff-lint
+# sniff-patterns
 
 Run the whole rule catalog (`rules/*.yml`) in a single `ast-grep scan` and report a
 small findings table. Adding rules costs nothing here: they are inert data files,
 loaded only when this skill runs, so the catalog can grow to hundreds of rules
 without bloating context.
-
-## Command
-
-```bash
-python "<skill_dir>/scripts/format.py" [PATH] [--severity error|warning|info|hint] [--rule ID] [--top-locs N]
-```
-
-`<skill_dir>` is this skill's directory. `PATH` defaults to the current directory.
-Filter with `--severity` or a single `--rule`. Vendored/build dirs are skipped.
 
 ## Relaying the result
 
@@ -37,6 +28,25 @@ worst rule), but the full output comes first and in full.
 A "Clean: 0 findings. Ran N rules (...)" line is a **valid, complete result**: the
 codebase passed every rule. Relay it as-is. Do NOT speculate that the plugin "has no
 rules" or is "new/empty", the line already names the rules that ran; trust it.
+
+## Command
+
+Prefer the umbrella `sniff` CLI unless editing this skill directly:
+
+```bash
+sniff --only sniff-patterns [DIR]
+sniff --list-patterns
+```
+
+Direct skill script:
+
+```bash
+python "<skill_dir>/scripts/format.py" [DIR] [--severity error|warning|info|hint] [--rule ID] [--top-locs N] [--list-rules]
+```
+
+`<skill_dir>` is this skill's directory. `DIR` defaults to the current directory.
+Filter with `--severity` or a single `--rule`. Vendored/build dirs are skipped.
+Use `--list-rules` to print the catalog (RULE / SEVERITY / MESSAGE) and exit without scanning.
 
 ## Adding rules
 

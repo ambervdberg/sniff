@@ -2,8 +2,8 @@
 """sniff: run every smell detector over a repo in one pass.
 
 The umbrella entry point. Discovers detectors via their detector.yml manifests
-(see discovery.py), runs each one's script over the scan PATH, and prints one
-markdown section per detector. Default is `--all`; narrow with --only / --skip,
+(see discovery.py), runs each one's script over the scan DIR, and prints one
+markdown section per detector. Default runs all detectors with no flag; narrow with --only / --skip,
 or just list what is available with --list.
 
 Each detector returns only its own compact table (ranked top-N or location list),
@@ -13,7 +13,7 @@ shells out to the detector's existing script, so the standalone skill and the
 aggregate run always agree.
 
 Usage:
-    python run.py [PATH] [--only a,b] [--skip a,b] [--list]
+    python run.py [DIR] [--only a,b] [--skip a,b] [--list]
 """
 
 from __future__ import annotations
@@ -22,7 +22,10 @@ import argparse
 import subprocess
 import sys
 
-import discovery
+try:
+    import discovery  # direct run: python run.py
+except ModuleNotFoundError:
+    from skills.sniff.scripts import discovery  # installed via uv tool install
 
 
 def _split_csv(value: str | None) -> set[str]:
@@ -67,11 +70,28 @@ def run_detector(detector: discovery.Detector, path: str) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run every smell detector over a repo in one pass.")
-    parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
+    parser = argparse.ArgumentParser(
+        prog="sniff",
+        description="Run every code-smell detector over a repo in one pass.",
+        epilog=(
+            "Default: `sniff [DIR]` runs all detectors; there is no `--all` flag.\n\n"
+            "Examples:\n"
+            "  sniff                        # scan current directory, all detectors\n"
+            "  sniff <dir>                  # scan any directory\n"
+            "  sniff --list                 # show available detectors\n"
+            "  sniff --only largest-methods,cyclomatic-complexity\n"
+            "  sniff --skip sniff-patterns  # skip pattern rules\n"
+            "\n"
+            "Pattern rules only:  sniff --only sniff-patterns [DIR]\n"
+            "List pattern rules:  sniff --list-patterns\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("path", nargs="?", default=".", metavar="DIR", help="directory to scan (default: current directory)")
     parser.add_argument("--only", help="comma-separated detector names to run (default: all)")
     parser.add_argument("--skip", help="comma-separated detector names to skip")
     parser.add_argument("--list", action="store_true", help="list discovered detectors and exit")
+    parser.add_argument("--list-patterns", action="store_true", help="list pattern rules catalog (RULE / SEVERITY / MESSAGE) and exit")
     args = parser.parse_args()
 
     detectors, errors = discovery.discover()
@@ -80,6 +100,17 @@ def main() -> None:
 
     if args.list:
         print(discovery.render_list(detectors))
+        return
+
+    if args.list_patterns:
+        patterns = next((d for d in detectors if d.name == "sniff-patterns"), None)
+        if not patterns:
+            print("error: sniff-patterns detector not found (run --list to see available detectors)", file=sys.stderr)
+            sys.exit(1)
+        proc = subprocess.run([sys.executable, patterns.script, "--list-rules"], capture_output=True, text=True)
+        print(proc.stdout.strip())
+        if proc.returncode != 0:
+            sys.exit(proc.returncode)
         return
 
     if not detectors:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scaffold a new smell skill, or a new sniff-lint rule, from resolved inputs.
+"""Scaffold a new smell skill, or a new sniff-patterns rule, from resolved inputs.
 
 This is the mechanical half of sniff-create. The conversational half (gather
 intent, draft the ast-grep rule, validate it on the current repo) lives in the
@@ -36,7 +36,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES = os.path.join(HERE, "..", "templates")
 SKILLS_DIR = os.path.normpath(os.path.join(HERE, "..", ".."))
-RULES_DIR = os.path.join(SKILLS_DIR, "sniff-lint", "rules")
+RULES_DIR = os.path.join(SKILLS_DIR, "sniff-patterns", "rules")
 
 
 def _load_template(name: str) -> str:
@@ -181,11 +181,11 @@ def cmd_rule(args: argparse.Namespace) -> None:
            _fill(_load_template("rule.yml.tmpl"), tokens), args.dry_run)
 
     if not args.dry_run:
-        print("\nNext: run the sniff-lint skill to see it in the catalog scan.")
+        print("\nNext: run the sniff-patterns skill to see it in the catalog scan.")
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Scaffold a smell skill or a sniff-lint rule.")
+    parser = argparse.ArgumentParser(description="Scaffold a smell skill or a sniff-patterns rule.")
     parser.add_argument("--dry-run", action="store_true", help="print what would be written, touch nothing")
     sub = parser.add_subparsers(dest="mode", required=True)
 
@@ -209,7 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
     n.add_argument("--one-line", help="one-line summary under the heading (defaults to title)")
     n.set_defaults(func=cmd_node_metric)
 
-    r = sub.add_parser("rule", help="scaffold a sniff-lint catalog rule")
+    r = sub.add_parser("rule", help="scaffold a sniff-patterns catalog rule")
     r.add_argument("--name", required=True, help="kebab-case rule id (also the file name)")
     r.add_argument("--title", required=True, help="one-line human title (comment header)")
     r.add_argument("--language", required=True, help="ast-grep language id")

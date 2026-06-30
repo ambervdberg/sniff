@@ -4,34 +4,36 @@ description: >-
   Run every code-smell detector over a repo in one pass and return one compact
   section per detector. Use when the user wants the FULL smell scan, "find all
   code smells", "lint everything", "run all the checks", "sonar-style scan", or
-  does not name a specific metric. Aggregates the sniff-lint pattern catalog plus
+  does not name a specific metric. Aggregates sniff-patterns (pattern rule catalog) plus
   every node-metric and file-metric detector (complexity, nesting, parameters,
-  method/class/file size, inline-template size). For a single metric, invoke that
-  detector's own skill instead.
+  method/class/file size, inline-template size). For pattern rules only, invoke
+  sniff:sniff-patterns directly. For a single metric, invoke that detector's own skill instead.
 ---
 
 # sniff
 
-One umbrella entry point over the whole detector suite. Each detector skill ships a
-`detector.yml` manifest; `sniff` discovers every manifest under the skills root and
+Default: run `sniff [DIR]`.
+Need pattern rules only: run `sniff --only sniff-patterns [DIR]`.
+Need one metric: run `sniff --only <detector> [DIR]`.
+
+Umbrella entry point that runs **all** detectors in one pass: `sniff-patterns` (pattern rule catalog) plus every node-metric and file-metric detector (complexity, nesting, parameters, method/class/file size, inline-template size). To run pattern rules only, invoke `sniff:sniff-patterns` directly.
+
+## Intent routing
+
+| User intent | Run |
+| --- | --- |
+| Full scan / find all code smells / run all checks | `sniff [DIR]` |
+| See available detectors | `sniff --list` |
+| Pattern rules only | `sniff --only sniff-patterns [DIR]` |
+| List pattern rules | `sniff --list-patterns` |
+| Single metric | `sniff --only <detector> [DIR]` |
+
+Each detector skill ships a `detector.yml` manifest; `sniff` discovers every manifest under the skills root and
 runs each detector's script over the scan path, printing one section per detector.
 
 Adding a detector is zero-cost: drop a `detector.yml` next to its script and it joins
-`sniff --all` automatically, no edit to the runner. This mirrors the sniff-lint rule
+`sniff` automatically, no edit to the runner. This mirrors the sniff-patterns rule
 catalog, where adding a rule file costs nothing.
-
-## Command
-
-```bash
-python "<skill_dir>/scripts/run.py" [PATH] [--only a,b] [--skip a,b] [--list]
-```
-
-`<skill_dir>` is this skill's directory. `PATH` defaults to the current directory.
-
-- no flags: run **every** discovered detector (`--all` is the default).
-- `--only a,b`: run just those detectors.
-- `--skip a,b`: run all but those.
-- `--list`: show the discovered detectors and exit.
 
 ## Relaying the result
 
@@ -45,11 +47,25 @@ first and in full.
 A detector reporting 0 findings is a valid, complete result: that smell is absent.
 Relay its section as-is.
 
+## Command
+
+```bash
+python "<skill_dir>/scripts/run.py" [DIR] [--only a,b] [--skip a,b] [--list] [--list-patterns]
+```
+
+`<skill_dir>` is this skill's directory. `DIR` defaults to the current directory.
+
+- no flags: run **every** discovered detector (default is all).
+- `--only a,b`: run just those detectors.
+- `--skip a,b`: run all but those.
+- `--list`: show the discovered detectors and exit.
+- `--list-patterns`: list the pattern rule catalog (RULE / SEVERITY / MESSAGE) and exit.
+
 ## Token cost
 
 Each detector returns only its own compact table (ranked top-N or a location list),
 never source, so the aggregate stays small for a normal repo. The runner just
-concatenates sections. If a future repo makes `--all` output genuinely large, narrow
+concatenates sections. If a future repo makes default full-scan output genuinely large, narrow
 it with `--only` / `--skip`; a smarter cap can come then, not before.
 
 ## Adding a detector
@@ -61,10 +77,10 @@ in that skill's directory:
 name: my-detector
 title: One-line section heading
 script: scripts/my_detector.py
-args:                 # optional, space-separated extra args appended after PATH
+args:                 # optional, space-separated extra args appended after DIR
 ```
 
-`sniff --list` will then show it and `sniff --all` will run it.
+`sniff --list` will then show it and `sniff` (no flags) will run it.
 
 ## Caveats
 

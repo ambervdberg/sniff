@@ -33,7 +33,9 @@ a new check:
 
 One-time per machine, not per repo.
 
-## Install (Claude Code)
+## Install
+
+### Claude Code (plugin)
 
 ```bash
 /plugin marketplace add https://github.com/ambervdberg/sniff
@@ -41,6 +43,44 @@ One-time per machine, not per repo.
 ```
 
 Update later with `git pull` on the marketplace or the `/plugin` update flow.
+
+### Python CLI (`uv tool install`)
+
+```bash
+uv tool install .
+sniff [DIR]
+```
+
+Puts `sniff` on PATH via [uv](https://docs.astral.sh/uv/). Requires Python 3.9+.
+
+### Zero-install (Windows, after `git clone`)
+
+```bat
+sniff.bat [DIR]
+```
+
+No install step — just Python on PATH. The `sniff.bat` in the repo root delegates to `skills/sniff/scripts/run.py`.
+
+## Common asks
+
+| User asks | Run |
+| --- | --- |
+| Full scan / find all code smells / run all checks | `sniff [DIR]` |
+| See available detectors | `sniff --list` |
+| Pattern rules only | `sniff --only sniff-patterns [DIR]` |
+| List pattern rules | `sniff --list-patterns` |
+| Single metric | `sniff --only <detector> [DIR]` |
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `sniff [DIR]` | Scan `DIR` (default: `.`) with all detectors. |
+| `sniff --list` | List all available detectors. |
+| `sniff --list-patterns` | List all pattern rules (RULE / SEVERITY / MESSAGE). |
+| `sniff --only a,b [DIR]` | Run only the named detectors. |
+| `sniff --skip a,b [DIR]` | Run all detectors except the named ones. |
+| `sniff --only sniff-patterns [DIR]` | Run pattern rules only. |
+| `sniff --help` | Show usage and examples. |
 
 ## What's here
 
@@ -54,7 +94,8 @@ Update later with `git pull` on the marketplace or the `/plugin` update flow.
 | `cognitive-complexity` | Rank functions by cognitive complexity (nesting-weighted read difficulty). |
 | `most-parameters` | Rank functions by parameter count (long-parameter-list smell). |
 | `large-inline-templates` | Rank Angular components by inline-template line count. |
-| `sniff-lint` | Run the rule catalog in one `ast-grep scan` pass; compact findings table. |
+| `sniff` | Umbrella runner: runs **all** detectors in one pass. Use this for a full scan. |
+| `sniff-patterns` | Run the pattern rule catalog in one `ast-grep scan` pass; compact findings table. |
 | `sniff-create` | Scaffold a new smell skill or catalog rule from a short conversation. |
 
 `skills/_ast-harness/` is the shared engine every ast-based skill reuses (running
@@ -75,7 +116,8 @@ skills/
   cognitive-complexity/
   most-parameters/
   large-inline-templates/
-  sniff-lint/     rule catalog (ast-grep scan)
+  sniff/           umbrella runner (runs all detectors)
+  sniff-patterns/  rule catalog (ast-grep scan)
   sniff-create/    the skill/rule generator + suggest-create detection hook
 docs/             design spec
 ```

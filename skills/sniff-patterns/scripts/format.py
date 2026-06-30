@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Run the sniff-lint rule catalog and print a compact findings table.
+"""Run the sniff-patterns rule catalog and print a compact findings table.
 
-One `ast-grep scan` pass loads every rule under sniff-lint/rules/ and reports its
+One `ast-grep scan` pass loads every rule under sniff-patterns/rules/ and reports its
 matches. This script folds that JSON into a small RULE / SEVERITY / COUNT /
 TOP LOCATIONS table so the calling agent only ever sees the
 summary, never the raw per-match JSON.
 
 Usage:
-    python format.py [PATH] [--severity error|warning|info|hint] [--rule ID] [--top-locs N]
+    python format.py [DIR] [--severity error|warning|info|hint] [--rule ID] [--top-locs N]
 
-PATH defaults to the current directory. Vendored/build dirs are skipped by the
+DIR defaults to the current directory. Vendored/build dirs are skipped by the
 shared ignore list; test files are NOT excluded here (a lint finding in a test is
 still a finding).
 """
@@ -62,13 +62,13 @@ def _rel(file: str, root: str) -> str:
     return rel.replace("\\", "/")
 
 
-def catalog_rules() -> list[tuple[str, str]]:
-    """(id, severity) for each rule in the catalog, read from rules/*.yml.
+def catalog_rules() -> list[tuple[str, str, str]]:
+    """(id, severity, message) for each rule in the catalog, read from rules/*.yml.
 
     Used so a clean result can list every rule that ran (and its severity),
     distinguishing 'no smells' from 'no rules loaded'. Severity defaults to
     'warning' to match ast-grep when a rule omits the field."""
-    rules: list[tuple[str, str]] = []
+    rules: list[tuple[str, str, str]] = []
     if not os.path.isdir(RULES_DIR):
         return rules
 
@@ -78,15 +78,18 @@ def catalog_rules() -> list[tuple[str, str]]:
 
         rule_id = ""
         severity = "warning"
+        message = ""
         with open(os.path.join(RULES_DIR, name), "r", encoding="utf-8") as fh:
             for line in fh:
                 if line.startswith("id:"):
                     rule_id = line.split(":", 1)[1].strip()
                 elif line.startswith("severity:"):
                     severity = line.split(":", 1)[1].strip()
+                elif line.startswith("message:"):
+                    message = line.split(":", 1)[1].strip()
 
         if rule_id:
-            rules.append((rule_id, severity))
+            rules.append((rule_id, severity, message))
     return rules
 
 
@@ -108,17 +111,17 @@ def print_rule_table(rows: list[tuple[str, str, int, list[str]]]) -> None:
         return value.replace("|", "\\|")
 
     for rule_id, severity, count, locs in rows:
-        if not locs:
-            continue
         print(f"### {rule_id} ({severity}): {count}\n")
         print("| LOCATION |")
         print("| --- |")
+        if not locs:
+            print("| (none) |")
         for loc in locs:
             print(f"| {cell(loc)} |")
         print()
 
 
-def print_rules_ran(ran: list[tuple[str, str]], cap: int = 30) -> None:
+def print_rules_ran(ran: list[tuple[str, str, str]], cap: int = 30) -> None:
     """Print a one-line roster of every rule that ran this invocation.
 
     The findings table only lists rules that matched, so without this a reader
@@ -128,11 +131,24 @@ def print_rules_ran(ran: list[tuple[str, str]], cap: int = 30) -> None:
     if not ran:
         return
 
-    ids = [rid for rid, _ in sorted(ran)]
+    ids = [rid for rid, _, _msg in sorted(ran)]
     if len(ids) <= cap:
         print(f"\nRan {len(ids)} rules: {', '.join(ids)}")
     else:
         print(f"\nRan {len(ids)} rules ({', '.join(ids[:cap])}, +{len(ids) - cap} more)")
+
+
+def print_list_rules(rules: list[tuple[str, str, str]]) -> None:
+    """Print a catalog table: RULE / SEVERITY / MESSAGE.
+
+    Used by --list-rules so an agent can discover rule IDs and their intent
+    without running a scan."""
+    print("| RULE | SEVERITY | MESSAGE |")
+    print("| --- | --- | --- |")
+    for rule_id, severity, message in sorted(rules, key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[0])):
+        # Escape pipes so the markdown table stays valid.
+        safe_msg = message.replace("|", "\\|")
+        print(f"| {rule_id} | {severity} | {safe_msg} |")
 
 
 def run_scan(path: str) -> list[dict]:
@@ -203,13 +219,23 @@ def scan_multiline_single_comments(path: str) -> list[dict]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the sniff-lint catalog and summarize findings.")
-    parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
+    parser = argparse.ArgumentParser(description="Run the sniff-patterns catalog and summarize findings.")
+    parser.add_argument("path", nargs="?", default=".", metavar="DIR", help="directory to scan (default: .)")
     parser.add_argument("--severity", help="only show this severity (error|warning|info|hint)")
     parser.add_argument("--rule", help="only show this rule id")
     parser.add_argument("--top-locs", type=int, default=0,
                         help="cap locations listed per rule (default: 0 = list every location)")
+    parser.add_argument("--list-rules", action="store_true",
+                        help="print catalog of available rule IDs and exit")
     args = parser.parse_args()
+
+    if args.list_rules:
+        rules = catalog_rules()
+        if not rules:
+            print(f"No rules in the catalog ({RULES_DIR}). Add one with sniff-create.")
+        else:
+            print_list_rules(rules)
+        return
 
     _require_ast_grep()
 
@@ -248,8 +274,8 @@ def main() -> None:
     # --severity filter. Reported so the result names how many and which rules ran,
     # not just the ones that happened to match.
     ran = [
-        (rid, sev)
-        for rid, sev in rules
+        (rid, sev, msg)
+        for rid, sev, msg in rules
         if (not args.rule or rid == args.rule)
         and (not args.severity or sev == args.severity)
     ]
@@ -257,7 +283,7 @@ def main() -> None:
     if not by_rule:
         # Clean result: show every rule that ran as a 0-count table row so a pass
         # still reads as a real table.
-        clean_rows = [(rid, sev, 0, []) for rid, sev in ran]
+        clean_rows = [(rid, sev, 0, []) for rid, sev, _msg in ran]
         clean_rows.sort(key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[0]))
 
         scope = ""
@@ -265,7 +291,7 @@ def main() -> None:
             scope = f" matching --rule {args.rule}"
         elif args.severity:
             scope = f" at --severity {args.severity}"
-        print(f"sniff-lint: 0 findings{scope} across {len(ran)} rules in {args.path!r}\n")
+        print(f"sniff-patterns: 0 findings{scope} across {len(ran)} rules in {args.path!r}\n")
         print_rule_table(clean_rows)
         print_rules_ran(ran)
         return
@@ -276,7 +302,7 @@ def main() -> None:
     rows = [(rid, e["severity"], e["count"], e["locs"]) for rid, e in sorted_rules]
 
     total = sum(r[2] for r in rows)
-    print(f"sniff-lint: {total} findings, {len(rows)} of {len(ran)} rules matched in {args.path!r}\n")
+    print(f"sniff-patterns: {total} findings, {len(rows)} of {len(ran)} rules matched in {args.path!r}\n")
 
     print_rule_table(rows)
     print_rules_ran(ran)
