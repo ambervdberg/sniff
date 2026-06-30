@@ -6,7 +6,7 @@ asks the model to return the *first* shell command it would run as structured
 JSON, then writes results to a JSONL file for the scorer.
 
 Usage:
-    # Run all cases (default model: gpt-5.4-nano, fallback: gpt-5.4-mini):
+    # Run all cases (default model: gpt-5.4-nano):
     python evals/runner.py
 
     # Specific model:
@@ -182,7 +182,6 @@ def build_user_message(case: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 DEFAULT_MODEL = "gpt-5.4-nano"
-FALLBACK_MODEL = "gpt-5.4-mini"
 
 
 def call_model(system: str, user: str, model: str) -> str:
@@ -350,7 +349,7 @@ def main() -> None:
     parser.add_argument(
         "--model",
         default=DEFAULT_MODEL,
-        help=f"OpenAI model to use (default: {DEFAULT_MODEL}, fallback: {FALLBACK_MODEL})",
+        help=f"OpenAI model to use (default: {DEFAULT_MODEL})",
     )
     parser.add_argument(
         "--cases",
