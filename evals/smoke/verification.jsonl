@@ -1,0 +1,8 @@
+{"id": "case-001", "actual": "sniff", "agent": "claude", "model": "claude-sonnet-5", "date": "2026-06-30"}
+{"id": "case-005", "actual": "sniff src/", "agent": "claude", "model": "claude-sonnet-5", "date": "2026-06-30"}
+{"id": "case-006", "actual": "sniff", "agent": "claude", "model": "claude-sonnet-5", "date": "2026-06-30"}
+{"id": "case-007", "actual": "sniff --only cyclomatic-complexity", "agent": "claude", "model": "claude-sonnet-5", "date": "2026-06-30"}
+{"id": "case-011", "actual": "sniff --skip largest-files app/", "agent": "claude", "model": "claude-sonnet-5", "date": "2026-06-30"}
+{"id": "case-017", "actual": "sniff --help", "agent": "claude", "model": "claude-sonnet-5", "date": "2026-06-30"}
+{"id": "case-019", "actual": "sniff --only cognitive-complexity", "agent": "claude", "model": "claude-sonnet-5", "date": "2026-06-30"}
+{"id": "case-026", "actual": "sniff", "agent": "claude", "model": "claude-sonnet-5", "date": "2026-06-30"}
