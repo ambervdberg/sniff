@@ -2,8 +2,8 @@
 """sniff: run every smell detector over a repo in one pass.
 
 The umbrella entry point. Discovers detectors via their detector.yml manifests
-(see discovery.py), runs each one's script over the scan PATH, and prints one
-markdown section per detector. Default is `--all`; narrow with --only / --skip,
+(see discovery.py), runs each one's script over the scan DIR, and prints one
+markdown section per detector. Default runs all detectors with no flag; narrow with --only / --skip,
 or just list what is available with --list.
 
 Each detector returns only its own compact table (ranked top-N or location list),
@@ -13,7 +13,7 @@ shells out to the detector's existing script, so the standalone skill and the
 aggregate run always agree.
 
 Usage:
-    python run.py [PATH] [--only a,b] [--skip a,b] [--list]
+    python run.py [DIR] [--only a,b] [--skip a,b] [--list]
 """
 
 from __future__ import annotations
@@ -74,6 +74,7 @@ def main() -> None:
         prog="sniff",
         description="Run every code-smell detector over a repo in one pass.",
         epilog=(
+            "Default: `sniff [DIR]` runs all detectors; there is no `--all` flag.\n\n"
             "Examples:\n"
             "  sniff                        # scan current directory, all detectors\n"
             "  sniff <dir>                  # scan any directory\n"

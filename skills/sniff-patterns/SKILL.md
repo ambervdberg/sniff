@@ -31,7 +31,7 @@ rules" or is "new/empty", the line already names the rules that ran; trust it.
 
 ## Command
 
-From the umbrella `sniff` CLI:
+Prefer the umbrella `sniff` CLI unless editing this skill directly:
 
 ```bash
 sniff --only sniff-patterns [DIR]

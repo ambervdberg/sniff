@@ -12,17 +12,21 @@ description: >-
 
 # sniff
 
+Default: run `sniff [DIR]`.
+Need pattern rules only: run `sniff --only sniff-patterns [DIR]`.
+Need one metric: run `sniff --only <detector> [DIR]`.
+
 Umbrella entry point that runs **all** detectors in one pass: `sniff-patterns` (pattern rule catalog) plus every node-metric and file-metric detector (complexity, nesting, parameters, method/class/file size, inline-template size). To run pattern rules only, invoke `sniff:sniff-patterns` directly.
 
 ## Intent routing
 
 | User intent | Run |
 | --- | --- |
-| Full scan / find all code smells / run all checks | `python "<skill_dir>/scripts/run.py" [DIR]` |
-| See available detectors | `python "<skill_dir>/scripts/run.py" --list` |
-| Pattern rules only | `python "<skill_dir>/scripts/run.py" --only sniff-patterns [DIR]` |
-| List pattern rules | `python "<skill_dir>/scripts/run.py" --list-patterns` |
-| Single metric | `python "<skill_dir>/scripts/run.py" --only <detector> [DIR]` |
+| Full scan / find all code smells / run all checks | `sniff [DIR]` |
+| See available detectors | `sniff --list` |
+| Pattern rules only | `sniff --only sniff-patterns [DIR]` |
+| List pattern rules | `sniff --list-patterns` |
+| Single metric | `sniff --only <detector> [DIR]` |
 
 Each detector skill ships a `detector.yml` manifest; `sniff` discovers every manifest under the skills root and
 runs each detector's script over the scan path, printing one section per detector.
