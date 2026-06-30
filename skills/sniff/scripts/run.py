@@ -70,7 +70,22 @@ def run_detector(detector: discovery.Detector, path: str) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run every smell detector over a repo in one pass.")
+    parser = argparse.ArgumentParser(
+        prog="sniff",
+        description="Run every code-smell detector over a repo in one pass.",
+        epilog=(
+            "Examples:\n"
+            "  sniff                        # scan current directory, all detectors\n"
+            "  sniff src/                   # scan src/ only\n"
+            "  sniff --list                 # show available detectors\n"
+            "  sniff --only largest-methods,cyclomatic-complexity\n"
+            "  sniff --skip sniff-patterns  # skip pattern rules\n"
+            "\n"
+            "Pattern rules only:  sniff --only sniff-patterns [PATH]\n"
+            "List pattern rules:  sniff --only sniff-patterns [PATH] (then use sniff:sniff-patterns --list-rules)\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
     parser.add_argument("--only", help="comma-separated detector names to run (default: all)")
     parser.add_argument("--skip", help="comma-separated detector names to skip")
