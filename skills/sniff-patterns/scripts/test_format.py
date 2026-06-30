@@ -43,9 +43,7 @@ class CatalogTest(unittest.TestCase):
     def test_explicit_any_counted(self):
         out = self._run("--rule", "no-explicit-any")
         self.assertIn("no-explicit-any", out)
-        # The count column should read 3 for this rule.
-        line = next(l for l in out.splitlines() if l.startswith("no-explicit-any"))
-        self.assertIn("3", line.split())
+        self.assertIn("### no-explicit-any (warning): 3", out)
 
     def test_nested_ternary_found(self):
         out = self._run("--rule", "no-nested-ternary")
@@ -53,8 +51,9 @@ class CatalogTest(unittest.TestCase):
 
     def test_severity_filter_excludes_others(self):
         out = self._run("--severity", "error")
-        self.assertIn("0 findings", out)   # all seeded rules are warnings
-        self.assertIn("0 rules", out)      # no error-severity rules, so no table rows
+        self.assertIn("0 findings", out)   # no seeded fixture matches the error rule
+        self.assertIn("across 1 rules", out)  # the catalog currently has one error-severity rule
+        self.assertIn("### no-empty-catch (error): 0", out)
 
     def test_clean_reports_table_of_rules(self):
         empty = tempfile.mkdtemp()
@@ -64,10 +63,9 @@ class CatalogTest(unittest.TestCase):
             proc = subprocess.run([sys.executable, FORMAT, empty],
                                   capture_output=True, text=True)
             self.assertIn("0 findings", proc.stdout)
-            # Clean repo still renders the full table: header + every rule as a 0 row.
-            self.assertIn("RULE", proc.stdout)
-            self.assertIn("no-explicit-any", proc.stdout)
-            self.assertIn("no-nested-ternary", proc.stdout)
+            # Clean repo still renders one zero-count section for every rule.
+            self.assertIn("### no-explicit-any (warning): 0", proc.stdout)
+            self.assertIn("### no-nested-ternary (warning): 0", proc.stdout)
         finally:
             shutil.rmtree(empty, ignore_errors=True)
 

@@ -31,11 +31,20 @@ rules" or is "new/empty", the line already names the rules that ran; trust it.
 
 ## Command
 
+From the umbrella `sniff` CLI:
+
 ```bash
-python "<skill_dir>/scripts/format.py" [PATH] [--severity error|warning|info|hint] [--rule ID] [--top-locs N] [--list-rules]
+sniff --only sniff-patterns [DIR]
+sniff --list-patterns
 ```
 
-`<skill_dir>` is this skill's directory. `PATH` defaults to the current directory.
+Direct skill script:
+
+```bash
+python "<skill_dir>/scripts/format.py" [DIR] [--severity error|warning|info|hint] [--rule ID] [--top-locs N] [--list-rules]
+```
+
+`<skill_dir>` is this skill's directory. `DIR` defaults to the current directory.
 Filter with `--severity` or a single `--rule`. Vendored/build dirs are skipped.
 Use `--list-rules` to print the catalog (RULE / SEVERITY / MESSAGE) and exit without scanning.
 

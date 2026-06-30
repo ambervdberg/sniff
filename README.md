@@ -48,7 +48,7 @@ Update later with `git pull` on the marketplace or the `/plugin` update flow.
 
 ```bash
 uv tool install .
-sniff [PATH]
+sniff [DIR]
 ```
 
 Puts `sniff` on PATH via [uv](https://docs.astral.sh/uv/). Requires Python 3.9+.
@@ -56,7 +56,7 @@ Puts `sniff` on PATH via [uv](https://docs.astral.sh/uv/). Requires Python 3.9+.
 ### Zero-install (Windows, after `git clone`)
 
 ```bat
-sniff.bat [PATH]
+sniff.bat [DIR]
 ```
 
 No install step — just Python on PATH. The `sniff.bat` in the repo root delegates to `skills/sniff/scripts/run.py`.
@@ -70,6 +70,7 @@ No install step — just Python on PATH. The `sniff.bat` in the repo root delega
 | `sniff --list-patterns` | List all pattern rules (RULE / SEVERITY / MESSAGE). |
 | `sniff --only a,b [DIR]` | Run only the named detectors. |
 | `sniff --skip a,b [DIR]` | Run all detectors except the named ones. |
+| `sniff --only sniff-patterns [DIR]` | Run pattern rules only. |
 | `sniff --help` | Show usage and examples. |
 
 ## What's here

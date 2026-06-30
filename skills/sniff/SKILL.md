@@ -14,11 +14,21 @@ description: >-
 
 Umbrella entry point that runs **all** detectors in one pass: `sniff-patterns` (pattern rule catalog) plus every node-metric and file-metric detector (complexity, nesting, parameters, method/class/file size, inline-template size). To run pattern rules only, invoke `sniff:sniff-patterns` directly.
 
+## Intent routing
+
+| User intent | Run |
+| --- | --- |
+| Full scan / find all code smells / run all checks | `python "<skill_dir>/scripts/run.py" [DIR]` |
+| See available detectors | `python "<skill_dir>/scripts/run.py" --list` |
+| Pattern rules only | `python "<skill_dir>/scripts/run.py" --only sniff-patterns [DIR]` |
+| List pattern rules | `python "<skill_dir>/scripts/run.py" --list-patterns` |
+| Single metric | `python "<skill_dir>/scripts/run.py" --only <detector> [DIR]` |
+
 Each detector skill ships a `detector.yml` manifest; `sniff` discovers every manifest under the skills root and
 runs each detector's script over the scan path, printing one section per detector.
 
 Adding a detector is zero-cost: drop a `detector.yml` next to its script and it joins
-`sniff --all` automatically, no edit to the runner. This mirrors the sniff-patterns rule
+`sniff` automatically, no edit to the runner. This mirrors the sniff-patterns rule
 catalog, where adding a rule file costs nothing.
 
 ## Relaying the result
@@ -51,7 +61,7 @@ python "<skill_dir>/scripts/run.py" [DIR] [--only a,b] [--skip a,b] [--list] [--
 
 Each detector returns only its own compact table (ranked top-N or a location list),
 never source, so the aggregate stays small for a normal repo. The runner just
-concatenates sections. If a future repo makes `--all` output genuinely large, narrow
+concatenates sections. If a future repo makes default full-scan output genuinely large, narrow
 it with `--only` / `--skip`; a smarter cap can come then, not before.
 
 ## Adding a detector
@@ -63,7 +73,7 @@ in that skill's directory:
 name: my-detector
 title: One-line section heading
 script: scripts/my_detector.py
-args:                 # optional, space-separated extra args appended after PATH
+args:                 # optional, space-separated extra args appended after DIR
 ```
 
 `sniff --list` will then show it and `sniff` (no flags) will run it.

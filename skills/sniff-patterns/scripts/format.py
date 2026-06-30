@@ -7,9 +7,9 @@ TOP LOCATIONS table so the calling agent only ever sees the
 summary, never the raw per-match JSON.
 
 Usage:
-    python format.py [PATH] [--severity error|warning|info|hint] [--rule ID] [--top-locs N]
+    python format.py [DIR] [--severity error|warning|info|hint] [--rule ID] [--top-locs N]
 
-PATH defaults to the current directory. Vendored/build dirs are skipped by the
+DIR defaults to the current directory. Vendored/build dirs are skipped by the
 shared ignore list; test files are NOT excluded here (a lint finding in a test is
 still a finding).
 """
@@ -111,11 +111,11 @@ def print_rule_table(rows: list[tuple[str, str, int, list[str]]]) -> None:
         return value.replace("|", "\\|")
 
     for rule_id, severity, count, locs in rows:
-        if not locs:
-            continue
         print(f"### {rule_id} ({severity}): {count}\n")
         print("| LOCATION |")
         print("| --- |")
+        if not locs:
+            print("| (none) |")
         for loc in locs:
             print(f"| {cell(loc)} |")
         print()
@@ -220,7 +220,7 @@ def scan_multiline_single_comments(path: str) -> list[dict]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the sniff-patterns catalog and summarize findings.")
-    parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
+    parser.add_argument("path", nargs="?", default=".", metavar="DIR", help="directory to scan (default: .)")
     parser.add_argument("--severity", help="only show this severity (error|warning|info|hint)")
     parser.add_argument("--rule", help="only show this rule id")
     parser.add_argument("--top-locs", type=int, default=0,
