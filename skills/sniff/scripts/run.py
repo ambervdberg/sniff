@@ -30,6 +30,7 @@ import re
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 
 try:
     import discovery  # direct run: python run.py
@@ -66,6 +67,17 @@ def _split_csv(value: str | None) -> set[str]:
     if not value:
         return set()
     return {part.strip() for part in value.split(",") if part.strip()}
+
+
+def _discover_with_warnings() -> list[discovery.Detector]:
+    """discovery.discover(), printing a warning per manifest error to stderr.
+
+    Shared by the scan path, baseline write, and diff — each cares about the
+    detector list, none of them need the errors beyond surfacing them."""
+    detectors, errors = discovery.discover()
+    for err in errors:
+        print(f"warning: {err}", file=sys.stderr)
+    return detectors
 
 
 def select(detectors: list[discovery.Detector], only: set[str], skip: set[str]
@@ -175,11 +187,37 @@ def get_version() -> str:
     return _installed_package_version() or _pyproject_version() or "unknown"
 
 
+@dataclass
+class EnvironmentFacts:
+    """Everything `doctor` and `prime` both need to know about the environment,
+    gathered once so the two commands can't drift on how they detect it."""
+
+    detectors: list[discovery.Detector]
+    errors: list[str]
+    has_ast_grep: bool
+    pkg_version: str | None
+    plugin_version: str | None
+    installed_version: str | None
+
+
+def _gather_environment_facts() -> EnvironmentFacts:
+    detectors, errors = discovery.discover()
+    return EnvironmentFacts(
+        detectors=detectors,
+        errors=errors,
+        has_ast_grep=shutil.which("ast-grep") is not None,
+        pkg_version=_pyproject_version(),
+        plugin_version=_plugin_version(),
+        installed_version=_installed_package_version(),
+    )
+
+
 def run_doctor() -> int:
     """Check prerequisites and consistency, print a PASS/FAIL line per check.
 
     Returns 0 if every check passed, 1 if any failed, so callers (and CI) can
     gate on the exit code instead of parsing output."""
+    facts = _gather_environment_facts()
     ok = True
     lines: list[str] = []
 
@@ -188,22 +226,20 @@ def run_doctor() -> int:
     lines.append(f"{'PASS' if py_ok else 'FAIL'} python {py_str} (>=3.9 required)")
     ok &= py_ok
 
-    has_ast_grep = shutil.which("ast-grep") is not None
     lines.append(
-        f"{'PASS' if has_ast_grep else 'FAIL'} ast-grep "
-        + ("found on PATH" if has_ast_grep else "not found on PATH (see https://ast-grep.github.io)")
+        f"{'PASS' if facts.has_ast_grep else 'FAIL'} ast-grep "
+        + ("found on PATH" if facts.has_ast_grep else "not found on PATH (see https://ast-grep.github.io)")
     )
-    ok &= has_ast_grep
+    ok &= facts.has_ast_grep
 
-    detectors, errors = discovery.discover()
-    if errors:
+    if facts.errors:
         ok = False
-        for err in errors:
+        for err in facts.errors:
             lines.append(f"FAIL manifest: {err}")
     else:
-        lines.append(f"PASS {len(detectors)} detector manifest(s) valid")
+        lines.append(f"PASS {len(facts.detectors)} detector manifest(s) valid")
 
-    names = [d.name for d in detectors]
+    names = [d.name for d in facts.detectors]
     dupes = sorted({n for n in names if names.count(n) > 1})
     if dupes:
         ok = False
@@ -211,14 +247,13 @@ def run_doctor() -> int:
     else:
         lines.append("PASS no duplicate detector names")
 
-    pkg_ver, plugin_ver = _pyproject_version(), _plugin_version()
-    if pkg_ver is None or plugin_ver is None:
+    if facts.pkg_version is None or facts.plugin_version is None:
         lines.append("SKIP version consistency (not a source checkout)")
-    elif pkg_ver == plugin_ver:
-        lines.append(f"PASS package and plugin versions match ({pkg_ver})")
+    elif facts.pkg_version == facts.plugin_version:
+        lines.append(f"PASS package and plugin versions match ({facts.pkg_version})")
     else:
         ok = False
-        lines.append(f"FAIL version drift: pyproject.toml={pkg_ver} plugin.json={plugin_ver}")
+        lines.append(f"FAIL version drift: pyproject.toml={facts.pkg_version} plugin.json={facts.plugin_version}")
 
     print("\n".join(lines))
     return 0 if ok else 1
@@ -227,17 +262,17 @@ def run_doctor() -> int:
 def run_prime() -> None:
     """Print agent-optimized context: version, detectors, prereqs, usage hints,
     caveats. Never runs a scan, so it stays cheap to call at session start."""
-    detectors, errors = discovery.discover()
-    lines: list[str] = [f"sniff {get_version()}", ""]
+    facts = _gather_environment_facts()
+    version = facts.installed_version or facts.pkg_version or "unknown"
+    lines: list[str] = [f"sniff {version}", ""]
 
     lines.append("PREREQUISITES")
-    has_ast_grep = shutil.which("ast-grep") is not None
     lines.append(f"  python {'.'.join(str(p) for p in sys.version_info[:3])}")
-    lines.append(f"  ast-grep: {'found on PATH' if has_ast_grep else 'MISSING (see https://ast-grep.github.io)'}")
+    lines.append(f"  ast-grep: {'found on PATH' if facts.has_ast_grep else 'MISSING (see https://ast-grep.github.io)'}")
     lines.append("")
 
-    lines.append(f"DETECTORS ({len(detectors)})")
-    for d in detectors:
+    lines.append(f"DETECTORS ({len(facts.detectors)})")
+    for d in facts.detectors:
         lines.append(f"  {d.name}: {d.title}")
     lines.append("")
 
@@ -252,17 +287,18 @@ def run_prime() -> None:
     lines.append("")
 
     caveats: list[str] = []
-    if not has_ast_grep:
+    if not facts.has_ast_grep:
         caveats.append("ast-grep is not on PATH; every detector except sniff-patterns will fail to run.")
-    if errors:
-        caveats.append(f"{len(errors)} detector manifest error(s); run `sniff doctor` for details.")
-    pkg_ver, plugin_ver = _pyproject_version(), _plugin_version()
-    if pkg_ver and plugin_ver and pkg_ver != plugin_ver:
-        caveats.append(f"version drift: pyproject.toml={pkg_ver} vs plugin.json={plugin_ver}; installed CLI may be stale.")
-    installed_ver = _installed_package_version()
-    if installed_ver and pkg_ver and installed_ver != pkg_ver:
+    if facts.errors:
+        caveats.append(f"{len(facts.errors)} detector manifest error(s); run `sniff doctor` for details.")
+    if facts.pkg_version and facts.plugin_version and facts.pkg_version != facts.plugin_version:
         caveats.append(
-            f"stale install: pip-installed sniff is {installed_ver}, source checkout is {pkg_ver}; "
+            f"version drift: pyproject.toml={facts.pkg_version} vs plugin.json={facts.plugin_version}; "
+            "installed CLI may be stale."
+        )
+    if facts.installed_version and facts.pkg_version and facts.installed_version != facts.pkg_version:
+        caveats.append(
+            f"stale install: pip-installed sniff is {facts.installed_version}, source checkout is {facts.pkg_version}; "
             "reinstall (pip install -e .) to pick up local changes."
         )
 
@@ -352,11 +388,7 @@ def run_baseline(argv: list[str]) -> int:
         print(f"error: {path!r} is not a directory. Check the path and try again.", file=sys.stderr)
         return 1
 
-    detectors, errors = discovery.discover()
-    for err in errors:
-        print(f"warning: {err}", file=sys.stderr)
-
-    counts = _scan_counts(detectors, path)
+    counts = _scan_counts(_discover_with_warnings(), path)
 
     baseline_dir = os.path.join(path, ".sniff")
     os.makedirs(baseline_dir, exist_ok=True)
@@ -387,11 +419,7 @@ def run_diff(argv: list[str]) -> int:
     with open(baseline_path, "r", encoding="utf-8") as fh:
         baseline_counts: dict[str, int] = json.load(fh).get("counts", {})
 
-    detectors, errors = discovery.discover()
-    for err in errors:
-        print(f"warning: {err}", file=sys.stderr)
-
-    current_counts = _scan_counts(detectors, path)
+    current_counts = _scan_counts(_discover_with_warnings(), path)
 
     names = sorted(set(baseline_counts) | set(current_counts))
     lines = [f"{'DETECTOR':<24} {'BASELINE':>8} {'CURRENT':>8} {'DELTA':>8}"]
@@ -456,9 +484,7 @@ def main() -> None:
     warn_hallucinated_flags(sys.argv[1:])
     args = parser.parse_args()
 
-    detectors, errors = discovery.discover()
-    for err in errors:
-        print(f"warning: {err}", file=sys.stderr)
+    detectors = _discover_with_warnings()
 
     if args.list:
         if args.json:
