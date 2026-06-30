@@ -61,6 +61,17 @@ sniff.bat [PATH]
 
 No install step — just Python on PATH. The `sniff.bat` in the repo root delegates to `skills/sniff/scripts/run.py`.
 
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `sniff [DIR]` | Scan `DIR` (default: `.`) with all detectors. |
+| `sniff --list` | List all available detectors. |
+| `sniff --list-patterns` | List all pattern rules (RULE / SEVERITY / MESSAGE). |
+| `sniff --only a,b [DIR]` | Run only the named detectors. |
+| `sniff --skip a,b [DIR]` | Run all detectors except the named ones. |
+| `sniff --help` | Show usage and examples. |
+
 ## What's here
 
 | Skill | Does |
