@@ -281,18 +281,12 @@ def main() -> None:
     ]
 
     if not by_rule:
-        # Clean result: show every rule that ran as a 0-count table row so a pass
-        # still reads as a real table.
-        clean_rows = [(rid, sev, 0, []) for rid, sev, _msg in ran]
-        clean_rows.sort(key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[0]))
-
         scope = ""
         if args.rule:
             scope = f" matching --rule {args.rule}"
         elif args.severity:
             scope = f" at --severity {args.severity}"
-        print(f"sniff-patterns: 0 findings{scope} across {len(ran)} rules in {args.path!r}\n")
-        print_rule_table(clean_rows)
+        print(f"sniff-patterns: 0 findings{scope} across {len(ran)} rules in {args.path!r}")
         print_rules_ran(ran)
         return
 

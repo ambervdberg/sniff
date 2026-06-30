@@ -53,9 +53,10 @@ class CatalogTest(unittest.TestCase):
         out = self._run("--severity", "error")
         self.assertIn("0 findings", out)   # no seeded fixture matches the error rule
         self.assertIn("across 1 rules", out)  # the catalog currently has one error-severity rule
-        self.assertIn("### no-empty-catch (error): 0", out)
+        self.assertNotIn("### no-empty-catch (error): 0", out)
+        self.assertNotIn("| (none) |", out)
 
-    def test_clean_reports_table_of_rules(self):
+    def test_clean_reports_summary_without_empty_rule_tables(self):
         empty = tempfile.mkdtemp()
         try:
             with open(os.path.join(empty, "ok.ts"), "w", encoding="utf-8") as fh:
@@ -63,9 +64,11 @@ class CatalogTest(unittest.TestCase):
             proc = subprocess.run([sys.executable, FORMAT, empty],
                                   capture_output=True, text=True)
             self.assertIn("0 findings", proc.stdout)
-            # Clean repo still renders one zero-count section for every rule.
-            self.assertIn("### no-explicit-any (warning): 0", proc.stdout)
-            self.assertIn("### no-nested-ternary (warning): 0", proc.stdout)
+            # Clean repo should not spend tokens on one empty table per rule.
+            self.assertNotIn("### no-explicit-any (warning): 0", proc.stdout)
+            self.assertNotIn("### no-nested-ternary (warning): 0", proc.stdout)
+            self.assertNotIn("| (none) |", proc.stdout)
+            self.assertIn("Ran ", proc.stdout)
         finally:
             shutil.rmtree(empty, ignore_errors=True)
 
