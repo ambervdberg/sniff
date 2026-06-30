@@ -33,7 +33,9 @@ a new check:
 
 One-time per machine, not per repo.
 
-## Install (Claude Code)
+## Install
+
+### Claude Code (plugin)
 
 ```bash
 /plugin marketplace add https://github.com/ambervdberg/sniff
@@ -41,6 +43,23 @@ One-time per machine, not per repo.
 ```
 
 Update later with `git pull` on the marketplace or the `/plugin` update flow.
+
+### Python CLI (`uv tool install`)
+
+```bash
+uv tool install .
+sniff [PATH]
+```
+
+Puts `sniff` on PATH via [uv](https://docs.astral.sh/uv/). Requires Python 3.9+.
+
+### Zero-install (Windows, after `git clone`)
+
+```bat
+sniff.bat [PATH]
+```
+
+No install step — just Python on PATH. The `sniff.bat` in the repo root delegates to `skills/sniff/scripts/run.py`.
 
 ## What's here
 
@@ -54,7 +73,8 @@ Update later with `git pull` on the marketplace or the `/plugin` update flow.
 | `cognitive-complexity` | Rank functions by cognitive complexity (nesting-weighted read difficulty). |
 | `most-parameters` | Rank functions by parameter count (long-parameter-list smell). |
 | `large-inline-templates` | Rank Angular components by inline-template line count. |
-| `sniff-patterns` | Run the rule catalog in one `ast-grep scan` pass; compact findings table. |
+| `sniff` | Umbrella runner: runs **all** detectors in one pass. Use this for a full scan. |
+| `sniff-patterns` | Run the pattern rule catalog in one `ast-grep scan` pass; compact findings table. |
 | `sniff-create` | Scaffold a new smell skill or catalog rule from a short conversation. |
 
 `skills/_ast-harness/` is the shared engine every ast-based skill reuses (running
@@ -75,7 +95,8 @@ skills/
   cognitive-complexity/
   most-parameters/
   large-inline-templates/
-  sniff-patterns/     rule catalog (ast-grep scan)
+  sniff/           umbrella runner (runs all detectors)
+  sniff-patterns/  rule catalog (ast-grep scan)
   sniff-create/    the skill/rule generator + suggest-create detection hook
 docs/             design spec
 ```
