@@ -98,4 +98,8 @@ def render_list(detectors: list[Detector]) -> str:
     lines = ["| DETECTOR | TITLE |", "| --- | --- |"]
     for d in detectors:
         lines.append(f"| {d.name} | {d.title} |")
+
+    if any(d.name == "sniff-patterns" for d in detectors):
+        lines.append("\nTip: `sniff --list-patterns` lists the individual pattern rules.")
+
     return "\n".join(lines)
