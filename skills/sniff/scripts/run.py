@@ -22,7 +22,10 @@ import argparse
 import subprocess
 import sys
 
-import discovery
+try:
+    import discovery  # direct run: python run.py
+except ModuleNotFoundError:
+    from skills.sniff.scripts import discovery  # installed via uv tool install
 
 
 def _split_csv(value: str | None) -> set[str]:
