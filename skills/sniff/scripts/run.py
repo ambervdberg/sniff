@@ -76,7 +76,7 @@ def main() -> None:
         epilog=(
             "Examples:\n"
             "  sniff                        # scan current directory, all detectors\n"
-            "  sniff src/                   # scan src/ only\n"
+            "  sniff <dir>                  # scan any directory\n"
             "  sniff --list                 # show available detectors\n"
             "  sniff --only largest-methods,cyclomatic-complexity\n"
             "  sniff --skip sniff-patterns  # skip pattern rules\n"
@@ -86,7 +86,7 @@ def main() -> None:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
+    parser.add_argument("path", nargs="?", default=".", metavar="DIR", help="directory to scan (default: current directory)")
     parser.add_argument("--only", help="comma-separated detector names to run (default: all)")
     parser.add_argument("--skip", help="comma-separated detector names to skip")
     parser.add_argument("--list", action="store_true", help="list discovered detectors and exit")
