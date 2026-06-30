@@ -1,7 +1,7 @@
 ---
 name: sniff-create
 description: >-
-  Create a new code-smell skill or sniff-lint rule from a short
+  Create a new code-smell skill or sniff-patterns rule from a short
   conversation. Use when the user wants to "make a skill that finds X", "add a
   lint/smell check", "find a code smell", "enforce a clean-code rule", 
   turn a repeated structural query into a reusable token-cheap skill, or
@@ -52,7 +52,7 @@ Every check fits exactly one engine. Pick before anything else; it decides the t
 
 Ask, one at a time, only what you can't infer: what to find (plain words),
 languages, and for a pattern smell whether it's a **standalone skill** (a distinct,
-frequently-run check you invoke by name) or a **sniff-lint rule** (one of many
+frequently-run check you invoke by name) or a **sniff-patterns rule** (one of many
 catalog checks, run together in a single scan). Recommend a catalog rule for
 SonarCloud-style checks, a standalone skill for a distinct ranked query.
 
@@ -99,7 +99,7 @@ python "<skill_dir>/scripts/create.py" node-metric \
   --description "<triggering description; mention it returns a small table, not source>"
 ```
 
-sniff-lint rule:
+sniff-patterns rule:
 
 ```bash
 python "<skill_dir>/scripts/create.py" rule \

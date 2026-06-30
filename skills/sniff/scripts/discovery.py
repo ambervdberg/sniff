@@ -5,10 +5,10 @@ Each detector skill drops a small `detector.yml` manifest next to its script. Th
 umbrella runner (`run.py`) globs every manifest under the skills root and invokes
 the named script uniformly, so adding a detector is zero-cost: drop a manifest and
 it joins `sniff --all` automatically, with no edit to the runner. This mirrors the
-sniff-lint rule catalog, where adding a rule file costs nothing.
+sniff-patterns rule catalog, where adding a rule file costs nothing.
 
 The manifest is parsed without PyYAML (the project stays dependency-free, matching
-how sniff-lint hand-parses its rule files). It is therefore a FLAT key: value file:
+how sniff-patterns hand-parses its rule files). It is therefore a FLAT key: value file:
 
     name: cognitive-complexity
     title: High cognitive complexity methods

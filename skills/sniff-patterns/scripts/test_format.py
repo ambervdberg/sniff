@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Catalog test: a fixture with known smells must yield the expected counts.
 
-Run: python skills/sniff-lint/scripts/test_format.py
+Run: python skills/sniff-patterns/scripts/test_format.py
 Skips cleanly if ast-grep is not on PATH.
 """
 

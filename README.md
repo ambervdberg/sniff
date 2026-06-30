@@ -54,7 +54,7 @@ Update later with `git pull` on the marketplace or the `/plugin` update flow.
 | `cognitive-complexity` | Rank functions by cognitive complexity (nesting-weighted read difficulty). |
 | `most-parameters` | Rank functions by parameter count (long-parameter-list smell). |
 | `large-inline-templates` | Rank Angular components by inline-template line count. |
-| `sniff-lint` | Run the rule catalog in one `ast-grep scan` pass; compact findings table. |
+| `sniff-patterns` | Run the rule catalog in one `ast-grep scan` pass; compact findings table. |
 | `sniff-create` | Scaffold a new smell skill or catalog rule from a short conversation. |
 
 `skills/_ast-harness/` is the shared engine every ast-based skill reuses (running
@@ -75,7 +75,7 @@ skills/
   cognitive-complexity/
   most-parameters/
   large-inline-templates/
-  sniff-lint/     rule catalog (ast-grep scan)
+  sniff-patterns/     rule catalog (ast-grep scan)
   sniff-create/    the skill/rule generator + suggest-create detection hook
 docs/             design spec
 ```

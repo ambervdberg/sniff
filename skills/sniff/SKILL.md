@@ -4,21 +4,34 @@ description: >-
   Run every code-smell detector over a repo in one pass and return one compact
   section per detector. Use when the user wants the FULL smell scan, "find all
   code smells", "lint everything", "run all the checks", "sonar-style scan", or
-  does not name a specific metric. Aggregates the sniff-lint pattern catalog plus
+  does not name a specific metric. Aggregates sniff-patterns (pattern rule catalog) plus
   every node-metric and file-metric detector (complexity, nesting, parameters,
-  method/class/file size, inline-template size). For a single metric, invoke that
-  detector's own skill instead.
+  method/class/file size, inline-template size). For pattern rules only, invoke
+  sniff:sniff-patterns directly. For a single metric, invoke that detector's own skill instead.
 ---
 
 # sniff
 
-One umbrella entry point over the whole detector suite. Each detector skill ships a
-`detector.yml` manifest; `sniff` discovers every manifest under the skills root and
+Umbrella entry point that runs **all** detectors in one pass: `sniff-patterns` (pattern rule catalog) plus every node-metric and file-metric detector (complexity, nesting, parameters, method/class/file size, inline-template size). To run pattern rules only, invoke `sniff:sniff-patterns` directly.
+
+Each detector skill ships a `detector.yml` manifest; `sniff` discovers every manifest under the skills root and
 runs each detector's script over the scan path, printing one section per detector.
 
 Adding a detector is zero-cost: drop a `detector.yml` next to its script and it joins
-`sniff --all` automatically, no edit to the runner. This mirrors the sniff-lint rule
+`sniff --all` automatically, no edit to the runner. This mirrors the sniff-patterns rule
 catalog, where adding a rule file costs nothing.
+
+## Relaying the result
+
+**Reproduce the entire output (the `sniff:` header line + every `## <detector>`
+section, each with its table) in your reply message, verbatim.** It IS the answer.
+The sections only render as real tables when they live in your reply, NOT when left
+inside the tool-output block. Do NOT summarize to prose or drop sections. You may add
+ONE takeaway line at the end (e.g. the worst detector), but the full output comes
+first and in full.
+
+A detector reporting 0 findings is a valid, complete result: that smell is absent.
+Relay its section as-is.
 
 ## Command
 
@@ -32,18 +45,6 @@ python "<skill_dir>/scripts/run.py" [PATH] [--only a,b] [--skip a,b] [--list]
 - `--only a,b`: run just those detectors.
 - `--skip a,b`: run all but those.
 - `--list`: show the discovered detectors and exit.
-
-## Relaying the result
-
-**Reproduce the entire output (the `sniff:` header line + every `## <detector>`
-section, each with its table) in your reply message, verbatim.** It IS the answer.
-The sections only render as real tables when they live in your reply, NOT when left
-inside the tool-output block. Do NOT summarize to prose or drop sections. You may add
-ONE takeaway line at the end (e.g. the worst detector), but the full output comes
-first and in full.
-
-A detector reporting 0 findings is a valid, complete result: that smell is absent.
-Relay its section as-is.
 
 ## Token cost
 
