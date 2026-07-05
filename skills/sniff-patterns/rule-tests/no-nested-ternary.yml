@@ -1,0 +1,7 @@
+id: no-nested-ternary
+valid:
+  - |
+    const x = a ? b : c;
+invalid:
+  - |
+    const x = a ? b : c ? d : e;

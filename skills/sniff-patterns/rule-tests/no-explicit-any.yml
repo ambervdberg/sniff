@@ -1,0 +1,7 @@
+id: no-explicit-any
+valid:
+  - |
+    let x: unknown;
+invalid:
+  - |
+    let x: any;

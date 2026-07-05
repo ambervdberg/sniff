@@ -1,0 +1,7 @@
+id: prefer-optional-chain
+valid:
+  - |
+    const name = obj?.name;
+invalid:
+  - |
+    const name = obj && obj.name;

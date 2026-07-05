@@ -1,0 +1,7 @@
+id: no-non-null-assertion
+valid:
+  - |
+    const x = value ?? fallback;
+invalid:
+  - |
+    const x = value!;

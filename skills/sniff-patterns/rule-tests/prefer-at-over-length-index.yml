@@ -1,0 +1,7 @@
+id: prefer-at-over-length-index
+valid:
+  - |
+    const last = arr.at(-1);
+invalid:
+  - |
+    const last = arr[arr.length - 1];

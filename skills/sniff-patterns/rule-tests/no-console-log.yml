@@ -1,0 +1,7 @@
+id: no-console-log
+valid:
+  - |
+    logger.info("started");
+invalid:
+  - |
+    console.log("started");

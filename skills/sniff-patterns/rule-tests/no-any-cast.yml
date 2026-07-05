@@ -1,0 +1,9 @@
+id: no-any-cast
+valid:
+  - |
+    const x = value as unknown;
+  - |
+    const y = value as string;
+invalid:
+  - |
+    const x = value as any;

@@ -1,0 +1,7 @@
+id: no-empty-catch
+valid:
+  - |
+    try { risky() } catch (e) { console.error(e) }
+invalid:
+  - |
+    try { risky() } catch (e) {}
