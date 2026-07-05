@@ -37,6 +37,11 @@ try:
 except ModuleNotFoundError:
     from skills.sniff.scripts import discovery  # installed via uv tool install
 
+try:
+    import config  # direct run: python run.py
+except ModuleNotFoundError:
+    from skills.sniff.scripts import config  # installed via uv tool install
+
 
 # Flags seen hallucinated in eval runs (gpt-5.4-nano, gpt-5.4-mini, sonnet-4-6).
 # Mapped to the real flag/command so the hint can correct the agent before
@@ -262,6 +267,14 @@ def run_doctor() -> int:
         local_ids = {os.path.splitext(n)[0] for n in os.listdir(local_rules_dir) if n.endswith((".yml", ".yaml"))}
         for rule_id in sorted(local_ids & core_ids):
             lines.append(f"WARN local rule {rule_id!r} shadows core rule; contributed already? delete the local copy")
+
+    sniff_toml = os.path.join(os.getcwd(), ".sniff.toml")
+    if os.path.isfile(sniff_toml):
+        cfg = config.load(os.getcwd())
+        for warning in cfg.warnings:
+            lines.append(f"WARN {warning}")
+        if not cfg.warnings:
+            lines.append("PASS .sniff.toml valid")
 
     print("\n".join(lines))
     return 0 if ok else 1
