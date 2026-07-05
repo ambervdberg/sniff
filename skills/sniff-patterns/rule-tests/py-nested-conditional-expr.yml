@@ -1,0 +1,7 @@
+id: py-nested-conditional-expr
+valid:
+  - |
+    x = a if b else c
+invalid:
+  - |
+    x = a if b else c if d else e

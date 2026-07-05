@@ -1,0 +1,12 @@
+# Bare except clauses
+# Flag `except:` with no exception class, which swallows everything
+id: py-bare-except
+language: python
+severity: warning
+message: "Bare except: swallows all exceptions, including KeyboardInterrupt and SystemExit; catch Exception or a specific type instead."
+rule:
+  pattern: |
+    try:
+        $$$A
+    except:
+        $$$B

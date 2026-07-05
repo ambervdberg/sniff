@@ -1,0 +1,7 @@
+id: py-print-statement
+valid:
+  - |
+    log.info("fine")
+invalid:
+  - |
+    print("debug", 1)

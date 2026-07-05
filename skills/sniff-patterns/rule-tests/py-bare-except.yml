@@ -1,0 +1,13 @@
+id: py-bare-except
+valid:
+  - |
+    try:
+        risky()
+    except ValueError:
+        pass
+invalid:
+  - |
+    try:
+        risky()
+    except:
+        pass

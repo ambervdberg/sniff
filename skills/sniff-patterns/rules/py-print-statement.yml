@@ -1,0 +1,8 @@
+# Print statements
+# Flag bare print() calls; the Python analogue of console.log
+id: py-print-statement
+language: python
+severity: info
+message: "Bare print() call; use a logging library instead of print for anything beyond throwaway debugging."
+rule:
+  pattern: print($$$)

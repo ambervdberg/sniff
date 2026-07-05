@@ -1,0 +1,15 @@
+# Mutable default arguments
+# Flag def params defaulting to a list or dict literal; the default is
+# created once and shared across every call, the classic Python gotcha.
+id: py-mutable-default-arg
+language: python
+severity: warning
+message: "Mutable default argument is shared across all calls; use None and initialize inside the function body instead."
+rule:
+  any:
+    - pattern:
+        context: "def f($X=[]): pass"
+        selector: default_parameter
+    - pattern:
+        context: "def f($X={}): pass"
+        selector: default_parameter
