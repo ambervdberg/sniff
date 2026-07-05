@@ -456,6 +456,18 @@ def main() -> None:
         except ModuleNotFoundError:
             from skills.sniff.scripts import test_rules
         sys.exit(test_rules.run_test_rules(_REPO_ROOT))
+    if sys.argv[1:2] == ["contribute"]:
+        try:
+            import contribute
+        except ModuleNotFoundError:
+            from skills.sniff.scripts import contribute
+        import argparse as _ap
+        p = _ap.ArgumentParser(prog="sniff contribute")
+        p.add_argument("rule_id")
+        p.add_argument("--dir", default=".", help="project dir holding .sniff/ (default: .)")
+        p.add_argument("--dry-run", action="store_true")
+        a = p.parse_args(sys.argv[2:])
+        sys.exit(contribute.run_contribute(a.rule_id, a.dir, a.dry_run))
 
     parser = argparse.ArgumentParser(
         prog="sniff",
@@ -474,6 +486,7 @@ def main() -> None:
             "  sniff baseline write [DIR]   # save per-detector counts to .sniff/baseline.json\n"
             "  sniff diff [DIR]             # compare current scan to the saved baseline\n"
             "  sniff test-rules             # run rule fixture tests, exit 0/1\n"
+            "  sniff contribute <rule>      # move a local rule into the plugin repo\n"
             "\n"
             "Pattern rules only:  sniff --only sniff-patterns [DIR]\n"
             "List pattern rules:  sniff --list-patterns\n"
