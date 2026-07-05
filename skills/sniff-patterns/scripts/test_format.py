@@ -101,5 +101,16 @@ def test_malformed_local_rule_warns_and_skips(tmp_path, capsys):
     assert all(rid != "broken" for rid, _s, _m, _o in cat)
 
 
+def test_list_rules_shows_origin(capsys, tmp_path):
+    rules = tmp_path / ".sniff" / "rules"
+    rules.mkdir(parents=True)
+    (rules / "my-local.yml").write_text(
+        "id: my-local\nlanguage: typescript\nmessage: x\nrule:\n  pattern: \"debugger\"\n",
+        encoding="utf-8")
+    format_mod.print_list_rules(format_mod.catalog_rules(str(tmp_path)))
+    out = capsys.readouterr().out
+    assert "| ORIGIN |" in out and "| local |" in out and "| core |" in out
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -508,7 +508,7 @@ def main() -> None:
         if not patterns:
             print("error: sniff-patterns detector not found (run --list to see available detectors)", file=sys.stderr)
             sys.exit(1)
-        proc = subprocess.run([sys.executable, patterns.script, "--list-rules"], capture_output=True, text=True)
+        proc = subprocess.run([sys.executable, patterns.script, "--list-rules", args.path], capture_output=True, text=True)
         print(proc.stdout.strip())
         if proc.returncode != 0:
             sys.exit(proc.returncode)
