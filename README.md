@@ -183,3 +183,7 @@ calls and the prompt text, never your reasoning, so:
 ```bash
 python skills/_ast-harness/test_harness.py
 ```
+
+## Release
+
+`python scripts/bump_version.py <new-version>` rewrites the version in `pyproject.toml`, `.claude-plugin/plugin.json`, and `.codex-plugin/plugin.json` together, so `sniff doctor`'s version-drift check stays green. After bumping, update `CHANGELOG.md`, commit, and tag `v<new-version>`.
