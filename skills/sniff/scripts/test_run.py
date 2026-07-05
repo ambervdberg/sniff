@@ -183,6 +183,15 @@ class SniffBaselineDiffTest(unittest.TestCase):
         self.assertIn("+1", proc.stdout)
 
 
+def test_diff_comment_renders_markdown(tmp_path, capsys, monkeypatch):
+    (tmp_path / ".sniff").mkdir()
+    (tmp_path / ".sniff" / "baseline.json").write_text('{"counts": {"x": 1}}', encoding="utf-8")
+    monkeypatch.setattr(run_module, "_scan_counts", lambda dets, path: {"x": 3})
+    rc = run_module.run_diff(["--comment", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert rc == 1 and "| DETECTOR |" in out and "**worse**" in out and "+2" in out
+
+
 class CountFindingsTest(unittest.TestCase):
     """_count_table_rows handles multiple tables; _count_findings reads the true
     total from a detector's summary line instead of a possibly-capped table."""

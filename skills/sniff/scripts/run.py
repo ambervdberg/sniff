@@ -484,7 +484,12 @@ def run_diff(argv: list[str]) -> int:
 
     Prints a per-detector count delta table. Returns 0 if no detector's count
     increased (same or better), 1 if any detector regressed (or no baseline
-    exists yet), so the exit code alone answers "did this get worse?"."""
+    exists yet), so the exit code alone answers "did this get worse?".
+
+    --comment switches the table to markdown (| DETECTOR | BASELINE | CURRENT |
+    DELTA |) with a bold verdict line, suitable to paste as a PR comment."""
+    comment = "--comment" in argv
+    argv = [a for a in argv if a != "--comment"]
     path = argv[0] if argv else "."
     if not os.path.isdir(path):
         print(f"error: {path!r} is not a directory. Check the path and try again.", file=sys.stderr)
@@ -501,8 +506,21 @@ def run_diff(argv: list[str]) -> int:
     current_counts = _scan_counts(_discover_with_warnings(), path)
 
     names = sorted(set(baseline_counts) | set(current_counts))
-    lines = [f"{'DETECTOR':<24} {'BASELINE':>8} {'CURRENT':>8} {'DELTA':>8}"]
     worse = False
+
+    if comment:
+        lines = ["| DETECTOR | BASELINE | CURRENT | DELTA |", "| --- | --- | --- | --- |"]
+        for name in names:
+            before, after = baseline_counts.get(name, 0), current_counts.get(name, 0)
+            delta = after - before
+            worse = worse or delta > 0
+            lines.append(f"| {name} | {before} | {after} | {f'+{delta}' if delta > 0 else delta} |")
+        print("\n".join(lines))
+        print()
+        print("**worse**" if worse else "**same or better**")
+        return 1 if worse else 0
+
+    lines = [f"{'DETECTOR':<24} {'BASELINE':>8} {'CURRENT':>8} {'DELTA':>8}"]
     for name in names:
         before, after = baseline_counts.get(name, 0), current_counts.get(name, 0)
         delta = after - before
