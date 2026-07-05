@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+import subprocess
 import sys
 
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".sniff", "config.toml")
@@ -74,8 +76,32 @@ def _core_rule_ids() -> "set[str]":
 
 
 def _contribute_to_checkout(rule_id: str, project_dir: str, checkout: str) -> int:
-    print("error: checkout backend not implemented yet", file=sys.stderr)   # Task 8
-    return 1
+    patterns = os.path.join(checkout, "skills", "sniff-patterns")
+    if not os.path.isdir(patterns):
+        print(f"error: {checkout!r} does not look like a sniff checkout", file=sys.stderr)
+        return 1
+
+    branch = f"rule/{rule_id}"
+    if subprocess.run(["git", "-C", checkout, "checkout", "-b", branch]).returncode != 0:
+        print(f"error: could not create branch {branch} (dirty checkout?)", file=sys.stderr)
+        return 1
+
+    rule_src, fixture_src = local_paths(rule_id, project_dir)
+    shutil.copy2(rule_src, os.path.join(patterns, "rules", rule_id + ".yml"))
+    shutil.copy2(fixture_src, os.path.join(patterns, "rule-tests", rule_id + ".yml"))
+    subprocess.run(["git", "-C", checkout, "add", "skills/sniff-patterns"], check=False)
+
+    try:
+        import test_rules
+    except ModuleNotFoundError:
+        from skills.sniff.scripts import test_rules
+    if test_rules.run_test_rules(checkout) != 0:
+        print("error: fixture tests failed in the checkout; fix before PR", file=sys.stderr)
+        return 1
+
+    print(f"sniff: {rule_id} staged on branch {branch!r} in {checkout}")
+    print("next: review, commit, and open a PR from that branch")
+    return 0
 
 
 def _contribute_via_gh(rule_id: str, project_dir: str) -> int:

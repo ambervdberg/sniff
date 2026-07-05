@@ -1,4 +1,5 @@
 import os
+import subprocess
 import contribute
 
 def _mk_local_rule(tmp_path, rule_id="no-x", with_fixture=True):
@@ -25,3 +26,26 @@ def test_guard_blocks_core_collision(tmp_path):
 def test_resolve_checkout_prefers_env(monkeypatch, tmp_path):
     monkeypatch.setenv("SNIFF_REPO", str(tmp_path))
     assert contribute.resolve_checkout() == str(tmp_path)
+
+def _mk_fake_checkout(tmp_path):
+    co = tmp_path / "sniff-co"
+    (co / "skills" / "sniff-patterns" / "rules").mkdir(parents=True)
+    (co / "skills" / "sniff-patterns" / "rule-tests").mkdir(parents=True)
+    (co / "skills" / "sniff-patterns" / "sgconfig.yml").write_text(
+        "ruleDirs:\n  - rules\ntestConfigs:\n  - testDir: rule-tests\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(co)], check=True)
+    subprocess.run(["git", "-C", str(co), "-c", "user.email=test@test.com",
+                    "-c", "user.name=test", "commit", "-q", "--allow-empty",
+                    "-m", "init"], check=True)
+    return co
+
+def test_checkout_backend_copies_and_branches(tmp_path, monkeypatch):
+    _mk_local_rule(tmp_path)
+    co = _mk_fake_checkout(tmp_path)
+    rc = contribute._contribute_to_checkout("no-x", str(tmp_path), str(co))
+    assert rc == 0
+    assert (co / "skills" / "sniff-patterns" / "rules" / "no-x.yml").is_file()
+    assert (co / "skills" / "sniff-patterns" / "rule-tests" / "no-x.yml").is_file()
+    branch = subprocess.run(["git", "-C", str(co), "branch", "--show-current"],
+                            capture_output=True, text=True).stdout.strip()
+    assert branch == "rule/no-x"
