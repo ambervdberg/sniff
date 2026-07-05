@@ -87,7 +87,23 @@ No install step — just Python on PATH. The `sniff.bat` in the repo root delega
 | `sniff prime` | Agent-optimized context (version, detectors, prereqs, usage hints); never scans. |
 | `sniff baseline write [DIR]` | Save per-detector finding counts to `.sniff/baseline.json`. |
 | `sniff diff [DIR]` | Compare a fresh scan to the saved baseline; exits 1 if any detector regressed. |
+| `sniff diff --comment [DIR]` | Same as above, formatted as a markdown table for pasting into a PR comment. |
 | `sniff --help` | Show usage and examples. |
+
+## CI mode
+
+Gate PRs on code-smell regressions using the committed baseline:
+
+1. Run `sniff baseline write` once and commit the resulting `.sniff/baseline.json`.
+2. Add this action to a workflow:
+
+```yaml
+- uses: ambervdberg/sniff@main
+  with:
+    path: .
+```
+
+The action installs `ast-grep` and `sniff`, then runs `sniff diff --comment` against the committed baseline, failing the job if any detector regressed.
 
 ## What's here
 
