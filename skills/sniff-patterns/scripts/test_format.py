@@ -7,6 +7,7 @@ Skips cleanly if ast-grep is not on PATH.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -17,6 +18,12 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 FORMAT = os.path.join(HERE, "format.py")
 HAS_AST_GREP = shutil.which("ast-grep") is not None
+
+# Load format.py as a module (not just a subprocess target) so the pytest-style
+# tests below can call catalog_rules() directly and inspect its return value.
+_spec = importlib.util.spec_from_file_location("format_mod", FORMAT)
+format_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(format_mod)
 
 
 @unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
@@ -71,6 +78,27 @@ class CatalogTest(unittest.TestCase):
             self.assertIn("Ran ", proc.stdout)
         finally:
             shutil.rmtree(empty, ignore_errors=True)
+
+
+def test_local_rules_are_discovered(tmp_path):
+    rules = tmp_path / ".sniff" / "rules"
+    rules.mkdir(parents=True)
+    (rules / "no-todo-comment.yml").write_text(
+        "id: no-todo-comment\nlanguage: typescript\nseverity: warning\n"
+        "message: TODO comment left in code.\nrule:\n  pattern: \"// TODO $$$\"\n",
+        encoding="utf-8")
+    cat = format_mod.catalog_rules(str(tmp_path))
+    origins = {rid: origin for rid, _sev, _msg, origin in cat}
+    assert origins.get("no-todo-comment") == "local"
+    assert all(o == "core" for rid, o in origins.items() if rid != "no-todo-comment")
+
+
+def test_malformed_local_rule_warns_and_skips(tmp_path, capsys):
+    rules = tmp_path / ".sniff" / "rules"
+    rules.mkdir(parents=True)
+    (rules / "broken.yml").write_text("not: a rule", encoding="utf-8")
+    cat = format_mod.catalog_rules(str(tmp_path))
+    assert all(rid != "broken" for rid, _s, _m, _o in cat)
 
 
 if __name__ == "__main__":

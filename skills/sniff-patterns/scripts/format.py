@@ -23,6 +23,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SGCONFIG = os.path.normpath(os.path.join(HERE, "..", "sgconfig.yml"))
@@ -62,34 +63,63 @@ def _rel(file: str, root: str) -> str:
     return rel.replace("\\", "/")
 
 
-def catalog_rules() -> list[tuple[str, str, str]]:
-    """(id, severity, message) for each rule in the catalog, read from rules/*.yml.
+def local_rules_dir(scan_path: str) -> str:
+    """Where consumer-local rules live for a given scan target: <scan_path>/.sniff/rules."""
+    return os.path.join(scan_path, ".sniff", "rules")
 
-    Used so a clean result can list every rule that ran (and its severity),
-    distinguishing 'no smells' from 'no rules loaded'. Severity defaults to
-    'warning' to match ast-grep when a rule omits the field."""
-    rules: list[tuple[str, str, str]] = []
-    if not os.path.isdir(RULES_DIR):
-        return rules
 
-    for name in sorted(os.listdir(RULES_DIR)):
-        if not name.endswith((".yml", ".yaml")):
-            continue
+def _read_rule_meta(path: str) -> tuple[str, str, str]:
+    """(id, severity, message) from one rule yml, hand-parsed (no PyYAML dependency).
 
-        rule_id = ""
-        severity = "warning"
-        message = ""
-        with open(os.path.join(RULES_DIR, name), "r", encoding="utf-8") as fh:
-            for line in fh:
-                if line.startswith("id:"):
-                    rule_id = line.split(":", 1)[1].strip()
-                elif line.startswith("severity:"):
-                    severity = line.split(":", 1)[1].strip()
-                elif line.startswith("message:"):
-                    message = line.split(":", 1)[1].strip()
+    Severity defaults to 'warning' to match ast-grep when a rule omits the field."""
+    rule_id, severity, message = "", "warning", ""
+    with open(path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("id:"):
+                rule_id = line.split(":", 1)[1].strip()
+            elif line.startswith("severity:"):
+                severity = line.split(":", 1)[1].strip()
+            elif line.startswith("message:"):
+                message = line.split(":", 1)[1].strip()
+    return rule_id, severity, message
 
-        if rule_id:
-            rules.append((rule_id, severity, message))
+
+def catalog_rules(scan_path: str | None = None) -> list[tuple[str, str, str, str]]:
+    """(id, severity, message, origin) for every rule that would run on `scan_path`.
+
+    origin is 'core' for skills/sniff-patterns/rules/*.yml, or 'local' for
+    <scan_path>/.sniff/rules/*.yml. Local rules let a consumer repo add its own
+    checks without touching the shared catalog. Used so a clean result can list
+    every rule that ran (and its severity), distinguishing 'no smells' from 'no
+    rules loaded'."""
+    rules: list[tuple[str, str, str, str]] = []
+    core_ids: set[str] = set()
+
+    if os.path.isdir(RULES_DIR):
+        for name in sorted(os.listdir(RULES_DIR)):
+            if not name.endswith((".yml", ".yaml")):
+                continue
+            rule_id, severity, message = _read_rule_meta(os.path.join(RULES_DIR, name))
+            if rule_id:
+                rules.append((rule_id, severity, message, "core"))
+                core_ids.add(rule_id)
+
+    if scan_path is not None:
+        local_dir = local_rules_dir(scan_path)
+        if os.path.isdir(local_dir):
+            for name in sorted(os.listdir(local_dir)):
+                if not name.endswith((".yml", ".yaml")):
+                    continue
+                rule_id, severity, message = _read_rule_meta(os.path.join(local_dir, name))
+                if not rule_id:
+                    print(f"warning: local rule {name} has no id:, skipped", file=sys.stderr)
+                    continue
+                if rule_id in core_ids:
+                    print(f"warning: local rule {rule_id} shadows a core rule, local copy ignored",
+                          file=sys.stderr)
+                    continue
+                rules.append((rule_id, severity, message, "local"))
+
     return rules
 
 
@@ -121,7 +151,7 @@ def print_rule_table(rows: list[tuple[str, str, int, list[str]]]) -> None:
         print()
 
 
-def print_rules_ran(ran: list[tuple[str, str, str]], cap: int = 30) -> None:
+def print_rules_ran(ran: list[tuple[str, str, str, str]], cap: int = 30) -> None:
     """Print a one-line roster of every rule that ran this invocation.
 
     The findings table only lists rules that matched, so without this a reader
@@ -131,32 +161,64 @@ def print_rules_ran(ran: list[tuple[str, str, str]], cap: int = 30) -> None:
     if not ran:
         return
 
-    ids = [rid for rid, _, _msg in sorted(ran)]
+    ids = [rid for rid, _sev, _msg, _origin in sorted(ran)]
     if len(ids) <= cap:
         print(f"\nRan {len(ids)} rules: {', '.join(ids)}")
     else:
         print(f"\nRan {len(ids)} rules ({', '.join(ids[:cap])}, +{len(ids) - cap} more)")
 
 
-def print_list_rules(rules: list[tuple[str, str, str]]) -> None:
-    """Print a catalog table: RULE / SEVERITY / MESSAGE.
+def print_list_rules(rules: list[tuple[str, str, str, str]]) -> None:
+    """Print a catalog table: RULE / SEVERITY / MESSAGE / ORIGIN.
 
     Used by --list-rules so an agent can discover rule IDs and their intent
-    without running a scan."""
-    print("| RULE | SEVERITY | MESSAGE |")
-    print("| --- | --- | --- |")
-    for rule_id, severity, message in sorted(rules, key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[0])):
+    without running a scan. ORIGIN ('core' vs 'local') tells the agent whether a
+    rule comes from the shared catalog or a consumer-local .sniff/rules override."""
+    print("| RULE | SEVERITY | MESSAGE | ORIGIN |")
+    print("| --- | --- | --- | --- |")
+    for rule_id, severity, message, origin in sorted(rules, key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[0])):
         # Escape pipes so the markdown table stays valid.
         safe_msg = message.replace("|", "\\|")
-        print(f"| {rule_id} | {severity} | {safe_msg} |")
+        print(f"| {rule_id} | {severity} | {safe_msg} | {origin} |")
+
+
+def _yaml_single_quoted(path: str) -> str:
+    """Format an absolute path as a single-quoted YAML scalar.
+
+    YAML single-quoted strings do not interpret backslash as an escape (only
+    a doubled quote escapes), so Windows paths must NOT be run through
+    Python's repr() — repr() backslash-escapes each `\\`, which a YAML parser
+    then reads back literally, corrupting the path. Forward-slashing sidesteps
+    the whole issue since Windows accepts `/` as a path separator too."""
+    return path.replace("\\", "/").replace("'", "''")
 
 
 def run_scan(path: str) -> list[dict]:
-    """Run the whole catalog over `path`, return ast-grep's raw match list."""
-    proc = subprocess.run(
-        ["ast-grep", "scan", "-c", SGCONFIG, "--json=compact", path],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
-    )
+    """Run the whole catalog over `path`, return ast-grep's raw match list.
+
+    When `path` has a .sniff/rules/ dir, a temp sgconfig is built whose ruleDirs
+    covers both the core catalog and the local dir, so one ast-grep pass reports
+    core + local findings together."""
+    config = SGCONFIG
+    tmp = None
+    local_dir = local_rules_dir(path)
+    if os.path.isdir(local_dir):
+        tmp = tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False, encoding="utf-8")
+        tmp.write("ruleDirs:\n")
+        tmp.write(f"  - '{_yaml_single_quoted(os.path.abspath(RULES_DIR))}'\n")
+        tmp.write(f"  - '{_yaml_single_quoted(os.path.abspath(local_dir))}'\n")
+        tmp.close()
+        config = tmp.name
+
+    try:
+        proc = subprocess.run(
+            ["ast-grep", "scan", "-c", config, "--json=compact", path],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+    finally:
+        if tmp:
+            os.unlink(tmp.name)
+
     if not proc.stdout.strip():
         # No matches, or a config error: surface stderr so a broken rule is visible.
         if proc.stderr.strip():
@@ -230,7 +292,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.list_rules:
-        rules = catalog_rules()
+        rules = catalog_rules(args.path)
         if not rules:
             print(f"No rules in the catalog ({RULES_DIR}). Add one with sniff-create.")
         else:
@@ -239,7 +301,7 @@ def main() -> None:
 
     _require_ast_grep()
 
-    rules = catalog_rules()
+    rules = catalog_rules(args.path)
     if not rules:
         print(f"No rules in the catalog ({RULES_DIR}). Add one with sniff-create.")
         return
@@ -274,8 +336,8 @@ def main() -> None:
     # --severity filter. Reported so the result names how many and which rules ran,
     # not just the ones that happened to match.
     ran = [
-        (rid, sev, msg)
-        for rid, sev, msg in rules
+        (rid, sev, msg, origin)
+        for rid, sev, msg, origin in rules
         if (not args.rule or rid == args.rule)
         and (not args.severity or sev == args.severity)
     ]
