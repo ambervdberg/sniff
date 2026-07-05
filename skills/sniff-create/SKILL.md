@@ -112,7 +112,7 @@ python "<skill_dir>/scripts/create.py" rule \
 ```
 
 Working **outside the sniff repo** (this skill installed as a plugin in some other
-project)? Add `--local` — this is the default recommendation off-repo. It writes
+project)? Add `--local` (this is the default recommendation off-repo). It writes
 the rule to `<cwd>/.sniff/rules/<id>.yml` and the fixture to
 `<cwd>/.sniff/rule-tests/<id>.yml` instead of into this repo's catalog. `--local`
 makes `--test-valid`/`--test-invalid` optional (the contributing project's own

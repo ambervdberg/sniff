@@ -218,7 +218,7 @@ def _yaml_single_quoted(path: str) -> str:
 
     YAML single-quoted strings do not interpret backslash as an escape (only
     a doubled quote escapes), so Windows paths must NOT be run through
-    Python's repr() — repr() backslash-escapes each `\\`, which a YAML parser
+    Python's repr(): repr() backslash-escapes each `\\`, which a YAML parser
     then reads back literally, corrupting the path. Forward-slashing sidesteps
     the whole issue since Windows accepts `/` as a path separator too."""
     return path.replace("\\", "/").replace("'", "''")
