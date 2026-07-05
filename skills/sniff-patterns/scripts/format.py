@@ -17,6 +17,7 @@ still a finding).
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import re
@@ -47,6 +48,25 @@ def _require_ast_grep() -> None:
 
 def _in_ignored_dir(path: str) -> bool:
     return any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", path))
+
+
+def _extra_ignore_patterns() -> list[str]:
+    """Glob patterns from SNIFF_EXTRA_IGNORE (set by run.py from .sniff.toml's
+    `[ignore] globs = "..."`), comma-separated. Empty when unset."""
+    raw = os.environ.get("SNIFF_EXTRA_IGNORE", "")
+    return [p.strip() for p in raw.split(",") if p.strip()]
+
+
+def _matches_extra_ignore(path: str, root: str, patterns: list[str]) -> bool:
+    """True if `path` (relative to `root`) matches any SNIFF_EXTRA_IGNORE glob.
+
+    Extends _in_ignored_dir's hardcoded vendored-dir list rather than replacing
+    it, so both the fixed ignore list and a consumer's own .sniff.toml globs
+    apply together."""
+    if not patterns:
+        return False
+    rel = _rel(path, root)
+    return any(fnmatch.fnmatch(rel, pat) for pat in patterns)
 
 
 def _rel(file: str, root: str) -> str:
@@ -289,7 +309,10 @@ def main() -> None:
                         help="cap locations listed per rule (default: 0 = list every location)")
     parser.add_argument("--list-rules", action="store_true",
                         help="print catalog of available rule IDs and exit")
+    parser.add_argument("--disable", help="comma-separated rule ids to skip (e.g. from .sniff.toml [rules])")
     args = parser.parse_args()
+
+    disabled = {r.strip() for r in (args.disable or "").split(",") if r.strip()}
 
     if args.list_rules:
         rules = catalog_rules(args.path)
@@ -306,18 +329,25 @@ def main() -> None:
         print(f"No rules in the catalog ({RULES_DIR}). Add one with sniff-create.")
         return
 
+    extra_ignores = _extra_ignore_patterns()
+
+    def _ignored(file: str) -> bool:
+        return _in_ignored_dir(file) or _matches_extra_ignore(file, args.path, extra_ignores)
+
     matches = run_scan(args.path)
-    matches = [m for m in matches if not _in_ignored_dir(m.get("file", ""))]
+    matches = [m for m in matches if not _ignored(m.get("file", ""))]
 
     # Add custom Python-based detectors (for rules that can't be expressed in ast-grep)
     custom_matches = scan_multiline_single_comments(args.path)
-    custom_matches = [m for m in custom_matches if not _in_ignored_dir(m.get("file", ""))]
+    custom_matches = [m for m in custom_matches if not _ignored(m.get("file", ""))]
     matches.extend(custom_matches)
 
     # Group by rule id; track severity and sample locations.
     by_rule: dict[str, dict] = {}
     for m in matches:
         rule_id = m.get("ruleId", "(unknown)")
+        if rule_id in disabled:
+            continue
         if args.rule and rule_id != args.rule:
             continue
         sev = m.get("severity", "warning")
@@ -338,7 +368,8 @@ def main() -> None:
     ran = [
         (rid, sev, msg, origin)
         for rid, sev, msg, origin in rules
-        if (not args.rule or rid == args.rule)
+        if rid not in disabled
+        and (not args.rule or rid == args.rule)
         and (not args.severity or sev == args.severity)
     ]
 

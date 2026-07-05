@@ -30,7 +30,7 @@ import re
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 try:
     import discovery  # direct run: python run.py
@@ -99,6 +99,64 @@ def select(detectors: list[discovery.Detector], only: set[str], skip: set[str]
         if (not only or d.name in only) and d.name not in skip
     ]
     return selected, unknown
+
+
+def select_with_config(
+    detectors: list[discovery.Detector], only: set[str], skip: set[str], cfg: config.Config
+) -> tuple[list[discovery.Detector], list[str]]:
+    """select() with `.sniff.toml`'s `[detectors] skip = "..."` merged into --skip.
+
+    A config-listed skip behaves exactly like a --skip flag: it removes the
+    detector from the run, and it still participates in --skip's unknown-name
+    warning (any typo in .sniff.toml's skip list surfaces the same as a CLI typo)."""
+    return select(detectors, only, skip | cfg.skip_detectors)
+
+
+def _override_args(args: list[str], overrides: dict[str, str]) -> list[str]:
+    """Return `args` with each `--key value` pair in `overrides` applied.
+
+    An existing `--key ...` pair in `args` is replaced in place; a key the
+    detector's manifest never set is appended. Used to fold .sniff.toml's
+    `detector.arg = value` thresholds into a detector's own CLI args before it runs,
+    e.g. {"top": "15"} turns `--top 20` into `--top 15`, or adds `--top 15` if the
+    manifest carried no --top at all."""
+    result = list(args)
+    for key, value in overrides.items():
+        flag = f"--{key}"
+        replaced = False
+        i = 0
+        while i < len(result):
+            if result[i] == flag:
+                if i + 1 < len(result):
+                    result[i + 1] = value
+                else:
+                    result.append(value)
+                replaced = True
+                i += 2
+                continue
+            i += 1
+        if not replaced:
+            result.extend([flag, value])
+    return result
+
+
+def apply_config_to_detector(detector: discovery.Detector, cfg: config.Config) -> discovery.Detector:
+    """Fold .sniff.toml overrides that target one detector into its args.
+
+    Two config sections can change what a selected detector's own subprocess sees:
+    `[detectors] <name>.<arg> = value` overrides that detector's CLI args, and
+    `[rules] <id> = false` (sniff-patterns only) becomes `--disable <ids>` so the
+    pattern catalog skips those rules. Returns `detector` unchanged (same object)
+    when neither applies, so callers can skip work for the common no-config case."""
+    args = detector.args
+    overrides = cfg.thresholds.get(detector.name)
+    if overrides:
+        args = _override_args(args, overrides)
+    if detector.name == "sniff-patterns" and cfg.disabled_rules:
+        args = [*args, "--disable", ",".join(sorted(cfg.disabled_rules))]
+    if args is detector.args:
+        return detector
+    return replace(detector, args=args)
 
 
 def run_detector(detector: discovery.Detector, path: str) -> str:
@@ -556,7 +614,8 @@ def main() -> None:
         print(f"error: {args.path!r} is not a directory. Check the path and try again.", file=sys.stderr)
         sys.exit(1)
 
-    selected, unknown = select(detectors, _split_csv(args.only), _split_csv(args.skip))
+    cfg = config.load(args.path)
+    selected, unknown = select_with_config(detectors, _split_csv(args.only), _split_csv(args.skip), cfg)
     for name in unknown:
         import difflib
         known = [d.name for d in detectors]
@@ -570,6 +629,13 @@ def main() -> None:
         else:
             print("No detectors selected after --only/--skip.")
         return
+
+    selected = [apply_config_to_detector(d, cfg) for d in selected]
+    if cfg.extra_ignores:
+        # Inherited by detector subprocess.run calls (no explicit env= kwarg
+        # restricts them), so both sniff-patterns' format.py and the shared
+        # ast-harness pick this up via SNIFF_EXTRA_IGNORE.
+        os.environ["SNIFF_EXTRA_IGNORE"] = ",".join(cfg.extra_ignores)
 
     if args.json:
         results = [run_detector_json(d, args.path) for d in selected]

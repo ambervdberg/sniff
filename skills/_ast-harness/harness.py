@@ -29,6 +29,7 @@ Stable public API (kept small so generated scripts stay ~20 lines):
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import os
 import re
@@ -119,9 +120,25 @@ def _require_ast_grep() -> None:
         sys.exit("error: ast-grep is not installed or not on PATH. See https://ast-grep.github.io")
 
 
+def _extra_ignore_patterns() -> list[str]:
+    """Glob patterns from SNIFF_EXTRA_IGNORE (set by run.py from .sniff.toml's
+    `[ignore] globs = "..."`), comma-separated. Empty when unset."""
+    raw = os.environ.get("SNIFF_EXTRA_IGNORE", "")
+    return [p.strip() for p in raw.split(",") if p.strip()]
+
+
 def _in_ignored_dir(path: str) -> bool:
-    """True if any path segment is an ignored (vendored/build) directory."""
-    return any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", path))
+    """True if any path segment is an ignored (vendored/build) directory, or the
+    path matches a SNIFF_EXTRA_IGNORE glob (fnmatch against the forward-slashed
+    path). Extends the fixed vendored-dir list rather than replacing it, so both
+    apply together."""
+    if any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", path)):
+        return True
+    patterns = _extra_ignore_patterns()
+    if not patterns:
+        return False
+    norm = path.replace("\\", "/")
+    return any(fnmatch.fnmatch(norm, pat) for pat in patterns)
 
 
 def detect_languages(root: str) -> set[str]:

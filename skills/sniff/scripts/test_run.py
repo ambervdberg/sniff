@@ -77,6 +77,15 @@ class SniffDoctorCommandTest(unittest.TestCase):
         self.assertIn("duplicate detector name", proc.stdout)
 
 
+def test_config_skip_merges_into_selection():
+    detectors, _errors = run_module.discovery.discover()
+    assert any(d.name == "largest-files" for d in detectors)  # sanity: it exists to be skipped
+
+    cfg = run_module.config.Config(skip_detectors={"largest-files"})
+    selected, _unknown = run_module.select_with_config(detectors, set(), set(), cfg)
+    assert all(d.name != "largest-files" for d in selected)
+
+
 def test_doctor_warns_on_shadowed_local_rule(tmp_path, monkeypatch, capsys):
     rules = tmp_path / ".sniff" / "rules"
     rules.mkdir(parents=True)

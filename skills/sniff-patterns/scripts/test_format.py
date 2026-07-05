@@ -80,6 +80,22 @@ class CatalogTest(unittest.TestCase):
             shutil.rmtree(empty, ignore_errors=True)
 
 
+def run_format(args: list[str]) -> str:
+    """Run format.py as a subprocess with `args`, return stdout.
+
+    Module-level equivalent of CatalogTest._run, for pytest-style tests below
+    that don't need the unittest fixture's tmpdir setUp/tearDown."""
+    proc = subprocess.run([sys.executable, FORMAT, *args], capture_output=True, text=True)
+    return proc.stdout
+
+
+@unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
+def test_disable_flag_hides_rule_findings(tmp_path):
+    (tmp_path / "a.ts").write_text("console.log('x')\n", encoding="utf-8")
+    out = run_format([str(tmp_path), "--disable", "no-console-log"])
+    assert "no-console-log" not in out.split("Ran ")[0]  # not in findings section
+
+
 def test_local_rules_are_discovered(tmp_path):
     rules = tmp_path / ".sniff" / "rules"
     rules.mkdir(parents=True)
