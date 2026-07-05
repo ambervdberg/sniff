@@ -99,14 +99,24 @@ python "<skill_dir>/scripts/create.py" node-metric \
   --description "<triggering description; mention it returns a small table, not source>"
 ```
 
-sniff-patterns rule:
+sniff-patterns rule (pass the samples gathered in Step 4 as fixtures: matches as
+`--test-invalid`, near-misses as `--test-valid`):
 
 ```bash
 python "<skill_dir>/scripts/create.py" rule \
   --name <kebab-id> --language <lang> --severity warning \
   --title "<one-line title>" --message "<finding message>" \
   --pattern '<ast-grep pattern>'    # OR: --rule-body-file <file with raw rule yaml>
+  --test-invalid '<snippet that should match>'   # repeatable, required in repo mode
+  --test-valid '<snippet that should not match>' # repeatable, optional
 ```
+
+Working **outside the sniff repo** (this skill installed as a plugin in some other
+project)? Add `--local` — this is the default recommendation off-repo. It writes
+the rule to `<cwd>/.sniff/rules/<id>.yml` and the fixture to
+`<cwd>/.sniff/rule-tests/<id>.yml` instead of into this repo's catalog. `--local`
+makes `--test-valid`/`--test-invalid` optional (the contributing project's own
+pipeline enforces fixtures later, not this create step).
 
 Add `--dry-run` first to preview. `<skill_dir>` is this skill's directory.
 

@@ -157,9 +157,31 @@ def cmd_node_metric(args: argparse.Namespace) -> None:
               f"  /plugin update sniff   (to make the new skill live on this PC)")
 
 
+def _fixture_yaml(rule_id: str, valid: list, invalid: list) -> str:
+    """Render an ast-grep rule-tests fixture: id, then valid/invalid snippet blocks."""
+    lines = [f"id: {rule_id}"]
+    for label, snippets in (("valid", valid), ("invalid", invalid)):
+        lines.append(f"{label}:")
+        for s in snippets:
+            lines.append("  - |")
+            lines.extend("    " + ln for ln in s.splitlines())
+    return "\n".join(lines) + "\n"
+
+
 def cmd_rule(args: argparse.Namespace) -> None:
     if not args.pattern and not args.rule_body_file:
         sys.exit("error: provide either --pattern or --rule-body-file")
+
+    if not args.local and not args.test_invalid:
+        sys.exit("error: --test-invalid is required in repo mode (pass --local to skip fixtures)")
+
+    if args.local:
+        base = os.path.join(os.getcwd(), ".sniff")
+        rules_dir = os.path.join(base, "rules")
+        tests_dir = os.path.join(base, "rule-tests")
+    else:
+        rules_dir = RULES_DIR
+        tests_dir = os.path.join(SKILLS_DIR, "sniff-patterns", "rule-tests")
 
     if args.pattern:
         rule_body = f"  pattern: {json.dumps(args.pattern)}"
@@ -177,8 +199,12 @@ def cmd_rule(args: argparse.Namespace) -> None:
         "RULE_BODY": rule_body,
     }
 
-    _write(os.path.join(RULES_DIR, f"{args.name}.yml"),
+    _write(os.path.join(rules_dir, f"{args.name}.yml"),
            _fill(_load_template("rule.yml.tmpl"), tokens), args.dry_run)
+
+    if args.test_valid or args.test_invalid:
+        fixture = _fixture_yaml(args.name, args.test_valid, args.test_invalid)
+        _write(os.path.join(tests_dir, f"{args.name}.yml"), fixture, args.dry_run)
 
     if not args.dry_run:
         print("\nNext: run the sniff-patterns skill to see it in the catalog scan.")
@@ -217,6 +243,12 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--message", required=True, help="finding message shown to the user")
     r.add_argument("--pattern", help="ast-grep pattern string")
     r.add_argument("--rule-body-file", help="file with raw rule YAML body (alternative to --pattern)")
+    r.add_argument("--local", action="store_true",
+                   help="scaffold under <cwd>/.sniff/ instead of this sniff repo (for use in other projects)")
+    r.add_argument("--test-valid", action="append", default=[],
+                   help="snippet that should NOT match (repeatable); written to the fixture file")
+    r.add_argument("--test-invalid", action="append", default=[],
+                   help="snippet that SHOULD match (repeatable); required unless --local")
     r.set_defaults(func=cmd_rule)
 
     return parser

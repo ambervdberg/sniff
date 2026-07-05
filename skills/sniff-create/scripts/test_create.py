@@ -14,10 +14,18 @@ import sys
 import tempfile
 import unittest
 
+import pytest
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import create  # noqa: E402
+
+
+def run_create(argv):
+    """Parse argv through create's own parser and invoke the matched subcommand."""
+    args = create.build_parser().parse_args(argv)
+    args.func(args)
 
 
 class NodeMetricCreateTest(unittest.TestCase):
@@ -62,6 +70,23 @@ class NodeMetricCreateTest(unittest.TestCase):
                 ["node-metric", "--metric", "nope", "--name", "x",
                  "--title", "T", "--description", "D"]
             )
+
+
+def test_rule_local_mode_writes_under_cwd(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    run_create(["rule", "--local", "--name", "no-x", "--language", "typescript",
+                "--title", "t", "--message", "m", "--pattern", "x()",
+                "--test-invalid", "x()", "--test-valid", "y()"])
+    assert (tmp_path / ".sniff" / "rules" / "no-x.yml").is_file()
+    tests = (tmp_path / ".sniff" / "rule-tests" / "no-x.yml").read_text(encoding="utf-8")
+    assert "invalid:" in tests and "valid:" in tests
+
+
+def test_rule_repo_mode_requires_test_invalid(tmp_path, monkeypatch):
+    monkeypatch.setattr(create, "RULES_DIR", str(tmp_path / "rules"))
+    with pytest.raises(SystemExit):
+        run_create(["rule", "--name", "no-y", "--language", "typescript",
+                    "--title", "t", "--message", "m", "--pattern", "y()"])
 
 
 if __name__ == "__main__":
