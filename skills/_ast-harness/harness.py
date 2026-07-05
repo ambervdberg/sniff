@@ -127,17 +127,29 @@ def _extra_ignore_patterns() -> list[str]:
     return [p.strip() for p in raw.split(",") if p.strip()]
 
 
-def _in_ignored_dir(path: str) -> bool:
+def _in_ignored_dir(path: str, root: "str | None" = None) -> bool:
     """True if any path segment is an ignored (vendored/build) directory, or the
-    path matches a SNIFF_EXTRA_IGNORE glob (fnmatch against the forward-slashed
-    path). Extends the fixed vendored-dir list rather than replacing it, so both
-    apply together."""
+    path matches a SNIFF_EXTRA_IGNORE glob.
+
+    The vendored-dir check runs on the raw path (base-independent). The glob check
+    runs on `path` relative to `root` (forward-slashed), so a consumer's
+    `[ignore] globs` matches the same scan-root-relative path that sniff-patterns'
+    format.py matches against; without this, an absolute or scan-arg-prefixed
+    file path would never match a pattern like `generated/**`. Extends the fixed
+    vendored-dir list rather than replacing it, so both apply together."""
     if any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", path)):
         return True
     patterns = _extra_ignore_patterns()
     if not patterns:
         return False
-    norm = path.replace("\\", "/")
+    rel = path
+    if root is not None:
+        try:
+            rel = os.path.relpath(path, root)
+        except ValueError:
+            # Different drive on Windows: relpath raises, keep the original path.
+            rel = path
+    norm = rel.replace("\\", "/")
     return any(fnmatch.fnmatch(norm, pat) for pat in patterns)
 
 
@@ -309,7 +321,7 @@ def run(
 
     # Drop vendored/build dirs explicitly: ast-grep only skips them when they are
     # gitignored, which is not guaranteed (e.g. a tree with no .gitignore).
-    raw = [m for m in raw if not _in_ignored_dir(m["file"])]
+    raw = [m for m in raw if not _in_ignored_dir(m["file"], path)]
 
     if not include_tests:
         raw = [m for m in raw if not TEST_RE.search(m["file"])]

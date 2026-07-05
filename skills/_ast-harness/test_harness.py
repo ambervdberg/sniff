@@ -45,6 +45,35 @@ class MatchTest(unittest.TestCase):
         self.assertEqual(m.location, "src/a.py:42")
 
 
+class InIgnoredDirTest(unittest.TestCase):
+    """_in_ignored_dir matches SNIFF_EXTRA_IGNORE globs against the path relative
+    to the scan root, the same base sniff-patterns' format.py uses, so an
+    ignore glob behaves identically across every detector."""
+
+    def setUp(self):
+        self._saved = os.environ.get("SNIFF_EXTRA_IGNORE")
+        os.environ["SNIFF_EXTRA_IGNORE"] = "generated/**"
+
+    def tearDown(self):
+        if self._saved is None:
+            os.environ.pop("SNIFF_EXTRA_IGNORE", None)
+        else:
+            os.environ["SNIFF_EXTRA_IGNORE"] = self._saved
+
+    def test_glob_matches_root_relative_for_scan_arg_prefixed_path(self):
+        # ast-grep emits "<scan-arg>/generated/big.ts" for a relative scan path;
+        # only the root-relative base ("generated/big.ts") matches "generated/**".
+        self.assertTrue(h._in_ignored_dir("proj/generated/big.ts", "proj"))
+
+    def test_glob_matches_root_relative_for_absolute_path(self):
+        root = os.path.join("C:", os.sep, "work", "proj")
+        abs_file = os.path.join(root, "generated", "big.ts")
+        self.assertTrue(h._in_ignored_dir(abs_file, root))
+
+    def test_glob_does_not_match_outside_ignored_dir(self):
+        self.assertFalse(h._in_ignored_dir("proj/src/big.ts", "proj"))
+
+
 class FoldNestedTest(unittest.TestCase):
     def test_inner_match_folded_into_outer(self):
         outer = _match("a.ts", 0, 20, 0, 200, "outer")
