@@ -255,6 +255,14 @@ def run_doctor() -> int:
         ok = False
         lines.append(f"FAIL version drift: pyproject.toml={facts.pkg_version} plugin.json={facts.plugin_version}")
 
+    local_rules_dir = os.path.join(".sniff", "rules")
+    if os.path.isdir(local_rules_dir):
+        core_rules_dir = os.path.join(_REPO_ROOT, "skills", "sniff-patterns", "rules")
+        core_ids = {os.path.splitext(n)[0] for n in os.listdir(core_rules_dir) if n.endswith((".yml", ".yaml"))}
+        local_ids = {os.path.splitext(n)[0] for n in os.listdir(local_rules_dir) if n.endswith((".yml", ".yaml"))}
+        for rule_id in sorted(local_ids & core_ids):
+            lines.append(f"WARN local rule {rule_id!r} shadows core rule; contributed already? delete the local copy")
+
     print("\n".join(lines))
     return 0 if ok else 1
 

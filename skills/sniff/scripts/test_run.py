@@ -77,6 +77,15 @@ class SniffDoctorCommandTest(unittest.TestCase):
         self.assertIn("duplicate detector name", proc.stdout)
 
 
+def test_doctor_warns_on_shadowed_local_rule(tmp_path, monkeypatch, capsys):
+    rules = tmp_path / ".sniff" / "rules"
+    rules.mkdir(parents=True)
+    (rules / "no-empty-catch.yml").write_text("id: no-empty-catch\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    run_module.run_doctor()
+    assert "shadows core rule" in capsys.readouterr().out
+
+
 class SniffJsonOutputTest(unittest.TestCase):
     """--json emits parseable JSON for both --list and a scan, markdown stays default."""
 
