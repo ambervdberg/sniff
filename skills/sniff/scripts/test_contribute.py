@@ -49,3 +49,17 @@ def test_checkout_backend_copies_and_branches(tmp_path, monkeypatch):
     branch = subprocess.run(["git", "-C", str(co), "branch", "--show-current"],
                             capture_output=True, text=True).stdout.strip()
     assert branch == "rule/no-x"
+
+def test_gh_backend_command_sequence(tmp_path, monkeypatch):
+    _mk_local_rule(tmp_path)
+    calls = []
+    monkeypatch.setattr(contribute.subprocess, "run",
+        lambda cmd, **kw: calls.append(cmd) or type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    monkeypatch.setattr(contribute.shutil, "which", lambda name: "/usr/bin/gh")
+    monkeypatch.setattr(contribute.shutil, "copy2", lambda a, b: None)
+    monkeypatch.setattr(contribute.os, "makedirs", lambda *a, **k: None)
+    rc = contribute._contribute_via_gh("no-x", str(tmp_path))
+    assert rc == 0
+    flat = [" ".join(map(str, c)) for c in calls]
+    assert any("gh repo fork" in c for c in flat)
+    assert any("gh pr create" in c for c in flat)

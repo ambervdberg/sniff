@@ -14,8 +14,10 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".sniff", "config.toml")
+UPSTREAM = "ambervdberg/sniff"
 
 
 def resolve_checkout() -> "str | None":
@@ -104,6 +106,49 @@ def _contribute_to_checkout(rule_id: str, project_dir: str, checkout: str) -> in
     return 0
 
 
+def _pr_body(rule_id: str, rule_path: str, fixture_path: str) -> str:
+    with open(rule_path, "r", encoding="utf-8") as fh:
+        rule_text = fh.read()
+    with open(fixture_path, "r", encoding="utf-8") as fh:
+        fixture_text = fh.read()
+    return (f"New pattern rule `{rule_id}` promoted from a consumer repo.\n\n"
+            f"Rule:\n```yaml\n{rule_text}```\n\nFixtures:\n```yaml\n{fixture_text}```\n")
+
+
 def _contribute_via_gh(rule_id: str, project_dir: str) -> int:
-    print("error: gh backend not implemented yet", file=sys.stderr)         # Task 9
-    return 1
+    if not shutil.which("gh"):
+        print("error: no local checkout configured (SNIFF_REPO or ~/.sniff/config.toml) "
+              "and gh CLI not found; install gh or configure a checkout", file=sys.stderr)
+        return 1
+
+    rule_src, fixture_src = local_paths(rule_id, project_dir)
+    workdir = tempfile.mkdtemp(prefix="sniff-contribute-")
+    clone = os.path.join(workdir, "sniff")
+    steps = [
+        ["gh", "repo", "fork", UPSTREAM, "--clone", "--", clone],
+        ["git", "-C", clone, "checkout", "-b", f"rule/{rule_id}"],
+    ]
+    for cmd in steps:
+        if subprocess.run(cmd).returncode != 0:
+            print(f"error: step failed: {' '.join(cmd)}", file=sys.stderr)
+            return 1
+
+    patterns = os.path.join(clone, "skills", "sniff-patterns")
+    os.makedirs(os.path.join(patterns, "rule-tests"), exist_ok=True)
+    shutil.copy2(rule_src, os.path.join(patterns, "rules", rule_id + ".yml"))
+    shutil.copy2(fixture_src, os.path.join(patterns, "rule-tests", rule_id + ".yml"))
+
+    body = _pr_body(rule_id, rule_src, fixture_src)
+    steps = [
+        ["git", "-C", clone, "add", "skills/sniff-patterns"],
+        ["git", "-C", clone, "commit", "-m", f"feat: add {rule_id} pattern rule"],
+        ["git", "-C", clone, "push", "-u", "origin", f"rule/{rule_id}"],
+        ["gh", "pr", "create", "--repo", UPSTREAM, "--title", f"feat: add {rule_id} pattern rule",
+         "--body", body],
+    ]
+    for cmd in steps:
+        if subprocess.run(cmd, cwd=clone).returncode != 0:
+            print(f"error: step failed: {' '.join(cmd[:4])} ...", file=sys.stderr)
+            return 1
+    print(f"sniff: PR opened for {rule_id}")
+    return 0
