@@ -104,7 +104,7 @@ def test_local_rules_are_discovered(tmp_path):
         "message: TODO comment left in code.\nrule:\n  pattern: \"// TODO $$$\"\n",
         encoding="utf-8")
     cat = format_mod.catalog_rules(str(tmp_path))
-    origins = {rid: origin for rid, _sev, _msg, origin in cat}
+    origins = {rid: origin for rid, _sev, _msg, origin, _lang in cat}
     assert origins.get("no-todo-comment") == "local"
     assert all(o == "core" for rid, o in origins.items() if rid != "no-todo-comment")
 
@@ -114,7 +114,7 @@ def test_malformed_local_rule_warns_and_skips(tmp_path, capsys):
     rules.mkdir(parents=True)
     (rules / "broken.yml").write_text("not: a rule", encoding="utf-8")
     cat = format_mod.catalog_rules(str(tmp_path))
-    assert all(rid != "broken" for rid, _s, _m, _o in cat)
+    assert all(rid != "broken" for rid, _s, _m, _o, _lang in cat)
 
 
 def test_list_rules_shows_origin(capsys, tmp_path):
@@ -126,6 +126,13 @@ def test_list_rules_shows_origin(capsys, tmp_path):
     format_mod.print_list_rules(format_mod.catalog_rules(str(tmp_path)))
     out = capsys.readouterr().out
     assert "| ORIGIN |" in out and "| local |" in out and "| core |" in out
+
+
+@unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
+def test_list_rules_groups_by_language(capsys):
+    format_mod.print_list_rules(format_mod.catalog_rules())
+    out = capsys.readouterr().out
+    assert "### typescript" in out and "### python" in out
 
 
 if __name__ == "__main__":

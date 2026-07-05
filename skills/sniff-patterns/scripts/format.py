@@ -88,11 +88,11 @@ def local_rules_dir(scan_path: str) -> str:
     return os.path.join(scan_path, ".sniff", "rules")
 
 
-def _read_rule_meta(path: str) -> tuple[str, str, str]:
-    """(id, severity, message) from one rule yml, hand-parsed (no PyYAML dependency).
+def _read_rule_meta(path: str) -> tuple[str, str, str, str]:
+    """(id, severity, message, language) from one rule yml, hand-parsed (no PyYAML dependency).
 
     Severity defaults to 'warning' to match ast-grep when a rule omits the field."""
-    rule_id, severity, message = "", "warning", ""
+    rule_id, severity, message, language = "", "warning", "", ""
     with open(path, "r", encoding="utf-8") as fh:
         for line in fh:
             if line.startswith("id:"):
@@ -101,27 +101,29 @@ def _read_rule_meta(path: str) -> tuple[str, str, str]:
                 severity = line.split(":", 1)[1].strip()
             elif line.startswith("message:"):
                 message = line.split(":", 1)[1].strip()
-    return rule_id, severity, message
+            elif line.startswith("language:"):
+                language = line.split(":", 1)[1].strip()
+    return rule_id, severity, message, language
 
 
-def catalog_rules(scan_path: str | None = None) -> list[tuple[str, str, str, str]]:
-    """(id, severity, message, origin) for every rule that would run on `scan_path`.
+def catalog_rules(scan_path: str | None = None) -> list[tuple[str, str, str, str, str]]:
+    """(id, severity, message, origin, language) for every rule that would run on `scan_path`.
 
     origin is 'core' for skills/sniff-patterns/rules/*.yml, or 'local' for
     <scan_path>/.sniff/rules/*.yml. Local rules let a consumer repo add its own
     checks without touching the shared catalog. Used so a clean result can list
     every rule that ran (and its severity), distinguishing 'no smells' from 'no
     rules loaded'."""
-    rules: list[tuple[str, str, str, str]] = []
+    rules: list[tuple[str, str, str, str, str]] = []
     core_ids: set[str] = set()
 
     if os.path.isdir(RULES_DIR):
         for name in sorted(os.listdir(RULES_DIR)):
             if not name.endswith((".yml", ".yaml")):
                 continue
-            rule_id, severity, message = _read_rule_meta(os.path.join(RULES_DIR, name))
+            rule_id, severity, message, language = _read_rule_meta(os.path.join(RULES_DIR, name))
             if rule_id:
-                rules.append((rule_id, severity, message, "core"))
+                rules.append((rule_id, severity, message, "core", language))
                 core_ids.add(rule_id)
 
     if scan_path is not None:
@@ -130,7 +132,7 @@ def catalog_rules(scan_path: str | None = None) -> list[tuple[str, str, str, str
             for name in sorted(os.listdir(local_dir)):
                 if not name.endswith((".yml", ".yaml")):
                     continue
-                rule_id, severity, message = _read_rule_meta(os.path.join(local_dir, name))
+                rule_id, severity, message, language = _read_rule_meta(os.path.join(local_dir, name))
                 if not rule_id:
                     print(f"warning: local rule {name} has no id:, skipped", file=sys.stderr)
                     continue
@@ -138,7 +140,7 @@ def catalog_rules(scan_path: str | None = None) -> list[tuple[str, str, str, str
                     print(f"warning: local rule {rule_id} shadows a core rule, local copy ignored",
                           file=sys.stderr)
                     continue
-                rules.append((rule_id, severity, message, "local"))
+                rules.append((rule_id, severity, message, "local", language))
 
     return rules
 
@@ -171,7 +173,7 @@ def print_rule_table(rows: list[tuple[str, str, int, list[str]]]) -> None:
         print()
 
 
-def print_rules_ran(ran: list[tuple[str, str, str, str]], cap: int = 30) -> None:
+def print_rules_ran(ran: list[tuple[str, str, str, str, str]], cap: int = 30) -> None:
     """Print a one-line roster of every rule that ran this invocation.
 
     The findings table only lists rules that matched, so without this a reader
@@ -181,25 +183,34 @@ def print_rules_ran(ran: list[tuple[str, str, str, str]], cap: int = 30) -> None
     if not ran:
         return
 
-    ids = [rid for rid, _sev, _msg, _origin in sorted(ran)]
+    ids = [rid for rid, *_rest in sorted(ran)]
     if len(ids) <= cap:
         print(f"\nRan {len(ids)} rules: {', '.join(ids)}")
     else:
         print(f"\nRan {len(ids)} rules ({', '.join(ids[:cap])}, +{len(ids) - cap} more)")
 
 
-def print_list_rules(rules: list[tuple[str, str, str, str]]) -> None:
-    """Print a catalog table: RULE / SEVERITY / MESSAGE / ORIGIN.
+def print_list_rules(rules: list[tuple[str, str, str, str, str]]) -> None:
+    """Print a catalog table grouped by language, one ### heading + RULE/SEVERITY/
+    ORIGIN/MESSAGE table per language.
 
     Used by --list-rules so an agent can discover rule IDs and their intent
     without running a scan. ORIGIN ('core' vs 'local') tells the agent whether a
-    rule comes from the shared catalog or a consumer-local .sniff/rules override."""
-    print("| RULE | SEVERITY | MESSAGE | ORIGIN |")
-    print("| --- | --- | --- | --- |")
-    for rule_id, severity, message, origin in sorted(rules, key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[0])):
-        # Escape pipes so the markdown table stays valid.
-        safe_msg = message.replace("|", "\\|")
-        print(f"| {rule_id} | {severity} | {safe_msg} | {origin} |")
+    rule comes from the shared catalog or a consumer-local .sniff/rules override.
+    Grouping by language keeps a multi-language catalog (e.g. typescript + python)
+    scannable instead of one long mixed table."""
+    languages = sorted({language for *_rest, language in rules})
+    for language in languages:
+        print(f"### {language}\n")
+        print("| RULE | SEVERITY | ORIGIN | MESSAGE |")
+        print("| --- | --- | --- | --- |")
+        group = [r for r in rules if r[4] == language]
+        for rule_id, severity, message, origin, _language in sorted(
+                group, key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[0])):
+            # Escape pipes so the markdown table stays valid.
+            safe_msg = message.replace("|", "\\|")
+            print(f"| {rule_id} | {severity} | {origin} | {safe_msg} |")
+        print()
 
 
 def _yaml_single_quoted(path: str) -> str:
@@ -366,11 +377,11 @@ def main() -> None:
     # --severity filter. Reported so the result names how many and which rules ran,
     # not just the ones that happened to match.
     ran = [
-        (rid, sev, msg, origin)
-        for rid, sev, msg, origin in rules
-        if rid not in disabled
-        and (not args.rule or rid == args.rule)
-        and (not args.severity or sev == args.severity)
+        r
+        for r in rules
+        if r[0] not in disabled
+        and (not args.rule or r[0] == args.rule)
+        and (not args.severity or r[1] == args.severity)
     ]
 
     if not by_rule:
