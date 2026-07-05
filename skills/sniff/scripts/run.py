@@ -450,6 +450,12 @@ def main() -> None:
         sys.exit(run_baseline(sys.argv[2:]))
     if sys.argv[1:2] == ["diff"]:
         sys.exit(run_diff(sys.argv[2:]))
+    if sys.argv[1:2] == ["test-rules"]:
+        try:
+            import test_rules
+        except ModuleNotFoundError:
+            from skills.sniff.scripts import test_rules
+        sys.exit(test_rules.run_test_rules(_REPO_ROOT))
 
     parser = argparse.ArgumentParser(
         prog="sniff",
@@ -467,6 +473,7 @@ def main() -> None:
             "  sniff prime                  # agent-optimized context (no scan)\n"
             "  sniff baseline write [DIR]   # save per-detector counts to .sniff/baseline.json\n"
             "  sniff diff [DIR]             # compare current scan to the saved baseline\n"
+            "  sniff test-rules             # run rule fixture tests, exit 0/1\n"
             "\n"
             "Pattern rules only:  sniff --only sniff-patterns [DIR]\n"
             "List pattern rules:  sniff --list-patterns\n"
