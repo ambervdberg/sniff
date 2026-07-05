@@ -86,6 +86,16 @@ def test_config_skip_merges_into_selection():
     assert all(d.name != "largest-files" for d in selected)
 
 
+def test_config_severity_override_reaches_sniff_patterns_args():
+    detectors, _errors = run_module.discovery.discover()
+    patterns = next(d for d in detectors if d.name == "sniff-patterns")
+
+    cfg = run_module.config.Config(severity_overrides={"no-console-log": "error"})
+    applied = run_module.apply_config_to_detector(patterns, cfg)
+    assert "--severity-override" in applied.args
+    assert "no-console-log=error" in applied.args
+
+
 def test_doctor_warns_on_shadowed_local_rule(tmp_path, monkeypatch, capsys):
     rules = tmp_path / ".sniff" / "rules"
     rules.mkdir(parents=True)

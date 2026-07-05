@@ -143,17 +143,22 @@ def _override_args(args: list[str], overrides: dict[str, str]) -> list[str]:
 def apply_config_to_detector(detector: discovery.Detector, cfg: config.Config) -> discovery.Detector:
     """Fold .sniff.toml overrides that target one detector into its args.
 
-    Two config sections can change what a selected detector's own subprocess sees:
-    `[detectors] <name>.<arg> = value` overrides that detector's CLI args, and
+    Config can change what a selected detector's own subprocess sees:
+    `[detectors] <name>.<arg> = value` overrides that detector's CLI args;
     `[rules] <id> = false` (sniff-patterns only) becomes `--disable <ids>` so the
-    pattern catalog skips those rules. Returns `detector` unchanged (same object)
-    when neither applies, so callers can skip work for the common no-config case."""
+    pattern catalog skips those rules; and `[rules] <id> = "<severity>"`
+    (sniff-patterns only) becomes `--severity-override <id>=<severity>`. Returns
+    `detector` unchanged (same object) when none applies, so callers can skip
+    work for the common no-config case."""
     args = detector.args
     overrides = cfg.thresholds.get(detector.name)
     if overrides:
         args = _override_args(args, overrides)
     if detector.name == "sniff-patterns" and cfg.disabled_rules:
         args = [*args, "--disable", ",".join(sorted(cfg.disabled_rules))]
+    if detector.name == "sniff-patterns" and cfg.severity_overrides:
+        for rule_id, level in sorted(cfg.severity_overrides.items()):
+            args = [*args, "--severity-override", f"{rule_id}={level}"]
     if args is detector.args:
         return detector
     return replace(detector, args=args)

@@ -96,6 +96,16 @@ def test_disable_flag_hides_rule_findings(tmp_path):
     assert "no-console-log" not in out.split("Ran ")[0]  # not in findings section
 
 
+@unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
+def test_severity_override_rewrites_reported_severity(tmp_path):
+    # no-console-log ships as a warning; override it to error for this scan.
+    (tmp_path / "a.ts").write_text("console.log('x')\n", encoding="utf-8")
+    out = run_format([str(tmp_path), "--rule", "no-console-log",
+                      "--severity-override", "no-console-log=error"])
+    assert "### no-console-log (error):" in out
+    assert "### no-console-log (warning):" not in out
+
+
 def test_local_rules_are_discovered(tmp_path):
     rules = tmp_path / ".sniff" / "rules"
     rules.mkdir(parents=True)

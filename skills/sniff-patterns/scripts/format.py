@@ -321,9 +321,20 @@ def main() -> None:
     parser.add_argument("--list-rules", action="store_true",
                         help="print catalog of available rule IDs and exit")
     parser.add_argument("--disable", help="comma-separated rule ids to skip (e.g. from .sniff.toml [rules])")
+    parser.add_argument("--severity-override", action="append", default=[], metavar="ID=LEVEL",
+                        help="override a rule's severity (repeatable), e.g. no-console-log=error "
+                             "(from .sniff.toml [rules])")
     args = parser.parse_args()
 
     disabled = {r.strip() for r in (args.disable or "").split(",") if r.strip()}
+
+    # rule id -> severity, from .sniff.toml [rules] via run.py. Rewrites a rule's
+    # reported severity (and its --severity filtering) without touching the rule yml.
+    severity_overrides: dict[str, str] = {}
+    for item in args.severity_override:
+        if "=" in item:
+            rid, level = item.split("=", 1)
+            severity_overrides[rid.strip()] = level.strip()
 
     if args.list_rules:
         rules = catalog_rules(args.path)
@@ -361,7 +372,7 @@ def main() -> None:
             continue
         if args.rule and rule_id != args.rule:
             continue
-        sev = m.get("severity", "warning")
+        sev = severity_overrides.get(rule_id, m.get("severity", "warning"))
         if args.severity and sev != args.severity:
             continue
 
@@ -377,11 +388,11 @@ def main() -> None:
     # --severity filter. Reported so the result names how many and which rules ran,
     # not just the ones that happened to match.
     ran = [
-        r
+        (r[0], severity_overrides.get(r[0], r[1]), *r[2:])
         for r in rules
         if r[0] not in disabled
         and (not args.rule or r[0] == args.rule)
-        and (not args.severity or r[1] == args.severity)
+        and (not args.severity or severity_overrides.get(r[0], r[1]) == args.severity)
     ]
 
     if not by_rule:
