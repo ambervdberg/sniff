@@ -4,10 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sniff"
-version = "0.9.5"
+version = "0.9.6"
 description = "Token-cheap code-smell skills for AI agents"
 requires-python = ">=3.9"
 dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest"]
 
 [project.scripts]
 sniff = "skills.sniff.scripts.run:main"

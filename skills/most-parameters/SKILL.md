@@ -54,6 +54,9 @@ python "<skill_dir>/scripts/most_parameters.py"
 # Only functions with 5+ parameters
 python "<skill_dir>/scripts/most_parameters.py" src --min 5
 
+# Default: 3+ parameters (2 or fewer is not a smell)
+python "<skill_dir>/scripts/most_parameters.py" src
+
 # Force a language when auto-detect is too broad
 python "<skill_dir>/scripts/most_parameters.py" src --lang typescript
 ```
@@ -77,6 +80,7 @@ full. Do not re-read the listed files unless the user then asks you to refactor 
   could miscount; `LOCATION` is authoritative, jump there if a number looks off.
 - **`this`/`self` may or may not appear** depending on the language grammar;
   treat the ranking as a smell finder, not an exact ABI parameter count.
-- **`--min` defaults to 1.** Raise it to focus on the worst offenders.
+- **`--min` defaults to 3** (2 or fewer params isn't a smell). Raise it further to
+  focus on the worst offenders.
 - **Tests excluded by default** (`*.spec.*`, `*.test.*`); add `--include-tests`.
   `node_modules`, `dist`, `build` and similar are always skipped.

@@ -21,17 +21,17 @@ import sys
 
 # Import the shared engines from the sibling _ast-harness directory.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "_ast-harness"))
-import harness as h  # noqa: E402
-import node_metric as nm  # noqa: E402
+import harness as h  # pylint: disable=wrong-import-position
+import node_metric as nm  # pylint: disable=wrong-import-position
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Rank functions by parameter count.")
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
-    parser.add_argument("--top", type=int, default=20, help="how many to show (default: 20)")
+    parser.add_argument("--top", type=int, default=10, help="how many to show (default: 10)")
     parser.add_argument("--lang", action="append", help="force a language (repeatable); skips auto-detect")
-    parser.add_argument("--min", type=int, default=1, dest="minimum",
-                        help="only show functions with at least this many params (default: 1)")
+    parser.add_argument("--min", type=int, default=3, dest="minimum",
+                        help="only show functions with at least this many params (default: 3, ignores <=2)")
     parser.add_argument("--include-tests", action="store_true", help="include *.spec.* / *.test.* files")
     args = parser.parse_args()
 

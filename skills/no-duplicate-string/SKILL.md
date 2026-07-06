@@ -37,7 +37,7 @@ vendored/build dirs (`node_modules`, `dist`, `.astro`, ...) are always skipped.
   on the worst offenders.
 - `--min-len N` (default 4): minimum string length to consider. Avoids noise from
   very short strings (e.g., single letters, common punctuation).
-- `--top N` (default 20): how many strings to show in the output.
+- `--top N` (default 10): how many strings to show in the output.
 
 ## Relaying the result
 

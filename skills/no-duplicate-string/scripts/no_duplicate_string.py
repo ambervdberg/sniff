@@ -12,7 +12,9 @@ Usage:
 
 PATH defaults to '.'; threshold (default 3) is how many distinct files a string must
 appear in to be flagged; min-len (default 4) filters out very short strings that
-produce noise (e.g., 'a', 'or'); top (default 20) limits output rows.
+produce noise (e.g., 'a', 'or'); top (default 10) limits output rows. Import/export
+specifier strings (module paths in `import`/`export`/`require` statements) are
+excluded, since those duplicates are structural, not smell.
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ from collections import defaultdict
 
 # Import the shared engine from the sibling _ast-harness directory.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "_ast-harness"))
-import harness as h  # noqa: E402
+import harness as h  # pylint: disable=wrong-import-position
 
 
 # Regex to extract string literals: "..." or '...' (non-empty, single-line only).
@@ -42,6 +44,15 @@ STRING_LITERAL_RE = re.compile(
 # Matches: "..." and '...' but allows \" and \' inside.
 STRING_LITERAL_SIMPLE = re.compile(
     r'''(['"])(?:\\.|(?!\1).)*?\1'''
+)
+
+# Matches the text immediately before a string literal when that string is a
+# module specifier: `import ... from '...'`, `export ... from '...'`, a
+# side-effect `import '...'`, dynamic `import('...')`, or `require('...')`.
+# Those duplicates (e.g. '@angular/core' repeated across files) are structural,
+# not a code smell, so they are excluded before dedup counting.
+IMPORT_SPECIFIER_PREFIX_RE = re.compile(
+    r'(^\s*import\b|\bfrom\s*$|\brequire\(\s*$|\bimport\(\s*$)'
 )
 
 
@@ -66,6 +77,12 @@ def extract_strings(path: str, min_len: int = 4) -> set[str]:
 
         # Skip empty strings.
         if not value:
+            continue
+
+        # Skip module specifiers: 'import ... from', 'require(', dynamic 'import('.
+        line_start = content.rfind("\n", 0, match.start()) + 1
+        line_prefix = content[line_start:match.start()]
+        if IMPORT_SPECIFIER_PREFIX_RE.search(line_prefix):
             continue
 
         # Skip if too short (noise).
@@ -108,8 +125,8 @@ def main() -> None:
         help="minimum string length to consider (filters noise; default: 4)"
     )
     parser.add_argument(
-        "--top", type=int, default=20,
-        help="how many to show (default: 20)"
+        "--top", type=int, default=10,
+        help="how many to show (default: 10)"
     )
     parser.add_argument(
         "--include-tests", action="store_true",

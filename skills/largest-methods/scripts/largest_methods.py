@@ -21,7 +21,7 @@ import sys
 
 # Import the shared engine from the sibling _ast-harness directory.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "_ast-harness"))
-import harness as h  # noqa: E402
+import harness as h
 
 # The tree-sitter node kinds that represent "a method or function" per language.
 # Function expressions / arrows are included so class-field callables and
@@ -49,7 +49,7 @@ LANG_KINDS = {
 def main() -> None:
     parser = argparse.ArgumentParser(description="Rank the largest methods/functions by line count.")
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
-    parser.add_argument("--top", type=int, default=20, help="how many to show (default: 20)")
+    parser.add_argument("--top", type=int, default=10, help="how many to show (default: 10)")
     parser.add_argument("--lang", action="append", help="force a language (repeatable); skips auto-detect")
     parser.add_argument("--include-tests", action="store_true", help="include *.spec.* / *.test.* files")
     args = parser.parse_args()

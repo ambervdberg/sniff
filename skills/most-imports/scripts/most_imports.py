@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 # Import the shared engine from the sibling _ast-harness directory.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "_ast-harness"))
-import harness as h  # noqa: E402
+import harness as h
 
 
 @dataclass
@@ -30,7 +30,7 @@ class FileStat:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Rank files by import statement count.")
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
-    parser.add_argument("--top", type=int, default=20, help="how many to show (default: 20)")
+    parser.add_argument("--top", type=int, default=10, help="how many to show (default: 10)")
     parser.add_argument("--include-tests", action="store_true", help="include *.spec.* / *.test.* files")
     args = parser.parse_args()
 
