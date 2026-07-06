@@ -42,11 +42,14 @@ sniff test-rules
 
 All fixtures must pass before you open a PR.
 
-## Contributing from a consumer repo
+## Promoting a local rule from a project that uses sniff
 
-You are the maintainer of a consumer repo and have written a local rule that works well. Promote it to the sniff catalog:
+This section is for a *different* repo: one where you installed the sniff plugin
+and wrote a project-specific rule that turned out generally useful. Run these
+steps from that project, not from this sniff repo, to send the rule upstream
+into this catalog.
 
-1. Create a local rule in your project under `.sniff/rules/<rule-id>.yml` with matching fixtures at `.sniff/rule-tests/<rule-id>.yml`.
+1. In that project (not here), create a local rule under `.sniff/rules/<rule-id>.yml` with matching fixtures at `.sniff/rule-tests/<rule-id>.yml`.
 
 2. Prove the rule works:
    ```bash
