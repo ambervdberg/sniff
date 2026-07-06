@@ -1,3 +1,11 @@
 [MASTER]
 init-hook='import sys; sys.path.append("skills/_ast-harness");'
 ignore-patterns=.*\.tmpl$
+
+[FORMAT]
+max-line-length=120
+
+[MESSAGES CONTROL]
+# Function/class names are self-explanatory by house style (Clean Code: code
+# reads like a book). Module docstrings stay required — every module gets one.
+disable=missing-function-docstring,missing-class-docstring

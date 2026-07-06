@@ -1,3 +1,5 @@
+"""Tests for .sniff.toml config loading (detector thresholds, rule overrides)."""
+
 import config
 
 

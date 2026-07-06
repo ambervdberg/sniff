@@ -1,3 +1,5 @@
+"""Tests for `sniff contribute`: promoting a local rule to the sniff catalog."""
+
 import os
 import subprocess
 import contribute

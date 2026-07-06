@@ -1,3 +1,5 @@
+"""Tests for `sniff test-rules`: every catalog rule must have a rule-test file."""
+
 import os
 import test_rules
 
