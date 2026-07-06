@@ -15,7 +15,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-import detect_costly_search as d  # noqa: E402
+import detect_costly_search as d
 
 
 def user(text: str) -> dict:

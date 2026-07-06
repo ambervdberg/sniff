@@ -20,7 +20,7 @@ import unittest
 from contextlib import redirect_stdout
 
 sys.path.insert(0, os.path.dirname(__file__))
-import harness as h  # noqa: E402
+import harness as h
 
 HAS_AST_GREP = shutil.which("ast-grep") is not None
 

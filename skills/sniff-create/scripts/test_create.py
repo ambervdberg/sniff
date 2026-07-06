@@ -19,7 +19,7 @@ import pytest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-import create  # noqa: E402
+import create
 
 
 def run_create(argv):

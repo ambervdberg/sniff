@@ -18,8 +18,8 @@ import sys
 
 # Import the shared engines from the sibling _ast-harness directory.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "_ast-harness"))
-import harness as h  # noqa: E402
-import node_metric as nm  # noqa: E402
+import harness as h
+import node_metric as nm
 
 # The engine function and the metric key it writes into each Match's metrics dict.
 METRIC_FN = nm.@@METRIC_FN@@

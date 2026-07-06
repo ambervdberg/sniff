@@ -14,7 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 RUN = os.path.join(HERE, "run.py")
 
 sys.path.insert(0, HERE)
-import run as run_module  # noqa: E402 (needs sys.path set up first)
+import run as run_module  # needs sys.path set up first
 
 
 class SniffCliHelpTest(unittest.TestCase):

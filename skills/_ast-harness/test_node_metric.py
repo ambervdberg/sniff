@@ -16,7 +16,7 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-import node_metric as nm  # noqa: E402
+import node_metric as nm
 
 HAS_AST_GREP = shutil.which("ast-grep") is not None
 

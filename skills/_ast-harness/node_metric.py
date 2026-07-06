@@ -31,7 +31,7 @@ import sys
 
 # Import the shared engine from the sibling file in this directory.
 sys.path.insert(0, os.path.dirname(__file__))
-import harness as h  # noqa: E402
+import harness as h
 
 # What counts as a function/method per language. Mirrors largest-methods'
 # LANG_KINDS; kept here so the node-metric skills do not depend on that skill.
@@ -193,7 +193,7 @@ TEMPLATE_LANGS = ["typescript", "tsx"]
 # `template:` followed by a backtick string; selector by its quoted string. The
 # template regex is non-greedy and stops at the first backtick, so it does not
 # span past the literal (nested backticks in Angular templates are vanishingly rare).
-import re as _re  # noqa: E402  (kept local-ish; harness already imports re)
+import re as _re
 
 _TEMPLATE_RE = _re.compile(r"template\s*:\s*`([^`]*)`", _re.DOTALL)
 _SELECTOR_RE = _re.compile(r"selector\s*:\s*['\"]([^'\"]+)['\"]")
