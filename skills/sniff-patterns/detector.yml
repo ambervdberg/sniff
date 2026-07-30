@@ -1,5 +1,0 @@
-# sniff detector manifest. Discovered by skills/sniff (sniff --all).
-name: sniff-patterns
-title: Pattern rule catalog (ast-grep)
-script: scripts/format.py
-args:

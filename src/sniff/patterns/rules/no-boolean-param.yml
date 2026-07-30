@@ -1,0 +1,10 @@
+# Boolean-typed parameters
+# Generated for the sniff-patterns catalog. Run via the sniff-patterns skill.
+id: no-boolean-param
+language: typescript
+severity: warning
+message: "Boolean parameter enables unclear call sites; use a more descriptive type, enum, or extracted method."
+rule:
+  pattern:
+    context: "function _f($PARAM: boolean) {}"
+    selector: required_parameter

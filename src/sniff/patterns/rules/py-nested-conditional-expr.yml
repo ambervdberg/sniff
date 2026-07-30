@@ -1,0 +1,10 @@
+# Nested conditional expressions
+# Flag `a if b else (c if d else e)` and `a if b else c if d else e`
+id: py-nested-conditional-expr
+language: python
+severity: warning
+message: "Nested conditional expression; extract to if/elif/else or a helper function for readability."
+rule:
+  any:
+    - pattern: "$A if $B else $C if $D else $E"
+    - pattern: "$A if $B else ($C if $D else $E)"

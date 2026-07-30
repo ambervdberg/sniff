@@ -1,5 +1,0 @@
-# sniff detector manifest. Discovered by skills/sniff (sniff --all).
-name: cognitive-complexity
-title: High cognitive complexity methods
-script: scripts/cognitive_complexity.py
-args:

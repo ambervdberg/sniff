@@ -36,7 +36,13 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES = os.path.join(HERE, "..", "templates")
 SKILLS_DIR = os.path.normpath(os.path.join(HERE, "..", ".."))
-RULES_DIR = os.path.join(SKILLS_DIR, "sniff-patterns", "rules")
+REPO_ROOT = os.path.dirname(SKILLS_DIR)
+SRC_DETECTORS_DIR = os.path.join(REPO_ROOT, "src", "sniff", "detectors")
+
+# The core pattern catalog lives in the package, not under skills/.
+PATTERNS_DIR = os.path.join(REPO_ROOT, "src", "sniff", "patterns")
+RULES_DIR = os.path.join(PATTERNS_DIR, "rules")
+RULE_TESTS_DIR = os.path.join(PATTERNS_DIR, "rule-tests")
 
 
 def _load_template(name: str) -> str:
@@ -157,9 +163,31 @@ def cmd_node_metric(args: argparse.Namespace) -> None:
               f"  /plugin update sniff   (to make the new skill live on this PC)")
 
 
+def _fixture_yaml(rule_id: str, valid: list, invalid: list) -> str:
+    """Render an ast-grep rule-tests fixture: id, then valid/invalid snippet blocks."""
+    lines = [f"id: {rule_id}"]
+    for label, snippets in (("valid", valid), ("invalid", invalid)):
+        lines.append(f"{label}:")
+        for s in snippets:
+            lines.append("  - |")
+            lines.extend("    " + ln for ln in s.splitlines())
+    return "\n".join(lines) + "\n"
+
+
 def cmd_rule(args: argparse.Namespace) -> None:
     if not args.pattern and not args.rule_body_file:
         sys.exit("error: provide either --pattern or --rule-body-file")
+
+    if not args.local and not args.test_invalid:
+        sys.exit("error: --test-invalid is required in repo mode (pass --local to skip fixtures)")
+
+    if args.local:
+        base = os.path.join(os.getcwd(), ".sniff")
+        rules_dir = os.path.join(base, "rules")
+        tests_dir = os.path.join(base, "rule-tests")
+    else:
+        rules_dir = RULES_DIR
+        tests_dir = RULE_TESTS_DIR
 
     if args.pattern:
         rule_body = f"  pattern: {json.dumps(args.pattern)}"
@@ -177,11 +205,58 @@ def cmd_rule(args: argparse.Namespace) -> None:
         "RULE_BODY": rule_body,
     }
 
-    _write(os.path.join(RULES_DIR, f"{args.name}.yml"),
+    _write(os.path.join(rules_dir, f"{args.name}.yml"),
            _fill(_load_template("rule.yml.tmpl"), tokens), args.dry_run)
+
+    if args.test_valid or args.test_invalid:
+        fixture = _fixture_yaml(args.name, args.test_valid, args.test_invalid)
+        _write(os.path.join(tests_dir, f"{args.name}.yml"), fixture, args.dry_run)
 
     if not args.dry_run:
         print("\nNext: run the sniff-patterns skill to see it in the catalog scan.")
+
+
+def cmd_detector(args: argparse.Namespace) -> None:
+    """Scaffold a full sniff detector: either a core registry module (--target
+    core) or a standalone external detector for a consuming repo (--target
+    external, the default). See the module docstring's Interfaces note in the
+    task-9 brief: core writes into src/sniff/detectors/ and must be added to
+    BUILTIN by hand; external writes a self-contained script plus manifest
+    under <dest>/.sniff/detectors/<name>/, discovered automatically by
+    sniff.discovery.discover() the next time sniff runs in that repo."""
+    title = args.title or args.name.replace("-", " ").title()
+    description = args.description or f"Detect {title.lower()}."
+    tokens = {"NAME": args.name, "TITLE": title, "DESCRIPTION": description}
+
+    if args.target == "core":
+        module = args.name.replace("-", "_")
+        tokens["MODULE"] = module
+        dest = os.path.join(SRC_DETECTORS_DIR, f"{module}.py")
+        _write(dest, _fill(_load_template("detector_core_module.py.tmpl"), tokens), args.dry_run)
+
+        if not args.dry_run:
+            init_path = os.path.join("src", "sniff", "detectors", "__init__.py")
+            print(f"\nReminder: this module is NOT wired in yet. Add it to BUILTIN yourself:\n"
+                  f"  1. import it in {init_path}\n"
+                  f"  2. append it to the BUILTIN list\n"
+                  f"Then run it directly and confirm the output before committing:\n"
+                  f"  python -m sniff.detectors.{module} <some-repo> --top 10")
+        return
+
+    script_filename = f"{args.name}.py"
+    tokens["SCRIPT_FILENAME"] = script_filename
+    detector_dir = os.path.join(args.dest, ".sniff", "detectors", args.name)
+    _write(os.path.join(detector_dir, "detector.yml"),
+           _fill(_load_template("detector_manifest.yml.tmpl"), tokens), args.dry_run)
+    _write(os.path.join(detector_dir, script_filename),
+           _fill(_load_template("detector_external_script.py.tmpl"), tokens), args.dry_run)
+
+    if not args.dry_run:
+        script_path = os.path.join(detector_dir, script_filename)
+        print(f"\nNext: implement the TODO in the script, run it directly, then let sniff\n"
+              f"discover it automatically (no registration step needed):\n"
+              f"  python \"{script_path}\" <some-repo> --top 10\n"
+              f"  sniff --list   (confirm '{args.name}' shows up)")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -217,7 +292,26 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--message", required=True, help="finding message shown to the user")
     r.add_argument("--pattern", help="ast-grep pattern string")
     r.add_argument("--rule-body-file", help="file with raw rule YAML body (alternative to --pattern)")
+    r.add_argument("--local", action="store_true",
+                   help="scaffold under <cwd>/.sniff/ instead of this sniff repo (for use in other projects)")
+    r.add_argument("--test-valid", action="append", default=[],
+                   help="snippet that should NOT match (repeatable); written to the fixture file")
+    r.add_argument("--test-invalid", action="append", default=[],
+                   help="snippet that SHOULD match (repeatable); required unless --local")
     r.set_defaults(func=cmd_rule)
+
+    d = sub.add_parser("detector", help="scaffold a full sniff detector (core module or external project detector)")
+    d.add_argument("--name", required=True, help="kebab-case detector name (matches sniff --only <name>)")
+    d.add_argument("--title", help="one-line human title (defaults to a title-cased --name)")
+    d.add_argument("--description", help="what it detects (defaults to a generic sentence from --title)")
+    d.add_argument("--target", choices=["core", "external"], default="external",
+                   help="core: src/sniff/detectors/<name>.py, wired into BUILTIN by hand; "
+                        "external: <dest>/.sniff/detectors/<name>/ manifest + standalone script, "
+                        "auto-discovered (default)")
+    d.add_argument("--dest", default=".",
+                   help="external target only: consuming repo root to scaffold "
+                        ".sniff/detectors/<name>/ under (default: current directory)")
+    d.set_defaults(func=cmd_detector)
 
     return parser
 

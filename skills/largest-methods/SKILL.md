@@ -19,45 +19,28 @@ Rank the longest methods/functions in a codebase by line count, cheaply.
 
 The naive way to answer "what's the biggest method?" is to read files or dump
 AST JSON into the conversation, both of which burn thousands of tokens. This
-skill pushes all of that work into a bundled script: it runs `ast-grep`, parses
+skill runs all of that work through the installed sniff CLI: it runs `ast-grep`, parses
 the JSON internally, folds away nested closures, and prints a ~20-row table. You
 only ever see the table. Keep it that way, never pipe the raw `ast-grep --json`
 output into your own context to re-rank it by hand.
 
-## Prerequisites
-
-- `ast-grep` on PATH (`ast-grep --version`). Install: https://ast-grep.github.io
-- Python 3 (any recent version) to run the bundled script.
-
 ## Usage
 
-Run the script and report the table. `PATH` defaults to the current directory.
+Run the detector through the installed sniff CLI:
 
-```bash
-python "<skill_dir>/scripts/largest_methods.py" [PATH] [--top N] [--lang L] [--include-tests]
-```
+1. Ensure sniff is installed. Try `sniff version`. If it fails, install it:
+   `uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
+   and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
+2. Run: `sniff --only largest-methods [DIR] [--top N] [--lang LANG]
+   [--include-tests]`
+3. Report the table; do not paste raw file contents.
 
-`<skill_dir>` is the directory containing this SKILL.md. Examples:
-
-```bash
-# Whole repo, top 20, languages auto-detected, test files excluded
-python "<skill_dir>/scripts/largest_methods.py"
-
-# Just the Angular frontend, top 10
-python "<skill_dir>/scripts/largest_methods.py" apps/web --top 10
-
-# Force a language when auto-detect is too broad
-python "<skill_dir>/scripts/largest_methods.py" src --lang typescript
-```
-
-The output is already final-form, a `LINES / NAME / LOCATION` table sorted
-biggest-first.
-
-**Print the entire table to the user verbatim.** It IS the answer. Do NOT replace
-it with a summary, collapse it to "the largest is X", or describe it in prose, the
-user wants every row. You may add ONE optional takeaway line after the table (e.g.
-which file is the hotspot), but the full table must appear first and in full. Do not
-re-read the listed files unless the user then asks you to actually refactor one.
+The output is a `LINES / NAME / LOCATION` table sorted biggest-first.
+**Print the entire table verbatim.** It IS the answer. Do NOT replace it with a
+summary or describe it in prose; the user wants every row. You may add ONE
+optional takeaway line after the table (e.g. which file is the hotspot), but the
+full table must appear first and in full. Do not re-read listed files unless the
+user then asks you to actually refactor one.
 
 ## What it counts, and the caveats worth stating
 

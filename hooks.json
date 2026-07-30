@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"./skills/sniff/scripts/run.py\" prime"
+            "command": "python -c \"import sys;sys.path.insert(0,'src');from sniff.cli import main;sys.exit(main(['prime']))\""
           }
         ]
       }

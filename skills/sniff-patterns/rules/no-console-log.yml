@@ -1,8 +1,0 @@
-# Console logging statements
-# Flag console.log/warn/error/debug/info for removal in production code
-id: no-console-log
-language: typescript
-severity: warning
-message: "Remove console.log/warn/error/debug/info in production; use a logging library."
-rule:
-  pattern: console.$_($$$)

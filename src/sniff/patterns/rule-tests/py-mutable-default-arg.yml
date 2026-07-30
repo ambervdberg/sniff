@@ -1,0 +1,11 @@
+id: py-mutable-default-arg
+valid:
+  - |
+    def f(x=None):
+        x = x or []
+        return x
+invalid:
+  - |
+    def f(x=[]):
+        x.append(1)
+        return x

@@ -1,0 +1,8 @@
+# ast-grep project config for the sniff-patterns catalog.
+# Every *.yml under rules/ is loaded and run in a single `ast-grep scan` pass.
+# rule-tests/ holds one test file per rule (valid/invalid snippets), run by
+# `ast-grep test` (wired into `sniff test-rules`).
+ruleDirs:
+  - rules
+testConfigs:
+  - testDir: rule-tests

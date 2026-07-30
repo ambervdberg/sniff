@@ -1,0 +1,15 @@
+id: no-console-log
+valid:
+  - |
+    logger.info("started");
+  - |
+    console.warn("deprecated call");
+  - |
+    console.error("failed", err);
+invalid:
+  - |
+    console.log("started");
+  - |
+    console.debug("state", state);
+  - |
+    console.info("ready");

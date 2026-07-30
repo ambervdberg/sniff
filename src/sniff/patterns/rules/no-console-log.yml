@@ -1,0 +1,11 @@
+# Console logging statements
+# Flag console.log/debug/info; console.warn/error are legitimate diagnostics, not smell.
+id: no-console-log
+language: typescript
+severity: warning
+message: "Remove console.log/debug/info in production; use a logging library."
+rule:
+  any:
+    - pattern: console.log($$$)
+    - pattern: console.debug($$$)
+    - pattern: console.info($$$)

@@ -12,11 +12,22 @@ description: >-
 
 # sniff
 
+Umbrella entry point that runs **all** detectors in one pass: `sniff-patterns`
+(pattern rule catalog) plus every node-metric and file-metric detector (complexity,
+nesting, parameters, method/class/file size, inline-template size). To run pattern
+rules only, invoke `sniff:sniff-patterns` directly.
+
+## Setup
+
+Ensure sniff is installed. Try `sniff version`. If it fails, install it:
+`uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
+and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
+
+## Quick start
+
 Default: run `sniff [DIR]`.
 Need pattern rules only: run `sniff --only sniff-patterns [DIR]`.
 Need one metric: run `sniff --only <detector> [DIR]`.
-
-Umbrella entry point that runs **all** detectors in one pass: `sniff-patterns` (pattern rule catalog) plus every node-metric and file-metric detector (complexity, nesting, parameters, method/class/file size, inline-template size). To run pattern rules only, invoke `sniff:sniff-patterns` directly.
 
 ## Intent routing
 
@@ -28,12 +39,10 @@ Umbrella entry point that runs **all** detectors in one pass: `sniff-patterns` (
 | List pattern rules | `sniff --list-patterns` |
 | Single metric | `sniff --only <detector> [DIR]` |
 
-Each detector skill ships a `detector.yml` manifest; `sniff` discovers every manifest under the skills root and
-runs each detector's script over the scan path, printing one section per detector.
-
-Adding a detector is zero-cost: drop a `detector.yml` next to its script and it joins
-`sniff` automatically, no edit to the runner. This mirrors the sniff-patterns rule
-catalog, where adding a rule file costs nothing.
+Built-in detectors come from a static registry inside the `sniff` package and run
+in-process over the scan path, printing one section per detector. A repo can add its own
+detectors without touching sniff: drop a `detector.yml` manifest plus its script under
+`<DIR>/.sniff/detectors/<name>/` and `sniff` picks it up when scanning that directory.
 
 ## Relaying the result
 
@@ -49,7 +58,7 @@ Relay its section as-is.
 
 ## Command
 
-`sniff` is installed as a CLI on PATH. Use it directly — do NOT use `python "<skill_dir>/scripts/run.py"`.
+`sniff` is installed as a CLI on PATH. Use it directly; there is no script to invoke.
 
 ```bash
 sniff [DIR]                          # run every detector (default)
@@ -64,9 +73,24 @@ sniff doctor                         # check prerequisites, exit 0/1
 sniff prime                          # agent-optimized context, never scans
 sniff baseline write [DIR]           # save per-detector counts to .sniff/baseline.json
 sniff diff [DIR]                     # compare current scan to the saved baseline
+sniff diff --comment [DIR]           # same, as a markdown table to paste in a PR
+sniff test-rules                     # run the rule fixture tests, exit 0/1
+sniff contribute <rule-id>           # upstream a local .sniff/rules/ rule
 ```
 
 `DIR` defaults to the current directory.
+
+## Project config
+
+A consumer repo can drop a `.sniff.toml` beside its sources to tune every run:
+
+- `[rules]` disable a pattern rule (`<rule-id> = false`) or change its severity (`<rule-id> = "warning"`).
+- `[detectors]` skip detectors (`skip = "..."`) or override a detector's threshold (`<name>.top = 15`).
+- `[ignore]` extra path globs to exclude (`globs = ["gen/**"]`).
+
+With `--only <one detector>`, extra CLI flags are forwarded to that detector and win over `.sniff.toml`.
+Put them after `DIR` (`sniff --only largest-methods . --top 5`): in `--top 1 DIR` the `1` is taken as the
+directory to scan.
 
 ## Detector names
 
@@ -95,22 +119,28 @@ it with `--only` / `--skip`; a smarter cap can come then, not before.
 
 ## Adding a detector
 
-Author the detector as its own skill (use `sniff-create`), then drop a `detector.yml`
-in that skill's directory:
+For a detector that only matters to one repo, scaffold it with `sniff-create` and keep it
+in that repo under `.sniff/detectors/<name>/`: a `detector.yml` manifest next to its
+script.
 
 ```yaml
 name: my-detector
 title: One-line section heading
-script: scripts/my_detector.py
+script: my_detector.py
 args:                 # optional, space-separated extra args appended after DIR
 ```
 
-`sniff --list` will then show it and `sniff` (no flags) will run it.
+`sniff --list` run against that repo will then show it, and `sniff` (no flags) will run it.
+No registration step, no change to sniff itself.
+
+A detector meant for everyone belongs in the sniff package instead, as a module in
+`src/sniff/detectors/` listed in `BUILTIN` (see CONTRIBUTING.md).
 
 ## Caveats
 
-- The runner shells out to each detector's existing script; it never reimplements a
-  detector, so the standalone skill and the aggregate run always agree.
+- The runner calls each detector's own entry point (in-process for built-ins, a
+  subprocess for external ones); it never reimplements a detector, so the standalone
+  skill and the aggregate run always agree.
 - A failing detector yields an error section instead of aborting the run, so one
   broken detector cannot hide the others.
 - Prerequisites: `ast-grep` on PATH (pattern + node-metric detectors), Python 3.

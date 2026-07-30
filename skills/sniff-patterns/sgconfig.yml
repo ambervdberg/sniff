@@ -1,4 +1,0 @@
-# ast-grep project config for the sniff-patterns catalog.
-# Every *.yml under rules/ is loaded and run in a single `ast-grep scan` pass.
-ruleDirs:
-  - rules

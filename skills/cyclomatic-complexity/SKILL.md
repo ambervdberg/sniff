@@ -18,8 +18,8 @@ Rank functions/methods by cyclomatic complexity, cheaply.
 ## Why this exists
 
 Branch-heavy functions are hard to test and to read, but counting paths by hand
-means reading files and burning tokens. This skill pushes the work into a
-bundled script: it asks `ast-grep` for the functions and the decision points,
+means reading files and burning tokens. This skill runs through the
+installed sniff CLI: it asks `ast-grep` for the functions and the decision points,
 derives each function's complexity from node containment, and prints a ~20-row
 table. You only ever see the table. Keep it that way, never pipe raw
 `ast-grep --json` output into your own context.
@@ -31,40 +31,23 @@ Cyclomatic complexity = 1 + the number of decision points in a function: each
 (`&&`/`||`/`and`/`or`) adds one. A straight-line function is 1. This is
 SonarSource rule **S1541**, computed from AST node ranges, not text.
 
-## Prerequisites
-
-- `ast-grep` on PATH (`ast-grep --version`). Install: https://ast-grep.github.io
-- Python 3 (any recent version) to run the bundled script.
-
 ## Usage
 
-Run the script and report the table. `PATH` defaults to the current directory.
+Run the detector through the installed sniff CLI:
 
-```bash
-python "<skill_dir>/scripts/cyclomatic_complexity.py" [PATH] [--top N] [--lang L] [--min N] [--include-tests]
-```
+1. Ensure sniff is installed. Try `sniff version`. If it fails, install it:
+   `uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
+   and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
+2. Run: `sniff --only cyclomatic-complexity [DIR] [--top N] [--lang LANG]
+   [--min N] [--include-tests]`
+3. Report the table; do not paste raw file contents.
 
-`<skill_dir>` is the directory containing this SKILL.md. Examples:
-
-```bash
-# Whole repo, top 20, languages auto-detected, tests excluded
-python "<skill_dir>/scripts/cyclomatic_complexity.py"
-
-# Frontend, only functions with complexity 10+
-python "<skill_dir>/scripts/cyclomatic_complexity.py" apps/web --min 10
-
-# Force a language when auto-detect is too broad
-python "<skill_dir>/scripts/cyclomatic_complexity.py" src --lang typescript
-```
-
-The output is already final-form, a `COMPLEXITY / NAME / LOCATION` table sorted
-most-complex-first.
-
-**Print the entire table to the user verbatim.** It IS the answer. Do NOT replace
-it with a summary or describe it in prose, the user wants every row. You may add
-ONE optional takeaway line after the table (e.g. the worst offender), but the full
-table comes first and in full. Do not re-read the listed files unless the user
-then asks you to actually refactor one.
+The output is a `COMPLEXITY / NAME / LOCATION` table sorted most-complex-first.
+**Print the entire table verbatim.** It IS the answer. Do NOT replace it with a
+summary or describe it in prose; the user wants every row. You may add ONE
+optional takeaway line after the table (e.g. the worst offender), but the full
+table comes first and in full. Do not re-read listed files unless the user then
+asks you to actually refactor one.
 
 ## What it counts, and the caveats worth stating
 

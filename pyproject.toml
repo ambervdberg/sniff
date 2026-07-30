@@ -3,14 +3,19 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "sniff"
-version = "0.9.5"
-description = "Token-cheap code-smell skills for AI agents"
+name = "sniff-smells"
+version = "0.10.0"
+description = "Token-efficient code-smell detection for AI agents"
+readme = "README.md"
 requires-python = ">=3.9"
 dependencies = []
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
 [project.scripts]
-sniff = "skills.sniff.scripts.run:main"
+sniff = "sniff.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["skills"]
+packages = ["src/sniff"]
+exclude = ["src/sniff/patterns/rule-tests"]

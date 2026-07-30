@@ -1,0 +1,7 @@
+id: no-boolean-param
+valid:
+  - |
+    function greet(name: string) {}
+invalid:
+  - |
+    function toggle(enabled: boolean) {}
