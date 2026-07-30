@@ -16,9 +16,8 @@ import argparse
 import os
 import sys
 
-# Import the shared engine from the sibling _ast-harness directory.
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "_ast-harness"))
-import harness as h
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
+from sniff import harness as h  # pylint: disable=wrong-import-position
 
 # What counts as a match. Either a {language: [node kinds]} map or an ast-grep
 # pattern string; the harness accepts both. (Filled in by the create.)

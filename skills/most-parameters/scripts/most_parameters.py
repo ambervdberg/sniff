@@ -19,10 +19,9 @@ import argparse
 import os
 import sys
 
-# Import the shared engines from the sibling _ast-harness directory.
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "_ast-harness"))
-import harness as h  # pylint: disable=wrong-import-position
-import node_metric as nm  # pylint: disable=wrong-import-position
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
+from sniff import harness as h  # pylint: disable=wrong-import-position
+from sniff import node_metric as nm  # pylint: disable=wrong-import-position
 
 
 def main() -> None:

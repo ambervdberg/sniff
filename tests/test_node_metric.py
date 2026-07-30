@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for the node-metric engine (nesting depth).
 
-Run: python skills/_ast-harness/test_node_metric.py
+Run: python -m pytest tests/test_node_metric.py -q
 Skips cleanly if ast-grep is not on PATH.
 """
 
@@ -9,14 +9,10 @@ from __future__ import annotations
 
 import os
 import shutil
-import sys
 import tempfile
 import unittest
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-
-import node_metric as nm
+from sniff import node_metric as nm
 
 HAS_AST_GREP = shutil.which("ast-grep") is not None
 

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Unit tests for the shared ast-search engine.
 
-Run: python -m unittest discover -s skills/_ast-harness -p 'test_*.py'
-(or just `python skills/_ast-harness/test_harness.py`).
+Run: python -m pytest tests/test_harness.py -q
 
 Tests that exercise scanning need the `ast-grep` binary on PATH; they skip
 themselves cleanly if it is missing, so the pure-Python tests still run.
@@ -19,8 +18,7 @@ import textwrap
 import unittest
 from contextlib import redirect_stdout
 
-sys.path.insert(0, os.path.dirname(__file__))
-import harness as h
+from sniff import harness as h
 
 HAS_AST_GREP = shutil.which("ast-grep") is not None
 

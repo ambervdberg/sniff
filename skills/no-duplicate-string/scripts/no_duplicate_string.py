@@ -26,9 +26,8 @@ import sys
 from dataclasses import dataclass
 from collections import defaultdict
 
-# Import the shared engine from the sibling _ast-harness directory.
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "_ast-harness"))
-import harness as h  # pylint: disable=wrong-import-position
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
+from sniff import harness as h  # pylint: disable=wrong-import-position
 
 
 # Regex to extract string literals: "..." or '...' (non-empty, single-line only).

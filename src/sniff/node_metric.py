@@ -26,12 +26,7 @@ Public API:
 
 from __future__ import annotations
 
-import os
-import sys
-
-# Import the shared engine from the sibling file in this directory.
-sys.path.insert(0, os.path.dirname(__file__))
-import harness as h
+from sniff import harness as h
 
 # What counts as a function/method per language. Mirrors largest-methods'
 # LANG_KINDS; kept here so the node-metric skills do not depend on that skill.

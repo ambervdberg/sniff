@@ -19,9 +19,8 @@ import argparse
 import os
 import sys
 
-# Import the shared engine from the sibling _ast-harness directory.
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "_ast-harness"))
-import harness as h
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
+from sniff import harness as h  # pylint: disable=wrong-import-position
 
 # The tree-sitter node kinds that represent "a method or function" per language.
 # Function expressions / arrows are included so class-field callables and
