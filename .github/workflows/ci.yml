@@ -5,17 +5,17 @@ on:
     branches: [main]
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      - name: Install ast-grep
-        run: npm install -g @ast-grep/cli
-      - name: Doctor
-        run: python skills/sniff/scripts/run.py doctor
-      - name: Rule fixtures
-        run: python skills/sniff/scripts/run.py test-rules
-      - name: Unit tests
-        run: pip install pytest && pytest skills -v
+      - run: pip install -e .[dev]
+      - run: npm install -g @ast-grep/cli
+      - run: sniff doctor
+      - run: sniff test-rules
+      - run: python -m pytest tests -q

@@ -14,7 +14,7 @@ runs:
       shell: bash
       run: |
         npm install -g @ast-grep/cli
-        pip install git+https://github.com/ambervdberg/sniff
+        pip install .
     - name: Diff against baseline
       shell: bash
       run: sniff diff --comment "${{ inputs.path }}" | tee sniff-diff.md
