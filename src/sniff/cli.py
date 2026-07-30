@@ -68,12 +68,15 @@ def _split_csv(value: str | None) -> set[str]:
     return {part.strip() for part in value.split(",") if part.strip()}
 
 
-def _discover_with_warnings() -> list[discovery.Detector]:
-    """discovery.discover(), printing a warning per manifest error to stderr.
+def _discover_with_warnings(scan_path: "str | None" = None) -> list[discovery.Detector]:
+    """discovery.discover(scan_path), printing a warning per manifest error to stderr.
 
     Shared by the scan path, baseline write, and diff — each cares about the
-    detector list, none of them need the errors beyond surfacing them."""
-    detectors, errors = discovery.discover()
+    detector list, none of them need the errors beyond surfacing them. Passing
+    `scan_path` also picks up external detectors from that directory's
+    `.sniff/detectors/`; `--list`/`--list-patterns`, `doctor`, and `prime` omit
+    it since they aren't scanning a specific directory's project detectors."""
+    detectors, errors = discovery.discover(scan_path)
     for err in errors:
         print(f"warning: {err}", file=sys.stderr)
     return detectors
@@ -519,7 +522,7 @@ def run_baseline(argv: list[str]) -> int:
         print(f"error: {path!r} is not a directory. Check the path and try again.", file=sys.stderr)
         return 1
 
-    counts = _scan_counts(_discover_with_warnings(), path)
+    counts = _scan_counts(_discover_with_warnings(path), path)
 
     baseline_dir = os.path.join(path, ".sniff")
     os.makedirs(baseline_dir, exist_ok=True)
@@ -555,7 +558,7 @@ def run_diff(argv: list[str]) -> int:
     with open(baseline_path, "r", encoding="utf-8") as fh:
         baseline_counts: dict[str, int] = json.load(fh).get("counts", {})
 
-    current_counts = _scan_counts(_discover_with_warnings(), path)
+    current_counts = _scan_counts(_discover_with_warnings(path), path)
 
     names = sorted(set(baseline_counts) | set(current_counts))
     worse = False
@@ -647,7 +650,9 @@ def main(argv: "list[str] | None" = None) -> int:
     warn_hallucinated_flags(argv)
     args = parser.parse_args(argv)
 
-    detectors = _discover_with_warnings()
+    # --list/--list-patterns describe detectors in general, not a scan of `path`,
+    # so they omit the scan path (matching doctor/prime, handled earlier above).
+    detectors = _discover_with_warnings(None if (args.list or args.list_patterns) else args.path)
 
     if args.list:
         if args.json:
