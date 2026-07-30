@@ -1,4 +1,4 @@
 {
-  "extraPaths": ["./skills/_ast-harness"],
+  "extraPaths": ["src"],
   "exclude": ["**/templates/*.tmpl"]
 }

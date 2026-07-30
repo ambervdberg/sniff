@@ -21,6 +21,11 @@
    sniff doctor
    ```
 
+4. Run the test suite:
+   ```bash
+   python -m pytest tests -q
+   ```
+
 ## Adding a pattern rule
 
 Rules live in `skills/sniff-patterns/rules/` as YAML files. Use `sniff-create` to scaffold:
@@ -92,6 +97,7 @@ Pattern rules and node metrics run on [ast-grep](https://ast-grep.github.io). Fi
 Before opening a PR:
 
 - [ ] `sniff test-rules` passes
+- [ ] `python -m pytest tests -q` passes
 - [ ] Add a note to `CHANGELOG.md` under `## [Unreleased]`
 - [ ] If this is a version bump, run `python scripts/bump_version.py <version>` (not for feature PRs)
 - [ ] CI passes (GitHub Actions will run the checks)

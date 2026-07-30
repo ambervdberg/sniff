@@ -35,6 +35,29 @@ One-time per machine, not per repo.
 
 ## Install
 
+```bash
+uv tool install sniff-smells
+uv tool install ast-grep-cli
+```
+
+Puts the `sniff` command on PATH via [uv](https://docs.astral.sh/uv/). Requires
+Python 3.9+ and works the same on Windows, macOS, and Linux. `ast-grep` is the
+scan engine most detectors run on; `sniff doctor` checks both are present.
+
+## Quickstart
+
+```bash
+sniff .
+sniff prime
+```
+
+`sniff .` runs every detector against the current directory and prints compact
+ranked tables. `sniff prime` prints agent-optimized context (version, detectors,
+prerequisites, usage hints) so an agent can learn the CLI in one call instead of
+reading this file.
+
+## Per-ecosystem setup
+
 ### Claude Code (plugin)
 
 ```bash
@@ -43,18 +66,25 @@ One-time per machine, not per repo.
 ```
 
 Update later with `git pull` on the marketplace or the `/plugin` update flow.
+The plugin wraps the same `sniff` CLI as skills, so `uv tool install sniff-smells`
+is still required underneath.
 
-### Python CLI (`uv tool install`)
+### Any agent (Codex, Cursor, ...)
 
-```bash
-uv tool install .
-sniff [DIR]
-```
+Add to your AGENTS.md:
 
-Puts `sniff` on PATH via [uv](https://docs.astral.sh/uv/). Requires Python 3.9+.
+    For code-quality questions (largest methods, complexity, smells), run
+    `sniff [DIR]` and read its compact tables instead of scanning files.
+    Run `sniff prime` once to learn all commands.
 
-After installing via `uv tool install`, use `sniff [DIR]` on any platform (Windows,
-macOS, Linux).
+Or paste the live output of `sniff prime` into your agent's instructions file
+for the exact command list.
+
+### External, project-specific detectors
+
+Drop a `detector.yml` manifest under `.sniff/detectors/<name>/` in the project
+being scanned to add a custom check without touching this repo. `sniff --list`
+picks it up alongside the built-ins.
 
 ## Common asks
 
