@@ -79,7 +79,7 @@ def _core_rule_ids() -> "set[str]":
 
 
 def _contribute_to_checkout(rule_id: str, project_dir: str, checkout: str) -> int:
-    patterns = os.path.join(checkout, "skills", "sniff-patterns")
+    patterns = os.path.join(checkout, "src", "sniff", "patterns")
     if not os.path.isdir(patterns):
         print(f"error: {checkout!r} does not look like a sniff checkout", file=sys.stderr)
         return 1
@@ -92,7 +92,7 @@ def _contribute_to_checkout(rule_id: str, project_dir: str, checkout: str) -> in
     rule_src, fixture_src = local_paths(rule_id, project_dir)
     shutil.copy2(rule_src, os.path.join(patterns, "rules", rule_id + ".yml"))
     shutil.copy2(fixture_src, os.path.join(patterns, "rule-tests", rule_id + ".yml"))
-    subprocess.run(["git", "-C", checkout, "add", "skills/sniff-patterns"], check=False)
+    subprocess.run(["git", "-C", checkout, "add", "src/sniff/patterns"], check=False)
 
     if test_rules.run_test_rules(checkout) != 0:
         print("error: fixture tests failed in the checkout; fix before PR", file=sys.stderr)
@@ -130,14 +130,14 @@ def _contribute_via_gh(rule_id: str, project_dir: str) -> int:
             print(f"error: step failed: {' '.join(cmd)}", file=sys.stderr)
             return 1
 
-    patterns = os.path.join(clone, "skills", "sniff-patterns")
+    patterns = os.path.join(clone, "src", "sniff", "patterns")
     os.makedirs(os.path.join(patterns, "rule-tests"), exist_ok=True)
     shutil.copy2(rule_src, os.path.join(patterns, "rules", rule_id + ".yml"))
     shutil.copy2(fixture_src, os.path.join(patterns, "rule-tests", rule_id + ".yml"))
 
     body = _pr_body(rule_id, rule_src, fixture_src)
     steps = [
-        ["git", "-C", clone, "add", "skills/sniff-patterns"],
+        ["git", "-C", clone, "add", "src/sniff/patterns"],
         ["git", "-C", clone, "commit", "-m", f"feat: add {rule_id} pattern rule"],
         ["git", "-C", clone, "push", "-u", "origin", f"rule/{rule_id}"],
         ["gh", "pr", "create", "--repo", UPSTREAM, "--title", f"feat: add {rule_id} pattern rule",

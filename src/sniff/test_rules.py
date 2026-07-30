@@ -17,15 +17,8 @@ PYTHON_RULES = {"no-multiline-single-comment"}
 
 
 def _patterns_dir(repo_root: str) -> str:
-    """Directory holding this repo_root's rules/, rule-tests/, and sgconfig.yml.
-
-    Prefers the current src/sniff/patterns layout; falls back to the pre-refactor
-    skills/sniff-patterns layout so a `contribute` checkout of an older sniff
-    clone (see contribute.py's SNIFF_REPO backend) still resolves correctly."""
-    new_layout = os.path.join(repo_root, "src", "sniff", "patterns")
-    if os.path.isdir(new_layout):
-        return new_layout
-    return os.path.join(repo_root, "skills", "sniff-patterns")
+    """Directory holding this repo_root's rules/, rule-tests/, and sgconfig.yml."""
+    return os.path.join(repo_root, "src", "sniff", "patterns")
 
 
 def rules_missing_tests(repo_root: str) -> list[str]:

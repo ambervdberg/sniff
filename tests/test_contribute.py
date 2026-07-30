@@ -32,9 +32,9 @@ def test_resolve_checkout_prefers_env(monkeypatch, tmp_path):
 
 def _mk_fake_checkout(tmp_path):
     co = tmp_path / "sniff-co"
-    (co / "skills" / "sniff-patterns" / "rules").mkdir(parents=True)
-    (co / "skills" / "sniff-patterns" / "rule-tests").mkdir(parents=True)
-    (co / "skills" / "sniff-patterns" / "sgconfig.yml").write_text(
+    (co / "src" / "sniff" / "patterns" / "rules").mkdir(parents=True)
+    (co / "src" / "sniff" / "patterns" / "rule-tests").mkdir(parents=True)
+    (co / "src" / "sniff" / "patterns" / "sgconfig.yml").write_text(
         "ruleDirs:\n  - rules\ntestConfigs:\n  - testDir: rule-tests\n", encoding="utf-8")
     subprocess.run(["git", "init", "-q", str(co)], check=True)
     subprocess.run(["git", "-C", str(co), "-c", "user.email=test@test.com",
@@ -47,8 +47,8 @@ def test_checkout_backend_copies_and_branches(tmp_path, monkeypatch):
     co = _mk_fake_checkout(tmp_path)
     rc = contribute._contribute_to_checkout("no-x", str(tmp_path), str(co))
     assert rc == 0
-    assert (co / "skills" / "sniff-patterns" / "rules" / "no-x.yml").is_file()
-    assert (co / "skills" / "sniff-patterns" / "rule-tests" / "no-x.yml").is_file()
+    assert (co / "src" / "sniff" / "patterns" / "rules" / "no-x.yml").is_file()
+    assert (co / "src" / "sniff" / "patterns" / "rule-tests" / "no-x.yml").is_file()
     branch = subprocess.run(["git", "-C", str(co), "branch", "--show-current"],
                             capture_output=True, text=True).stdout.strip()
     assert branch == "rule/no-x"
