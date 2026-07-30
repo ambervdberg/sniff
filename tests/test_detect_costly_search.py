@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for the suggest-create detection heuristic.
 
-Run: python skills/sniff-create/scripts/test_detect_costly_search.py
+Run: python -m pytest tests/test_detect_costly_search.py
 
 Pure-Python, no external tools: the heuristic only reads transcript dicts.
 """
@@ -13,7 +13,7 @@ import sys
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, "..", "skills", "sniff-create", "scripts"))
 
 import detect_costly_search as d
 

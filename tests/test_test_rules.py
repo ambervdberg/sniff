@@ -2,14 +2,14 @@
 
 import os
 
-from sniff import test_rules
+from sniff import rules_testing
 
-# test_rules.py lives at <repo>/src/sniff/test_rules.py; three levels up is <repo>.
-REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(test_rules.__file__))))
+# rules_testing.py lives at <repo>/src/sniff/rules_testing.py; three levels up is <repo>.
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(rules_testing.__file__))))
 
 def test_all_ast_rules_have_a_test_file():
-    missing = test_rules.rules_missing_tests(REPO)
+    missing = rules_testing.rules_missing_tests(REPO)
     assert missing == []
 
 def test_run_test_rules_passes_on_this_repo():
-    assert test_rules.run_test_rules(REPO) == 0
+    assert rules_testing.run_test_rules(REPO) == 0

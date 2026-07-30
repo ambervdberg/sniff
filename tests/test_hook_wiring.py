@@ -7,7 +7,7 @@ exactly as the harness would, feeding synthetic Stop-hook JSON on stdin.
 
 AC: a single nudge line on a costly structural turn; nothing on a normal turn.
 
-Run: python skills/sniff-create/scripts/test_hook_wiring.py
+Run: python -m pytest tests/test_hook_wiring.py
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# repo root = plugin root: scripts -> sniff-create -> skills -> <root>
-PLUGIN_ROOT = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
+# repo root = plugin root: tests -> <root>
+PLUGIN_ROOT = os.path.normpath(os.path.join(HERE, ".."))
 PLUGIN_JSON = os.path.join(PLUGIN_ROOT, ".claude-plugin", "plugin.json")
 
 

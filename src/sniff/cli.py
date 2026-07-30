@@ -34,7 +34,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, replace
 
-from sniff import config, contribute, discovery, patterns, test_rules
+from sniff import config, contribute, discovery, patterns, rules_testing
 
 
 # Flags seen hallucinated in eval runs (gpt-5.4-nano, gpt-5.4-mini, sonnet-4-6).
@@ -608,7 +608,7 @@ def main(argv: "list[str] | None" = None) -> int:
     if argv[:1] == ["diff"]:
         return run_diff(argv[1:])
     if argv[:1] == ["test-rules"]:
-        return test_rules.run_test_rules(_REPO_ROOT)
+        return rules_testing.run_test_rules(_REPO_ROOT)
     if argv[:1] == ["contribute"]:
         import argparse as _ap
         p = _ap.ArgumentParser(prog="sniff contribute")

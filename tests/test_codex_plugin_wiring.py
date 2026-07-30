@@ -8,7 +8,7 @@ native Codex plugin: .codex-plugin/plugin.json (manifest) and hooks.json
 AC: .codex-plugin/plugin.json exists and validates. Hooks do not run scans
 automatically. Default prompts include scan, list, and sniff-create.
 
-Run: python skills/sniff-create/scripts/test_codex_plugin_wiring.py
+Run: python -m pytest tests/test_codex_plugin_wiring.py
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ import sys
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# repo root = plugin root: scripts -> sniff-create -> skills -> <root>
-PLUGIN_ROOT = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
+# repo root = plugin root: tests -> <root>
+PLUGIN_ROOT = os.path.normpath(os.path.join(HERE, ".."))
 CODEX_PLUGIN_JSON = os.path.join(PLUGIN_ROOT, ".codex-plugin", "plugin.json")
 HOOKS_JSON = os.path.join(PLUGIN_ROOT, "hooks.json")
 

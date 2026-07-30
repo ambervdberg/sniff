@@ -16,7 +16,7 @@ import subprocess
 import sys
 import tempfile
 
-from sniff import test_rules
+from sniff import rules_testing
 
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".sniff", "config.toml")
 UPSTREAM = "ambervdberg/sniff"
@@ -94,7 +94,7 @@ def _contribute_to_checkout(rule_id: str, project_dir: str, checkout: str) -> in
     shutil.copy2(fixture_src, os.path.join(patterns, "rule-tests", rule_id + ".yml"))
     subprocess.run(["git", "-C", checkout, "add", "src/sniff/patterns"], check=False)
 
-    if test_rules.run_test_rules(checkout) != 0:
+    if rules_testing.run_test_rules(checkout) != 0:
         print("error: fixture tests failed in the checkout; fix before PR", file=sys.stderr)
         return 1
 

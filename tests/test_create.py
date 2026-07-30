@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for the create node-metric scaffold mode.
 
-Run: python skills/sniff-create/scripts/test_create.py
+Run: python -m pytest tests/test_create.py
 
 Creates into a temp skills dir (no network, no ast-grep needed) and checks the
 generated files are coherent: right engine call, no unfilled placeholders.
@@ -17,7 +17,7 @@ import unittest
 import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, "..", "skills", "sniff-create", "scripts"))
 
 import create
 
