@@ -7,7 +7,7 @@ name = "sniff-smells"
 version = "0.10.0"
 description = "Token-efficient code-smell detection for AI agents"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
