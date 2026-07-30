@@ -116,9 +116,8 @@ The action installs `ast-grep` and `sniff`, then runs `sniff diff --comment` aga
 | `sniff-patterns` | Run the pattern rule catalog in one `ast-grep scan` pass; compact findings table. |
 | `sniff-create` | Scaffold a new smell skill or catalog rule from a short conversation. |
 
-`skills/_ast-harness/` is the shared engine every ast-based skill reuses (running
-ast-grep, parsing JSON, folding nested matches, ranking, printing the table). The
-underscore prefix and missing description keep it from triggering as a skill.
+`src/sniff/` contains the shared engine (harness.py for AST-grep integration,
+node_metric.py for scoring).
 
 ## Layout
 
@@ -128,7 +127,7 @@ underscore prefix and missing description keep it from triggering as a skill.
 hooks.json        Codex lifecycle hooks (SessionStart -> sniff prime, Stop -> costly-search nudge)
 evals/            LLM eval harness: cases.jsonl, runner.py (simulated), scorer.py, smoke/ (real-agent)
 skills/
-  _ast-harness/   shared engine (+ node_metric) + tests
+src/sniff/        shared engine (harness.py, node_metric.py)
   largest-methods/
   large-classes/
   largest-files/
@@ -176,7 +175,7 @@ calls and the prompt text, never your reasoning, so:
 ## Tests
 
 ```bash
-python skills/_ast-harness/test_harness.py
+python -m pytest tests -q
 ```
 
 ## Release
