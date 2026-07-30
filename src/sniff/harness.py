@@ -36,6 +36,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from typing import Callable, Mapping, Sequence, Union
 
@@ -254,16 +255,48 @@ def _rule_for(spec: RuleSpec, lang: str) -> "str | None":
     return _kinds_rule(lang, list(kinds))
 
 
+def _write_rule_file(rule_yaml: str) -> str:
+    """Write a rule YAML to a temp file and return its forward-slashed path.
+
+    The caller is responsible for deleting it (see `_scan`)."""
+    tmp = tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False, encoding="utf-8")
+    try:
+        tmp.write(rule_yaml)
+    finally:
+        tmp.close()
+    return tmp.name.replace("\\", "/")
+
+
 def _scan(root: str, lang: str, rule_yaml: str) -> list[dict]:
-    """Run one inline rule over the tree and return ast-grep's raw match dicts."""
+    """Run one rule over the tree and return ast-grep's raw match dicts.
+
+    The rule goes to a temp file rather than `--inline-rules`: a rule YAML is
+    multi-line, and when argv[0] is a Windows `.cmd` shim (how npm installs
+    ast-grep, which is what CI uses) the command line is re-parsed by cmd.exe,
+    which mangles embedded newlines and quotes. ast-grep then exits nonzero with
+    "Cannot parse rule INLINE_RULES" and every detector silently reports nothing.
+    A file path is a single plain token, so it survives any shim."""
+    rule_file = _write_rule_file(rule_yaml)
     try:
         proc = subprocess.run(
-            [ast_grep_exe(), "scan", "--inline-rules", rule_yaml, "--json=compact", root],
+            [ast_grep_exe(), "scan", "--rule", rule_file, "--json=compact", root],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
     except FileNotFoundError:
         _require_ast_grep()
         return []
+    finally:
+        try:
+            os.unlink(rule_file)
+        except OSError:
+            pass
+
+    # Never crash on a failed scan (an empty result stays the fallback), but do not
+    # hide it either: a silent miss looks exactly like "this repo is clean".
+    if proc.returncode != 0:
+        first = next((ln for ln in proc.stderr.splitlines() if ln.strip()), "")
+        print(f"warning: ast-grep scan failed for {lang} (exit {proc.returncode}): {first}",
+              file=sys.stderr)
 
     if not proc.stdout.strip():
         return []

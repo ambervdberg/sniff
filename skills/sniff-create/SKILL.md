@@ -65,10 +65,12 @@ For non-trivial patterns, invoke the `ast-grep` skill for syntax. A **kinds** ma
 
 ## Step 4 — Validate on the current repo (the gate)
 
-Before writing any file, run the rule and look at real matches:
+Before writing any file, run the rule and look at real matches. Write the rule YAML
+to a scratch file first; a multi-line `--inline-rules` argument gets mangled when
+ast-grep is a Windows `.cmd` shim:
 
 ```bash
-ast-grep scan --inline-rules "<your rule yaml>" <a real repo path> --json=compact \
+ast-grep scan --rule <scratch>.yml <a real repo path> --json=compact \
   | python -c "import sys,json; d=json.load(sys.stdin); print(len(d),'matches'); [print(m['file']+':'+str(m['range']['start']['line']+1)) for m in d[:5]]"
 ```
 
