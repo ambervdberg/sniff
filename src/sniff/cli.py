@@ -592,19 +592,15 @@ def run_diff(argv: list[str]) -> int:
     return 1 if worse else 0
 
 
-def _reject_unforwardable_extras(
-    parser: argparse.ArgumentParser, argv: list[str], extras: list[str], only: "str | None"
-) -> None:
-    """Exit 2 unless `extras` can be forwarded to a single --only detector.
+def _reject_extras(parser: argparse.ArgumentParser, argv: list[str], extras: list[str]) -> None:
+    """Exit 2 because `extras` cannot be forwarded to a detector.
 
-    Unknown trailing arguments are only meaningful when exactly one detector is
-    selected, since sniff cannot know which of several detectors a stray `--top 5`
-    was meant for. Anything else re-runs the strict parse so argparse emits its own
-    "unrecognized arguments" error (and exit code 2) exactly as it did before
-    passthrough existed, with our more specific reason printed just above it."""
-    if len(_split_csv(only)) == 1:
-        return
-
+    Unknown trailing arguments are only meaningful when the run resolves to
+    exactly one detector, since sniff cannot know which of several detectors a
+    stray `--top 5` was meant for. Every other case re-runs the strict parse so
+    argparse emits its own "unrecognized arguments" error (and exit code 2)
+    exactly as it did before passthrough existed, with our more specific reason
+    printed just above it."""
     joined = " ".join(extras)
     print(
         f"error: extra detector flags require --only with exactly one detector: {joined}",
@@ -692,9 +688,12 @@ def main(argv: "list[str] | None" = None) -> int:
 
     # parse_known_args (not parse_args) so unknown trailing flags can be forwarded
     # to a single --only detector; anything else still errors out below.
+    # Whether extras are forwardable depends on how many detectors the run actually
+    # resolves to, which is only known after selection; the listing modes never run
+    # a detector at all, so they can reject extras right away.
     args, extras = parser.parse_known_args(argv)
-    if extras:
-        _reject_unforwardable_extras(parser, argv, extras, args.only)
+    if extras and (args.list or args.list_patterns):
+        _reject_extras(parser, argv, extras)
 
     # --list/--list-patterns describe detectors in general, not a scan of `path`,
     # so they omit the scan path (matching doctor/prime, handled earlier above).
@@ -737,6 +736,11 @@ def main(argv: "list[str] | None" = None) -> int:
         close = difflib.get_close_matches(name, known, n=3, cutoff=0.4)
         hint = f" Did you mean: {', '.join(close)}?" if close else f" Run `sniff --list` to see all detectors."
         print(f"warning: unknown detector {name!r}.{hint}", file=sys.stderr)
+
+    # Checked against the resolved selection, not the raw --only names, so a typo'd
+    # or fully skipped detector name cannot silently swallow the extras.
+    if extras and len(selected) != 1:
+        _reject_extras(parser, argv, extras)
 
     if not selected:
         if args.json:

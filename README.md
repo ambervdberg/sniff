@@ -81,6 +81,10 @@ for the exact command list.
 | `sniff test-rules` | Run the rule fixture tests; needs a repo checkout, exits 0/1. |
 | `sniff --help` | Show usage and examples. |
 
+With `--only <one detector>`, extra flags are forwarded to that detector and beat
+`.sniff.toml`; put them **after** `DIR` (`sniff --only largest-methods . --top 5`), since
+`--top 1 DIR` would bind `1` as the directory to scan.
+
 ## Configuration
 
 Drop a `.sniff.toml` in the root of the repo being scanned to turn rules off, re-grade

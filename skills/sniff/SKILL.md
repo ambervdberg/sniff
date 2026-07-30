@@ -89,6 +89,8 @@ A consumer repo can drop a `.sniff.toml` beside its sources to tune every run:
 - `[ignore]` extra path globs to exclude (`globs = ["gen/**"]`).
 
 With `--only <one detector>`, extra CLI flags are forwarded to that detector and win over `.sniff.toml`.
+Put them after `DIR` (`sniff --only largest-methods . --top 5`): in `--top 1 DIR` the `1` is taken as the
+directory to scan.
 
 ## Detector names
 

@@ -301,6 +301,45 @@ class DetectorFlagPassthroughTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("--only", proc.stderr)
 
+    def test_extra_flag_with_unknown_only_name_errors(self):
+        """An --only typo resolves to no detector, so the extras have nowhere to go."""
+        proc = self._run("--only", "bogus-detector", ".", "--top", "1")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("exactly one detector", proc.stderr)
+
+    def test_extra_flag_beats_sniff_toml_threshold(self):
+        """A CLI flag is appended after the config-derived args, so it wins."""
+        with tempfile.TemporaryDirectory() as root:
+            with open(os.path.join(root, ".sniff.toml"), "w", encoding="utf-8") as fh:
+                fh.write("[detectors]\nlargest-files.top = 5\n")
+            for name in ("a.py", "b.py", "c.py"):
+                with open(os.path.join(root, name), "w", encoding="utf-8") as fh:
+                    fh.write("x = 1\n")
+
+            proc = self._run("--only", "largest-files", root, "--top", "1")
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            data_rows = [
+                line for line in proc.stdout.splitlines()
+                if line.startswith("|") and "LINES" not in line and set(line) - set("| -:")
+            ]
+            self.assertEqual(len(data_rows), 1, proc.stdout)
+
+    def test_extra_flag_reaches_an_external_subprocess_detector(self):
+        """Passthrough is not built-in-only: a manifest detector gets the flag in argv."""
+        with tempfile.TemporaryDirectory() as root:
+            detector_dir = os.path.join(root, ".sniff", "detectors", "echo-argv")
+            os.makedirs(detector_dir)
+            with open(os.path.join(detector_dir, "detector.yml"), "w", encoding="utf-8") as fh:
+                fh.write("name: echo-argv\ntitle: Echo argv\nscript: echo_argv.py\n")
+            with open(os.path.join(detector_dir, "echo_argv.py"), "w", encoding="utf-8") as fh:
+                fh.write("import sys\nprint('ARGV:', ' '.join(sys.argv[1:]))\n")
+
+            proc = self._run("--only", "echo-argv", root, "--marker", "42")
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("--marker 42", proc.stdout)
+
     def test_extra_flag_with_two_only_detectors_errors(self):
         proc = self._run("--only", "largest-methods,largest-files", ".", "--top", "1")
         self.assertEqual(proc.returncode, 2)
