@@ -592,6 +592,41 @@ def run_diff(argv: list[str]) -> int:
     return 1 if worse else 0
 
 
+def _reject_unforwardable_extras(
+    parser: argparse.ArgumentParser, argv: list[str], extras: list[str], only: "str | None"
+) -> None:
+    """Exit 2 unless `extras` can be forwarded to a single --only detector.
+
+    Unknown trailing arguments are only meaningful when exactly one detector is
+    selected, since sniff cannot know which of several detectors a stray `--top 5`
+    was meant for. Anything else re-runs the strict parse so argparse emits its own
+    "unrecognized arguments" error (and exit code 2) exactly as it did before
+    passthrough existed, with our more specific reason printed just above it."""
+    if len(_split_csv(only)) == 1:
+        return
+
+    joined = " ".join(extras)
+    print(
+        f"error: extra detector flags require --only with exactly one detector: {joined}",
+        file=sys.stderr,
+    )
+    parser.parse_args(argv)  # raises SystemExit(2) with argparse's own message
+    raise SystemExit(2)      # unreachable safety net if argparse ever accepts argv
+
+
+def _forward_extras(detectors: list[discovery.Detector], extras: list[str]) -> list[discovery.Detector]:
+    """Append `extras` to the single selected detector's args, so CLI beats config.
+
+    They land after the manifest- and `.sniff.toml`-derived args, and argparse's
+    last-wins behaviour makes the CLI value the effective one. Applies to built-in
+    (module) and external (subprocess) detectors alike: both invoke the detector
+    with `detector.args`."""
+    if not extras or len(detectors) != 1:
+        return detectors
+    detector = detectors[0]
+    return [replace(detector, args=[*detector.args, *extras])]
+
+
 def main(argv: "list[str] | None" = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
 
@@ -630,6 +665,7 @@ def main(argv: "list[str] | None" = None) -> int:
             "  sniff <dir>                  # scan any directory\n"
             "  sniff --list                 # show available detectors\n"
             "  sniff --only largest-methods,cyclomatic-complexity\n"
+            "  sniff --only largest-methods . --top 5   # extra flags go to that one detector\n"
             "  sniff --skip sniff-patterns  # skip pattern rules\n"
             "  sniff version                # print installed version\n"
             "  sniff doctor                 # check prerequisites and exit 0/1\n"
@@ -653,7 +689,12 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument("--json", action="store_true", help="emit JSON instead of markdown (works with scan and --list)")
 
     warn_hallucinated_flags(argv)
-    args = parser.parse_args(argv)
+
+    # parse_known_args (not parse_args) so unknown trailing flags can be forwarded
+    # to a single --only detector; anything else still errors out below.
+    args, extras = parser.parse_known_args(argv)
+    if extras:
+        _reject_unforwardable_extras(parser, argv, extras, args.only)
 
     # --list/--list-patterns describe detectors in general, not a scan of `path`,
     # so they omit the scan path (matching doctor/prime, handled earlier above).
@@ -705,6 +746,7 @@ def main(argv: "list[str] | None" = None) -> int:
         return 0
 
     selected = [apply_config_to_detector(d, cfg) for d in selected]
+    selected = _forward_extras(selected, extras)
 
     # Built-ins get the extra-ignore globs as --extra-ignore args (folded in by
     # apply_config_to_detector above); the env var is only needed for external,

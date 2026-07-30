@@ -271,6 +271,42 @@ class ConfigIgnoreGlobsTest(unittest.TestCase):
             self.assertNotIn("gen/x.ts", proc.stdout)
 
 
+class DetectorFlagPassthroughTest(unittest.TestCase):
+    """Unknown trailing flags reach a single --only detector, and only then."""
+
+    THREE_FUNCS = (
+        "def one():\n" + "    x = 1\n" * 30 +
+        "\n\ndef two():\n" + "    y = 2\n" * 20 +
+        "\n\ndef three():\n" + "    z = 3\n" * 10 + "\n"
+    )
+
+    def _run(self, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run([*RUN, *args], capture_output=True, text=True, env=SUBPROCESS_ENV)
+
+    def test_extra_flag_reaches_the_single_only_detector(self):
+        with tempfile.TemporaryDirectory() as root:
+            with open(os.path.join(root, "sample.py"), "w", encoding="utf-8") as fh:
+                fh.write(self.THREE_FUNCS)
+
+            proc = self._run("--only", "largest-methods", root, "--top", "1")
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            # --top 1 caps the ranked table at a single data row: only the biggest function.
+            self.assertIn("one", proc.stdout)
+            self.assertNotIn("two", proc.stdout)
+            self.assertNotIn("three", proc.stdout)
+
+    def test_extra_flag_without_only_errors(self):
+        proc = self._run(".", "--top", "1")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--only", proc.stderr)
+
+    def test_extra_flag_with_two_only_detectors_errors(self):
+        proc = self._run("--only", "largest-methods,largest-files", ".", "--top", "1")
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("exactly one detector", proc.stderr)
+
+
 class SniffMissingDirTest(unittest.TestCase):
     """A nonexistent DIR fails fast with a hint instead of running every detector."""
 
