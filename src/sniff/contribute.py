@@ -74,9 +74,8 @@ def run_contribute(rule_id: str, project_dir: str, dry_run: bool = False) -> int
 
 def _core_rule_ids() -> "set[str]":
     """Rule ids shipped in this install's catalog."""
-    here = os.path.dirname(os.path.abspath(__file__))
-    rules_dir = os.path.normpath(os.path.join(here, "..", "..", "skills", "sniff-patterns", "rules"))
-    return {os.path.splitext(n)[0] for n in os.listdir(rules_dir) if n.endswith((".yml", ".yaml"))}
+    from sniff.patterns import rules_dir
+    return {os.path.splitext(n)[0] for n in os.listdir(rules_dir()) if n.endswith((".yml", ".yaml"))}
 
 
 def _contribute_to_checkout(rule_id: str, project_dir: str, checkout: str) -> int:

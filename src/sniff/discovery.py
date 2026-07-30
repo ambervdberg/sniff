@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Discover smell detectors: built-in registry modules plus manifest-based ones.
 
-The 10 built-in detectors (complexity, nesting, size, etc.) live as modules in
-`sniff.detectors.BUILTIN` and run in-process (see cli.py). sniff-patterns is not
-yet in that registry (a later task adds it), so it is still discovered the old
-way: `skills/sniff-patterns/detector.yml` is globbed and its script run as a
-subprocess, exactly like every detector used to work before the registry existed.
+All 11 built-in detectors (complexity, nesting, size, sniff-patterns, etc.) live
+as modules in `sniff.detectors.BUILTIN` and run in-process (see cli.py). No
+built-in is discovered via a manifest any more.
 
-The manifest is parsed without PyYAML (the project stays dependency-free, matching
-how sniff-patterns hand-parses its rule files). It is therefore a FLAT key: value file:
+The manifest glob below (`skills/*/detector.yml`) is the mechanism a future task
+uses to add external, consumer-defined detectors; today it finds nothing, since
+every shipped detector is a `BUILTIN` module. Once external manifests exist they
+are parsed without PyYAML (the project stays dependency-free), as a FLAT
+key: value file:
 
     name: sniff-patterns
     title: Pattern rule catalog
@@ -65,10 +66,9 @@ def discover() -> tuple[list[Detector], list[str]]:
     """Return (detectors, errors).
 
     Built-in detectors come straight from `sniff.detectors.BUILTIN`, one Detector
-    per module, no manifest involved. Any remaining manifest-based detector
-    (currently just sniff-patterns) is still found by globbing
-    skills/*/detector.yml, parsed into a Detector the same way as before the
-    registry existed. A manifest missing a required field (name + script) is
+    per module, no manifest involved. Any external, manifest-based detector is
+    found by globbing skills/*/detector.yml (currently none ship this way; see
+    the module docstring). A manifest missing a required field (name + script) is
     collected as an error string rather than crashing the whole run, so one
     broken detector cannot hide all the others. Detectors are returned sorted by
     name for stable output."""

@@ -5,11 +5,12 @@ Each module here exposes `NAME`, `TITLE`, `DEFAULT_ARGS`, and `main(argv) -> int
 `BUILTIN` into a `Detector` with `module` set, so `cli.py` can run it in-process
 instead of shelling out to a subprocess script.
 
-sniff-patterns is not in this registry yet: it still runs through its old
-`skills/sniff-patterns/scripts/format.py` subprocess path (see discovery.py).
-A future task adds a `patterns_detector` module here and flips it over.
+sniff-patterns runs through `sniff.patterns_detector`, a thin wrapper around
+`sniff.patterns.format` (the ast-grep rule catalog runner), the same as every
+other built-in.
 """
 
+from sniff import patterns_detector
 from sniff.detectors import (
     cognitive_complexity,
     cyclomatic_complexity,
@@ -26,5 +27,5 @@ from sniff.detectors import (
 BUILTIN = [
     cognitive_complexity, cyclomatic_complexity, deepest_nesting, large_classes,
     large_inline_templates, largest_files, largest_methods, most_imports,
-    most_parameters, no_duplicate_string,
+    most_parameters, no_duplicate_string, patterns_detector,
 ]

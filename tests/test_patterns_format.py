@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Catalog test: a fixture with known smells must yield the expected counts.
 
-Run: python skills/sniff-patterns/scripts/test_format.py
+Run: python tests/test_patterns_format.py
 Skips cleanly if ast-grep is not on PATH.
 """
 
@@ -16,7 +16,8 @@ import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FORMAT = os.path.join(HERE, "format.py")
+REPO_ROOT = os.path.dirname(HERE)
+FORMAT = os.path.join(REPO_ROOT, "src", "sniff", "patterns", "format.py")
 HAS_AST_GREP = shutil.which("ast-grep") is not None
 
 # Load format.py as a module (not just a subprocess target) so the pytest-style

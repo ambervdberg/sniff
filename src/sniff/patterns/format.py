@@ -27,8 +27,8 @@ import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SGCONFIG = os.path.normpath(os.path.join(HERE, "..", "sgconfig.yml"))
-RULES_DIR = os.path.normpath(os.path.join(HERE, "..", "rules"))
+SGCONFIG = os.path.join(HERE, "sgconfig.yml")
+RULES_DIR = os.path.join(HERE, "rules")
 
 # Same vendored/build dirs the harness ignores; kept local so this script has no
 # import dependency on _ast-harness (it speaks ast-grep's scan JSON, not Match).
@@ -109,7 +109,7 @@ def _read_rule_meta(path: str) -> tuple[str, str, str, str]:
 def catalog_rules(scan_path: str | None = None) -> list[tuple[str, str, str, str, str]]:
     """(id, severity, message, origin, language) for every rule that would run on `scan_path`.
 
-    origin is 'core' for skills/sniff-patterns/rules/*.yml, or 'local' for
+    origin is 'core' for this package's rules/*.yml, or 'local' for
     <scan_path>/.sniff/rules/*.yml. Local rules let a consumer repo add its own
     checks without touching the shared catalog. Used so a clean result can list
     every rule that ran (and its severity), distinguishing 'no smells' from 'no
@@ -311,7 +311,7 @@ def scan_multiline_single_comments(path: str) -> list[dict]:
     return matches
 
 
-def main() -> None:
+def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(description="Run the sniff-patterns catalog and summarize findings.")
     parser.add_argument("path", nargs="?", default=".", metavar="DIR", help="directory to scan (default: .)")
     parser.add_argument("--severity", help="only show this severity (error|warning|info|hint)")
@@ -324,7 +324,7 @@ def main() -> None:
     parser.add_argument("--severity-override", action="append", default=[], metavar="ID=LEVEL",
                         help="override a rule's severity (repeatable), e.g. no-console-log=error "
                              "(from .sniff.toml [rules])")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     disabled = {r.strip() for r in (args.disable or "").split(",") if r.strip()}
 
@@ -342,14 +342,14 @@ def main() -> None:
             print(f"No rules in the catalog ({RULES_DIR}). Add one with sniff-create.")
         else:
             print_list_rules(rules)
-        return
+        return 0
 
     _require_ast_grep()
 
     rules = catalog_rules(args.path)
     if not rules:
         print(f"No rules in the catalog ({RULES_DIR}). Add one with sniff-create.")
-        return
+        return 0
 
     extra_ignores = _extra_ignore_patterns()
 
@@ -403,7 +403,7 @@ def main() -> None:
             scope = f" at --severity {args.severity}"
         print(f"sniff-patterns: 0 findings{scope} across {len(ran)} rules in {args.path!r}")
         print_rules_ran(ran)
-        return
+        return 0
 
     sorted_rules = sorted(by_rule.items(),
                           key=lambda kv: (SEVERITY_ORDER.get(kv[1]["severity"], 9), -kv[1]["count"]))
@@ -415,7 +415,8 @@ def main() -> None:
 
     print_rule_table(rows)
     print_rules_ran(ran)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

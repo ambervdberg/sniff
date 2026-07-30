@@ -18,3 +18,4 @@ sniff = "sniff.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sniff"]
+exclude = ["src/sniff/patterns/rule-tests"]

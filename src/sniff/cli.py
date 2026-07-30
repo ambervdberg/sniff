@@ -34,7 +34,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, replace
 
-from sniff import config, contribute, discovery, test_rules
+from sniff import config, contribute, discovery, patterns, test_rules
 
 
 # Flags seen hallucinated in eval runs (gpt-5.4-nano, gpt-5.4-mini, sonnet-4-6).
@@ -372,7 +372,7 @@ def run_doctor() -> int:
 
     local_rules_dir = os.path.join(".sniff", "rules")
     if os.path.isdir(local_rules_dir):
-        core_rules_dir = os.path.join(_REPO_ROOT, "skills", "sniff-patterns", "rules")
+        core_rules_dir = patterns.rules_dir()
         core_ids = {os.path.splitext(n)[0] for n in os.listdir(core_rules_dir) if n.endswith((".yml", ".yaml"))}
         local_ids = {os.path.splitext(n)[0] for n in os.listdir(local_rules_dir) if n.endswith((".yml", ".yaml"))}
         for rule_id in sorted(local_ids & core_ids):
@@ -660,15 +660,15 @@ def main(argv: "list[str] | None" = None) -> int:
         return 0
 
     if args.list_patterns:
-        patterns = next((d for d in detectors if d.name == "sniff-patterns"), None)
-        if not patterns:
+        patterns_detector = next((d for d in detectors if d.name == "sniff-patterns"), None)
+        if not patterns_detector:
             print("error: sniff-patterns detector not found (run --list to see available detectors)", file=sys.stderr)
             return 1
-        proc = subprocess.run([sys.executable, patterns.script, "--list-rules", args.path], capture_output=True, text=True)
-        print(proc.stdout.strip())
-        if proc.returncode != 0:
-            return proc.returncode
-        return 0
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = patterns_detector.module.main(["--list-rules", args.path])
+        print(buf.getvalue().strip())
+        return code if isinstance(code, int) else 0
 
     if not detectors:
         print("No detectors found (no skills/*/detector.yml manifests).")

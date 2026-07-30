@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """sniff test-rules: run the catalog's ast-grep fixture tests and enforce coverage.
 
-Two checks: (1) every ast-grep rule in skills/sniff-patterns/rules/ has a
+Two checks: (1) every ast-grep rule in src/sniff/patterns/rules/ has a
 rule-tests/<id>.yml fixture file, (2) `ast-grep test` passes. Python-implemented
 rules (no ast-grep yml semantics, see PYTHON_RULES) are exempt from (1)."""
 
@@ -17,6 +17,14 @@ PYTHON_RULES = {"no-multiline-single-comment"}
 
 
 def _patterns_dir(repo_root: str) -> str:
+    """Directory holding this repo_root's rules/, rule-tests/, and sgconfig.yml.
+
+    Prefers the current src/sniff/patterns layout; falls back to the pre-refactor
+    skills/sniff-patterns layout so a `contribute` checkout of an older sniff
+    clone (see contribute.py's SNIFF_REPO backend) still resolves correctly."""
+    new_layout = os.path.join(repo_root, "src", "sniff", "patterns")
+    if os.path.isdir(new_layout):
+        return new_layout
     return os.path.join(repo_root, "skills", "sniff-patterns")
 
 
