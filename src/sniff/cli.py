@@ -288,13 +288,16 @@ def _plugin_version() -> str | None:
 
 
 def _installed_package_version() -> str | None:
-    """Version reported by importlib.metadata for an installed `sniff`, or None."""
+    """Version reported by importlib.metadata for the installed distribution
+    (`sniff-smells`, or the legacy `sniff` name), or None."""
     try:
         from importlib.metadata import PackageNotFoundError, version as pkg_version
-        try:
-            return pkg_version("sniff")
-        except PackageNotFoundError:
-            return None
+        for dist in ("sniff-smells", "sniff"):
+            try:
+                return pkg_version(dist)
+            except PackageNotFoundError:
+                continue
+        return None
     except ImportError:
         return None
 

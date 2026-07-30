@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "sniff"
+name = "sniff-smells"
 version = "0.9.6"
 description = "Token-efficient code-smell detection for AI agents"
 readme = "README.md"

@@ -6,6 +6,7 @@
    ```bash
    git clone https://github.com/ambervdberg/sniff.git
    cd sniff
+   uv pip install -e .[dev]
    ```
 
 2. Install [ast-grep](https://ast-grep.github.io) (required for all pattern-rule work):
