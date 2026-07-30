@@ -154,21 +154,26 @@ node_metric.py for scoring).
 ```
 .claude-plugin/   plugin.json (skills, Stop hook) + marketplace.json
 .codex-plugin/    plugin.json (native Codex plugin manifest)
+.github/workflows/  CI (lint/test matrix) and release (PyPI trusted publishing)
 hooks.json        Codex lifecycle hooks (SessionStart -> sniff prime, Stop -> costly-search nudge)
 evals/            LLM eval harness: cases.jsonl, runner.py (simulated), scorer.py, smoke/ (real-agent)
-skills/
-src/sniff/        shared engine (harness.py, node_metric.py)
-  largest-methods/
-  large-classes/
-  largest-files/
-  deepest-nesting/
-  cyclomatic-complexity/
-  cognitive-complexity/
-  most-parameters/
-  large-inline-templates/
-  sniff/           umbrella runner (runs all detectors)
-  sniff-patterns/  rule catalog (ast-grep scan)
-  sniff-create/    the skill/rule generator + suggest-create detection hook
+src/sniff/        installable package (dist sniff-smells, command sniff)
+  cli.py            entry point, argument parsing, subcommands
+  config.py         .sniff/ config loading
+  discovery.py      built-in + external (.sniff/detectors/) detector discovery
+  contribute.py     `sniff contribute` upstreaming flow
+  harness.py        shared ast-grep integration
+  node_metric.py    per-node scoring (complexity, nesting, ...)
+  rules_testing.py  `sniff test-rules` fixture runner
+  detectors/         one module per built-in detector (10, plus sniff-patterns)
+  patterns/          rule catalog: rules/, rule-tests/, sgconfig.yml
+skills/           thin SKILL.md wrappers around the sniff CLI, one per detector
+  largest-methods/  large-classes/  largest-files/  deepest-nesting/
+  cyclomatic-complexity/  cognitive-complexity/  most-parameters/  most-imports/
+  no-duplicate-string/  large-inline-templates/  sniff/  sniff-patterns/
+  sniff-create/     scripts/ + templates/, the skill/rule generator
+tests/            pytest suite (114 tests)
+scripts/          bump_version.py and other maintenance scripts
 docs/             design spec
 ```
 

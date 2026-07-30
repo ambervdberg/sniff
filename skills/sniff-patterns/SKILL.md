@@ -53,10 +53,10 @@ Prerequisites: `ast-grep` on PATH, Python 3.
 
 A rule that needs a *computed score* (nesting depth, complexity) rather than a plain
 match cannot be expressed as a pattern. The planned hook: such a rule carries an
-`x-harness: <script>` meta key, and a future runner routes it through `_ast-harness`
-for scoring instead of plain `scan`. The current runner ignores `x-harness`, so the
-seam is designed-in but inert. Until then, score-based smells are standalone
-node-metric skills, not catalog rules.
+`x-harness: <script>` meta key, and a future runner routes it through
+`src/sniff/harness.py` for scoring instead of plain `scan`. The current runner
+ignores `x-harness`, so the seam is designed-in but inert. Until then, score-based
+smells are standalone node-metric skills, not catalog rules.
 
 ## Caveats
 
