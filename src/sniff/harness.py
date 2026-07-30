@@ -6,9 +6,9 @@ repo reuses this module. The whole point is that all the heavy lifting (running
 ast-grep, parsing its JSON, folding nested matches, ranking, formatting) happens
 here, so the calling agent only ever sees a small table, never the raw AST.
 
-This file is deliberately NOT a triggerable skill: it lives under a directory
-prefixed with an underscore and ships no useful SKILL.md description, so a skill
-loader never surfaces it. Generated skills import it; they don't duplicate it.
+This file is deliberately NOT a triggerable skill: it is a module inside the
+`sniff` package with no SKILL.md of its own, so a skill loader never surfaces it.
+Detectors and generated skills import it; they don't duplicate it.
 
 Stable public API (kept small so generated scripts stay ~20 lines):
 

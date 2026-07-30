@@ -141,7 +141,8 @@ def discover(scan_path: "str | None" = None) -> tuple[list[Detector], list[str]]
 def render_list(detectors: list[Detector]) -> str:
     """One markdown table of every discovered detector, for `sniff --list`."""
     if not detectors:
-        return "No detectors found (no skills/*/detector.yml manifests)."
+        return ("No detectors found (empty built-in registry and no "
+                ".sniff/detectors/*/detector.yml manifests).")
 
     lines = ["| DETECTOR | TITLE | RUN |", "| --- | --- | --- |"]
     for d in detectors:

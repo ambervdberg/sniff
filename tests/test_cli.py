@@ -239,6 +239,38 @@ class CountFindingsTest(unittest.TestCase):
         self.assertEqual(run_module._count_findings("No classes matched.\n"), 0)
 
 
+class ConfigIgnoreGlobsTest(unittest.TestCase):
+    """`.sniff.toml [ignore] globs` must reach sniff-patterns, not break it.
+
+    cli.py folds the globs in as repeated `--extra-ignore` args for every
+    built-in detector; sniff-patterns is one of them, so a parser without that
+    flag exits 2 and the whole scan silently reports nothing."""
+
+    def _scan(self, root: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [*RUN, "--only", "sniff-patterns", root],
+            capture_output=True, text=True, env=SUBPROCESS_ENV,
+        )
+
+    def test_ignore_globs_exclude_only_the_matching_dir(self):
+        with tempfile.TemporaryDirectory() as root:
+            def write(rel: str, text: str) -> None:
+                path = os.path.join(root, rel)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(text)
+
+            write(".sniff.toml", '[ignore]\nglobs = ["gen/**"]\n')
+            write("gen/x.ts", "console.log('generated');\n")
+            write("src/app.ts", "console.log('handwritten');\n")
+
+            proc = self._scan(root)
+
+            self.assertNotEqual(proc.returncode, 2, proc.stderr)
+            self.assertIn("src/app.ts", proc.stdout)
+            self.assertNotIn("gen/x.ts", proc.stdout)
+
+
 class SniffMissingDirTest(unittest.TestCase):
     """A nonexistent DIR fails fast with a hint instead of running every detector."""
 

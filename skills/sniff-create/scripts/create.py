@@ -36,9 +36,13 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES = os.path.join(HERE, "..", "templates")
 SKILLS_DIR = os.path.normpath(os.path.join(HERE, "..", ".."))
-RULES_DIR = os.path.join(SKILLS_DIR, "sniff-patterns", "rules")
 REPO_ROOT = os.path.dirname(SKILLS_DIR)
 SRC_DETECTORS_DIR = os.path.join(REPO_ROOT, "src", "sniff", "detectors")
+
+# The core pattern catalog lives in the package, not under skills/.
+PATTERNS_DIR = os.path.join(REPO_ROOT, "src", "sniff", "patterns")
+RULES_DIR = os.path.join(PATTERNS_DIR, "rules")
+RULE_TESTS_DIR = os.path.join(PATTERNS_DIR, "rule-tests")
 
 
 def _load_template(name: str) -> str:
@@ -183,7 +187,7 @@ def cmd_rule(args: argparse.Namespace) -> None:
         tests_dir = os.path.join(base, "rule-tests")
     else:
         rules_dir = RULES_DIR
-        tests_dir = os.path.join(SKILLS_DIR, "sniff-patterns", "rule-tests")
+        tests_dir = RULE_TESTS_DIR
 
     if args.pattern:
         rule_body = f"  pattern: {json.dumps(args.pattern)}"

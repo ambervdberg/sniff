@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """sniff: run every smell detector over a repo in one pass.
 
-The umbrella entry point. Discovers detectors via their detector.yml manifests
-(see discovery.py), runs each one's script over the scan DIR, and prints one
-markdown section per detector. Default runs all detectors with no flag; narrow with --only / --skip,
-or just list what is available with --list.
+The umbrella entry point. Built-in detectors come from the static registry in
+`sniff.detectors.BUILTIN` and run in-process; external, consumer-defined
+detectors are discovered from `<scan DIR>/.sniff/detectors/*/detector.yml`
+manifests and run as subprocesses (see discovery.py). Either way this prints one
+markdown section per detector. Default runs all detectors with no flag; narrow
+with --only / --skip, or just list what is available with --list.
 
 Each detector returns only its own compact table (ranked top-N or location list),
 never source, so the aggregate stays token-cheap: this runner just concatenates
 those sections under per-detector headings. It never reimplements a detector; it
-shells out to the detector's existing script, so the standalone skill and the
-aggregate run always agree.
+calls the detector's own entry point, so the standalone skill and the aggregate
+run always agree.
 
 Usage:
     sniff [DIR] [--only a,b] [--skip a,b] [--list]
@@ -147,8 +149,8 @@ def apply_config_to_detector(detector: discovery.Detector, cfg: config.Config) -
     (sniff-patterns only) becomes `--severity-override <id>=<severity>`; and
     `[ignore] globs = "..."` becomes repeated `--extra-ignore <glob>` args for a
     built-in (module) detector, since `module.main(argv)` parses that flag itself
-    (a subprocess/external detector still gets it via SNIFF_EXTRA_IGNORE, set
-    once in main() around the subprocess batch, not here). Returns `detector`
+    (an external, manifest-based detector still gets it via SNIFF_EXTRA_IGNORE,
+    exported once in main() around the run, not here). Returns `detector`
     unchanged (same object) when none applies, so callers can skip work for the
     common no-config case."""
     args = detector.args
@@ -679,7 +681,7 @@ def main(argv: "list[str] | None" = None) -> int:
         return code if isinstance(code, int) else 0
 
     if not detectors:
-        print("No detectors found (no skills/*/detector.yml manifests).")
+        print("No detectors found (empty built-in registry and no .sniff/detectors/*/detector.yml manifests).")
         return 0
 
     if not os.path.isdir(args.path):
@@ -703,13 +705,43 @@ def main(argv: "list[str] | None" = None) -> int:
         return 0
 
     selected = [apply_config_to_detector(d, cfg) for d in selected]
-    if cfg.extra_ignores and any(d.module is None for d in selected):
-        # Built-ins get extra-ignore globs as --extra-ignore args (folded in by
-        # apply_config_to_detector above); this env var is only needed for the
-        # remaining subprocess/external detectors (sniff-patterns' format.py),
-        # inherited by their subprocess.run calls (no explicit env= restricts them).
-        os.environ["SNIFF_EXTRA_IGNORE"] = ",".join(cfg.extra_ignores)
 
+    # Built-ins get the extra-ignore globs as --extra-ignore args (folded in by
+    # apply_config_to_detector above); the env var is only needed for external,
+    # manifest-based detectors, which inherit it through subprocess.run.
+    needs_env = bool(cfg.extra_ignores) and any(d.module is None for d in selected)
+    with _exported_extra_ignore(cfg.extra_ignores if needs_env else None):
+        return _run_selected(selected, args)
+
+
+@contextlib.contextmanager
+def _exported_extra_ignore(globs: "list[str] | None"):
+    """Export SNIFF_EXTRA_IGNORE for the duration of the block, then restore it.
+
+    main() may be called in-process (tests, embedding) more than once, so the
+    export must not outlive the run that needed it; without the restore a later
+    call would silently inherit the previous run's ignore globs. `globs` of None
+    means "export nothing", so the caller never needs a second code path."""
+    if globs is None:
+        yield
+        return
+
+    previous = os.environ.get("SNIFF_EXTRA_IGNORE")
+    os.environ["SNIFF_EXTRA_IGNORE"] = ",".join(globs)
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop("SNIFF_EXTRA_IGNORE", None)
+        else:
+            os.environ["SNIFF_EXTRA_IGNORE"] = previous
+
+
+def _run_selected(selected: list[discovery.Detector], args: argparse.Namespace) -> int:
+    """Run every selected detector over args.path and print the result.
+
+    JSON mode emits one machine-readable object; markdown mode prints a header
+    line plus one `## <detector>` section each."""
     if args.json:
         results = [run_detector_json(d, args.path) for d in selected]
         print(json.dumps({"path": args.path, "detectors": results}, indent=2))

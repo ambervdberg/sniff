@@ -28,12 +28,12 @@
 
 ## Adding a pattern rule
 
-Rules live in `skills/sniff-patterns/rules/` as YAML files. Use `sniff-create` to scaffold:
+Rules live in `src/sniff/patterns/rules/` as YAML files, with fixtures alongside in
+`src/sniff/patterns/rule-tests/`.
 
-```bash
-sniff-create
-# follow the prompts, pick "pattern rule", and it generates rule + fixture template
-```
+The quickest way to add one is the `sniff-create` Claude skill: ask Claude to "create a
+sniff rule for <the smell>". It drafts the rule with you, validates it against the current
+repo, then writes the rule and its fixture file.
 
 Or hand-write a rule (e.g., `rules/no-console-log.yml`) and a fixture file (e.g., `rule-tests/no-console-log.yml`). Each fixture file must contain at least one invalid snippet (should be flagged) and one valid snippet (stays clean). See `no-empty-catch.yml` and `no-explicit-any.yml` for examples.
 
@@ -54,10 +54,14 @@ into this catalog.
 
 1. In that project (not here), create a local rule under `.sniff/rules/<rule-id>.yml` with matching fixtures at `.sniff/rule-tests/<rule-id>.yml`.
 
-2. Prove the rule works:
+2. Prove the rule works by scanning that project with it:
    ```bash
-   sniff test-rules
+   sniff --only sniff-patterns .
    ```
+
+   `sniff test-rules` is NOT available here: it runs the catalog's fixture suite and needs
+   a sniff repo checkout. Your fixtures are tested for you in the next step, once the rule
+   has been copied into the catalog.
 
 3. Contribute:
    ```bash
@@ -90,7 +94,16 @@ A new check needs one of four engine types. Use the engine that fits your smell:
 | **file metric** | a number per file, no AST | largest files (split candidates) |
 | **cross-file** | needs a whole-project graph | inheritance depth |
 
-Pattern rules and node metrics run on [ast-grep](https://ast-grep.github.io). File metrics are plain Python. New detectors need a `detector.yml` manifest in `skills/` (see `sniff-patterns/` for an example).
+Pattern rules and node metrics run on [ast-grep](https://ast-grep.github.io). File metrics
+are plain Python.
+
+Built-in detectors are registry modules: add `src/sniff/detectors/<name>.py` (exposing
+`NAME`, `TITLE`, `DEFAULT_ARGS`, `main(argv)`) and list it in `BUILTIN` in
+`src/sniff/detectors/__init__.py`. They run in-process, no manifest involved.
+
+External, project-specific detectors need no code in this repo: drop a `detector.yml`
+manifest plus its script under `<scan-dir>/.sniff/detectors/<name>/` and sniff discovers
+it automatically when scanning that directory.
 
 ## PR checklist
 

@@ -32,6 +32,20 @@ def _value(raw: str) -> str:
     return raw
 
 
+def _string_list(raw: str) -> "list[str]":
+    """Parse a multi-value setting written either way real TOML files write it.
+
+    Both `globs = "a/**,b/**"` (this parser's flat form) and `globs = ["a/**",
+    "b/**"]` (the array a TOML author reaches for) yield ["a/**", "b/**"].
+    Without the array branch a bracketed value survives as one nonsense glob
+    that silently matches nothing."""
+    raw = raw.strip()
+    if raw.startswith("[") and raw.endswith("]"):
+        raw = raw[1:-1]
+    parts = (_value(part).strip() for part in raw.split(","))
+    return [part for part in parts if part]
+
+
 def load(scan_dir: str) -> Config:
     cfg = Config()
     path = os.path.join(scan_dir, ".sniff.toml")
@@ -74,7 +88,7 @@ def load(scan_dir: str) -> Config:
                 cfg.warnings.append(f".sniff.toml:{lineno}: unknown detectors key {key!r}")
         elif section == "ignore":
             if key == "globs":
-                cfg.extra_ignores += [p.strip() for p in value.split(",") if p.strip()]
+                cfg.extra_ignores += _string_list(value)
             else:
                 cfg.warnings.append(f".sniff.toml:{lineno}: unknown ignore key {key!r}")
     return cfg

@@ -84,6 +84,30 @@ def test_rule_local_mode_writes_under_cwd(tmp_path, monkeypatch):
     assert "invalid:" in tests and "valid:" in tests
 
 
+def test_core_rule_dirs_point_at_the_package_catalog():
+    """Core rules and fixtures live in the installed package, not under skills/.
+
+    The scan reads rules from src/sniff/patterns/rules, so scaffolding anywhere
+    else produces a rule that never runs."""
+    assert create.RULES_DIR == os.path.join(create.REPO_ROOT, "src", "sniff", "patterns", "rules")
+    assert create.RULE_TESTS_DIR == os.path.join(
+        create.REPO_ROOT, "src", "sniff", "patterns", "rule-tests")
+    assert os.path.isdir(create.RULES_DIR)
+    assert os.path.isdir(create.RULE_TESTS_DIR)
+
+
+def test_rule_repo_mode_writes_rule_and_fixture_into_catalog(tmp_path, monkeypatch):
+    """Repo mode writes the rule to RULES_DIR and its fixture to RULE_TESTS_DIR."""
+    monkeypatch.setattr(create, "RULES_DIR", str(tmp_path / "rules"))
+    monkeypatch.setattr(create, "RULE_TESTS_DIR", str(tmp_path / "rule-tests"))
+    run_create(["rule", "--name", "no-z", "--language", "typescript",
+                "--title", "t", "--message", "m", "--pattern", "z()",
+                "--test-invalid", "z()", "--test-valid", "y()"])
+
+    assert (tmp_path / "rules" / "no-z.yml").is_file()
+    assert (tmp_path / "rule-tests" / "no-z.yml").is_file()
+
+
 def test_rule_repo_mode_requires_test_invalid(tmp_path, monkeypatch):
     monkeypatch.setattr(create, "RULES_DIR", str(tmp_path / "rules"))
     with pytest.raises(SystemExit):

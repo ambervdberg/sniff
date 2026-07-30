@@ -21,10 +21,15 @@ def _patterns_dir(repo_root: str) -> str:
     return os.path.join(repo_root, "src", "sniff", "patterns")
 
 
+def _rules_dir(repo_root: str) -> str:
+    """Directory holding this repo_root's core rule ymls."""
+    return os.path.join(_patterns_dir(repo_root), "rules")
+
+
 def rules_missing_tests(repo_root: str) -> list[str]:
     """Rule ids in rules/ that lack a rule-tests/<id>.yml, excluding PYTHON_RULES."""
     base = _patterns_dir(repo_root)
-    rules_dir = os.path.join(base, "rules")
+    rules_dir = _rules_dir(repo_root)
     tests_dir = os.path.join(base, "rule-tests")
     missing = []
     for name in sorted(os.listdir(rules_dir)):
@@ -42,6 +47,15 @@ def run_test_rules(repo_root: str) -> int:
     """Coverage check + `ast-grep test`. Prints results, returns 0/1."""
     if not shutil.which("ast-grep"):
         print("FAIL ast-grep not on PATH", file=sys.stderr)
+        return 1
+
+    # test-rules reads the catalog sources, which an installed wheel does not
+    # ship; without this guard os.listdir below raises FileNotFoundError at the
+    # user instead of explaining what is wrong.
+    rules_path = _rules_dir(repo_root)
+    if not os.path.isdir(rules_path):
+        print(f"FAIL test-rules runs from a sniff repo checkout; "
+              f"rules directory not found at {rules_path}", file=sys.stderr)
         return 1
 
     missing = rules_missing_tests(repo_root)

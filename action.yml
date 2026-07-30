@@ -14,7 +14,9 @@ runs:
       shell: bash
       run: |
         npm install -g @ast-grep/cli
-        pip install .
+        # Install this action's own checkout, not the consumer workspace that
+        # composite run steps execute in.
+        pip install "${{ github.action_path }}"
     - name: Diff against baseline
       shell: bash
       run: sniff diff --comment "${{ inputs.path }}" | tee sniff-diff.md

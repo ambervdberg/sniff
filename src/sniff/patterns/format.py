@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Run the sniff-patterns rule catalog and print a compact findings table.
 
-One `ast-grep scan` pass loads every rule under sniff-patterns/rules/ and reports its
+One `ast-grep scan` pass loads every rule under src/sniff/patterns/rules/ and reports its
 matches. This script folds that JSON into a small RULE / SEVERITY / COUNT /
 TOP LOCATIONS table so the calling agent only ever sees the
 summary, never the raw per-match JSON.
 
 Usage:
     python format.py [DIR] [--severity error|warning|info|hint] [--rule ID] [--top-locs N]
+                     [--extra-ignore GLOB ...]
 
 DIR defaults to the current directory. Vendored/build dirs are skipped by the
 shared ignore list; test files are NOT excluded here (a lint finding in a test is
@@ -50,15 +51,22 @@ def _in_ignored_dir(path: str) -> bool:
     return any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", path))
 
 
-def _extra_ignore_patterns() -> list[str]:
-    """Glob patterns from SNIFF_EXTRA_IGNORE (set by run.py from .sniff.toml's
-    `[ignore] globs = "..."`), comma-separated. Empty when unset."""
+def _extra_ignore_patterns(extra_ignores: "list[str] | None" = None) -> list[str]:
+    """Glob patterns to exclude on top of the fixed vendored-dir list.
+
+    `extra_ignores` is the parsed `--extra-ignore` args cli.py folds in from
+    `.sniff.toml`'s `[ignore] globs = "..."`; when given (even empty), it wins.
+    Only when it is absent (None) does this fall back to the SNIFF_EXTRA_IGNORE
+    env var, which cli.py sets around subprocess/external detectors. Mirrors
+    harness._extra_ignore_patterns so both engines resolve ignores identically."""
+    if extra_ignores is not None:
+        return [p.strip() for p in extra_ignores if p.strip()]
     raw = os.environ.get("SNIFF_EXTRA_IGNORE", "")
     return [p.strip() for p in raw.split(",") if p.strip()]
 
 
 def _matches_extra_ignore(path: str, root: str, patterns: list[str]) -> bool:
-    """True if `path` (relative to `root`) matches any SNIFF_EXTRA_IGNORE glob.
+    """True if `path` (relative to `root`) matches any extra-ignore glob.
 
     Extends _in_ignored_dir's hardcoded vendored-dir list rather than replacing
     it, so both the fixed ignore list and a consumer's own .sniff.toml globs
@@ -324,11 +332,14 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument("--severity-override", action="append", default=[], metavar="ID=LEVEL",
                         help="override a rule's severity (repeatable), e.g. no-console-log=error "
                              "(from .sniff.toml [rules])")
+    parser.add_argument("--extra-ignore", action="append", metavar="GLOB",
+                        help="extra glob to exclude, relative to DIR (repeatable); "
+                             "from .sniff.toml [ignore] globs. Overrides SNIFF_EXTRA_IGNORE.")
     args = parser.parse_args(argv)
 
     disabled = {r.strip() for r in (args.disable or "").split(",") if r.strip()}
 
-    # rule id -> severity, from .sniff.toml [rules] via run.py. Rewrites a rule's
+    # rule id -> severity, from .sniff.toml [rules] via cli.py. Rewrites a rule's
     # reported severity (and its --severity filtering) without touching the rule yml.
     severity_overrides: dict[str, str] = {}
     for item in args.severity_override:
@@ -351,7 +362,7 @@ def main(argv: "list[str] | None" = None) -> int:
         print(f"No rules in the catalog ({RULES_DIR}). Add one with sniff-create.")
         return 0
 
-    extra_ignores = _extra_ignore_patterns()
+    extra_ignores = _extra_ignore_patterns(args.extra_ignore)
 
     def _ignored(file: str) -> bool:
         return _in_ignored_dir(file) or _matches_extra_ignore(file, args.path, extra_ignores)
