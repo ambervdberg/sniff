@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [0.10.0] - 2026-07-30
 
 - **Breaking:** the old plugin-scripts layout (skills importing `_ast-harness`
   via a relative path hack) is replaced by an installable package, `sniff-smells`
