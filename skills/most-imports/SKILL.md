@@ -16,27 +16,19 @@ signal tight coupling and potential god files. This is the **file-metric**
 engine: counts import declarations per file using ast-grep, using the same
 ignore list and test handling as the AST skills.
 
-## Prerequisites
-
-- `ast-grep` on PATH (`ast-grep --version`). Install: https://ast-grep.github.io
-- Python 3. (Any recent version to run the bundled script.)
-
 ## Usage
 
-```bash
-python "<skill_dir>/scripts/most_imports.py" [PATH] [--top N] [--include-tests]
-```
+Run the detector through the installed sniff CLI:
 
-`<skill_dir>` is this skill's directory. `PATH` defaults to the current directory;
-test files (`*.spec.*` / `*.test.*`) are excluded unless `--include-tests`;
-vendored/build dirs (`node_modules`, `dist`, `.astro`, ...) are always skipped.
+1. Ensure sniff is installed. Try `sniff version`. If it fails, install it:
+   `uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
+   and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
+2. Run: `sniff --only most-imports [DIR] [--top N] [--include-tests]`
+3. Report the table; do not paste raw file contents.
 
-## Relaying the result
-
-**Print the entire table to the user verbatim.** It IS the answer. Do NOT
-summarize it to prose or drop rows. You may add ONE takeaway line after the
-table (e.g. the file with the most imports), but the full table comes first and
-in full.
+**Print the entire table verbatim.** It IS the answer. Do NOT summarize it to
+prose or drop rows. You may add ONE takeaway line after the table (e.g. the file
+with the most imports), but the full table comes first and in full.
 
 ## Caveats
 

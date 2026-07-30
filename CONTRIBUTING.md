@@ -18,8 +18,7 @@
 
 3. Verify setup:
    ```bash
-   python skills/_ast-harness/test_harness.py
-   python skills/sniff/scripts/run.py doctor
+   sniff doctor
    ```
 
 ## Adding a pattern rule
@@ -36,8 +35,6 @@ Or hand-write a rule (e.g., `rules/no-console-log.yml`) and a fixture file (e.g.
 Test locally before committing:
 
 ```bash
-python skills/sniff/scripts/run.py test-rules
-# or if installed via `uv tool install .`:
 sniff test-rules
 ```
 
@@ -94,7 +91,7 @@ Pattern rules and node metrics run on [ast-grep](https://ast-grep.github.io). Fi
 
 Before opening a PR:
 
-- [ ] `python skills/sniff/scripts/run.py test-rules` passes (or `sniff test-rules` if installed)
+- [ ] `sniff test-rules` passes
 - [ ] Add a note to `CHANGELOG.md` under `## [Unreleased]`
 - [ ] If this is a version bump, run `python scripts/bump_version.py <version>` (not for feature PRs)
 - [ ] CI passes (GitHub Actions will run the checks)

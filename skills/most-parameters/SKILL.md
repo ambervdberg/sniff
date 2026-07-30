@@ -32,42 +32,22 @@ those stay one parameter. Rest/spread params (`*args`, `...rest`) count as one
 each. A function's own signature is measured, not the parameters of functions
 nested inside it.
 
-## Prerequisites
-
-- `ast-grep` on PATH (`ast-grep --version`). Install: https://ast-grep.github.io
-- Python 3 (any recent version) to run the bundled script.
-
 ## Usage
 
-Run the script and report the table. `PATH` defaults to the current directory.
+Run the detector through the installed sniff CLI:
 
-```bash
-python "<skill_dir>/scripts/most_parameters.py" [PATH] [--top N] [--lang L] [--min N] [--include-tests]
-```
+1. Ensure sniff is installed. Try `sniff version`. If it fails, install it:
+   `uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
+   and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
+2. Run: `sniff --only most-parameters [DIR] [--top N] [--lang LANG] [--min N]
+   [--include-tests]`
+3. Report the table; do not paste raw file contents.
 
-`<skill_dir>` is the directory containing this SKILL.md. Examples:
-
-```bash
-# Whole repo, top 20, languages auto-detected, tests excluded
-python "<skill_dir>/scripts/most_parameters.py"
-
-# Only functions with 5+ parameters
-python "<skill_dir>/scripts/most_parameters.py" src --min 5
-
-# Default: 3+ parameters (2 or fewer is not a smell)
-python "<skill_dir>/scripts/most_parameters.py" src
-
-# Force a language when auto-detect is too broad
-python "<skill_dir>/scripts/most_parameters.py" src --lang typescript
-```
-
-The output is already final-form, a `PARAMS / NAME / LOCATION` table sorted
-most-first.
-
-**Print the entire table to the user verbatim.** It IS the answer. Do NOT replace
-it with a summary or describe it in prose, the user wants every row. You may add
-ONE optional takeaway line after the table, but the full table comes first and in
-full. Do not re-read the listed files unless the user then asks you to refactor one.
+The output is a `PARAMS / NAME / LOCATION` table sorted most-first. **Print the
+entire table verbatim.** It IS the answer. Do NOT replace it with a summary or
+describe it in prose; the user wants every row. You may add ONE optional takeaway
+line after the table, but the full table comes first and in full. Do not re-read
+listed files unless the user then asks you to refactor one.
 
 ## Caveats worth stating
 

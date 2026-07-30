@@ -14,24 +14,18 @@ Rank the biggest source files by non-blank line count. Big files are split
 candidates. This is the **file-metric** engine: no AST, just a count per file,
 using the same ignore list and test handling as the AST skills.
 
-## Prerequisites
-
-- Python 3. (No `ast-grep` needed, this engine does not touch the AST.)
-
 ## Usage
 
-```bash
-python "<skill_dir>/scripts/largest-files.py" [PATH] [--top N] [--include-tests]
-```
+Run the detector through the installed sniff CLI:
 
-`<skill_dir>` is this skill's directory. `PATH` defaults to the current directory;
-test files (`*.spec.*` / `*.test.*`) are excluded unless `--include-tests`;
-vendored/build dirs (`node_modules`, `dist`, `.astro`, ...) are always skipped.
+1. Ensure sniff is installed. Try `sniff version`. If it fails, install it:
+   `uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
+   and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
+2. Run: `sniff --only largest-files [DIR] [--top N] [--include-tests]`
+3. Report the table; do not paste raw file contents.
 
-## Relaying the result
-
-**Print the entire table to the user verbatim.** It IS the answer. Do NOT summarize
-it to prose or drop rows. You may add ONE takeaway line after the table (e.g. the
+**Print the entire table verbatim.** It IS the answer. Do NOT summarize it to
+prose or drop rows. You may add ONE takeaway line after the table (e.g. the
 single biggest file), but the full table comes first and in full.
 
 ## Caveats

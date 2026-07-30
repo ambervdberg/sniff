@@ -24,7 +24,7 @@ a new check:
 | **cross-file** | needs a whole-project graph | inheritance depth |
 
 `pattern rule` and `node metric` run on [ast-grep](https://ast-grep.github.io);
-`file metric` is plain Python. The shared engine lives in `skills/_ast-harness/`.
+`file metric` is plain Python.
 
 ## Prerequisites
 
@@ -53,13 +53,8 @@ sniff [DIR]
 
 Puts `sniff` on PATH via [uv](https://docs.astral.sh/uv/). Requires Python 3.9+.
 
-### Zero-install (Windows, after `git clone`)
-
-```bat
-sniff.bat [DIR]
-```
-
-No install step — just Python on PATH. The `sniff.bat` in the repo root delegates to `skills/sniff/scripts/run.py`.
+After installing via `uv tool install`, use `sniff [DIR]` on any platform (Windows,
+macOS, Linux).
 
 ## Common asks
 

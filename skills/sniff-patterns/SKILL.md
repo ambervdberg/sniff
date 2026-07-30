@@ -29,24 +29,19 @@ A "Clean: 0 findings. Ran N rules (...)" line is a **valid, complete result**: t
 codebase passed every rule. Relay it as-is. Do NOT speculate that the plugin "has no
 rules" or is "new/empty", the line already names the rules that ran; trust it.
 
-## Command
+## Usage
 
-Prefer the umbrella `sniff` CLI unless editing this skill directly:
+Run the detector through the installed sniff CLI:
 
-```bash
-sniff --only sniff-patterns [DIR]
-sniff --list-patterns
-```
+1. Ensure sniff is installed. Try `sniff version`. If it fails, install it:
+   `uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
+   and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
+2. Run: `sniff --only sniff-patterns [DIR] [--severity error|warning|info|hint]
+   [--rule ID] [--top-locs N]`, or `sniff --list-patterns` to see the catalog.
+3. Report the findings; do not paste raw rule files.
 
-Direct skill script:
-
-```bash
-python "<skill_dir>/scripts/format.py" [DIR] [--severity error|warning|info|hint] [--rule ID] [--top-locs N] [--list-rules]
-```
-
-`<skill_dir>` is this skill's directory. `DIR` defaults to the current directory.
-Filter with `--severity` or a single `--rule`. Vendored/build dirs are skipped.
-Use `--list-rules` to print the catalog (RULE / SEVERITY / MESSAGE) and exit without scanning.
+`DIR` defaults to the current directory. Filter with `--severity` or a single
+`--rule`. Vendored/build dirs are always skipped.
 
 ## Adding rules
 

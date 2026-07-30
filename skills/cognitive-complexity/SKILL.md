@@ -34,40 +34,23 @@ nesting model behind SonarSource cognitive complexity, computed from AST node
 ranges. It is the read-difficulty companion to `cyclomatic-complexity` (path
 count) and `deepest-nesting` (depth only).
 
-## Prerequisites
-
-- `ast-grep` on PATH (`ast-grep --version`). Install: https://ast-grep.github.io
-- Python 3 (any recent version) to run the bundled script.
-
 ## Usage
 
-Run the script and report the table. `PATH` defaults to the current directory.
+Run the detector through the installed sniff CLI:
 
-```bash
-python "<skill_dir>/scripts/cognitive_complexity.py" [PATH] [--top N] [--lang L] [--min N] [--include-tests]
-```
+1. Ensure sniff is installed. Try `sniff version`. If it fails, install it:
+   `uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
+   and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
+2. Run: `sniff --only cognitive-complexity [DIR] [--top N] [--lang LANG]
+   [--min N] [--include-tests]`
+3. Report the table; do not paste raw file contents.
 
-`<skill_dir>` is the directory containing this SKILL.md. Examples:
-
-```bash
-# Whole repo, top 20, languages auto-detected, tests excluded
-python "<skill_dir>/scripts/cognitive_complexity.py"
-
-# Frontend, only functions scoring 15+
-python "<skill_dir>/scripts/cognitive_complexity.py" apps/web --min 15
-
-# Force a language when auto-detect is too broad
-python "<skill_dir>/scripts/cognitive_complexity.py" src --lang typescript
-```
-
-The output is already final-form, a `COGNITIVE / NAME / LOCATION` table sorted
-hardest-first.
-
-**Print the entire table to the user verbatim.** It IS the answer. Do NOT replace
-it with a summary or describe it in prose, the user wants every row. You may add
-ONE optional takeaway line after the table (e.g. the worst offender), but the full
-table comes first and in full. Do not re-read the listed files unless the user
-then asks you to actually refactor one.
+The output is a `COGNITIVE / NAME / LOCATION` table sorted hardest-first.
+**Print the entire table verbatim.** It IS the answer. Do NOT replace it with a
+summary or describe it in prose; the user wants every row. You may add ONE
+optional takeaway line after the table (e.g. the worst offender), but the full
+table comes first and in full. Do not re-read listed files unless the user then
+asks you to actually refactor one.
 
 ## Caveats worth stating
 

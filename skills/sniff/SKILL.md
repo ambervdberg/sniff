@@ -12,11 +12,22 @@ description: >-
 
 # sniff
 
+Umbrella entry point that runs **all** detectors in one pass: `sniff-patterns`
+(pattern rule catalog) plus every node-metric and file-metric detector (complexity,
+nesting, parameters, method/class/file size, inline-template size). To run pattern
+rules only, invoke `sniff:sniff-patterns` directly.
+
+## Setup
+
+Ensure sniff is installed. Try `sniff version`. If it fails, install it:
+`uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
+and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
+
+## Quick start
+
 Default: run `sniff [DIR]`.
 Need pattern rules only: run `sniff --only sniff-patterns [DIR]`.
 Need one metric: run `sniff --only <detector> [DIR]`.
-
-Umbrella entry point that runs **all** detectors in one pass: `sniff-patterns` (pattern rule catalog) plus every node-metric and file-metric detector (complexity, nesting, parameters, method/class/file size, inline-template size). To run pattern rules only, invoke `sniff:sniff-patterns` directly.
 
 ## Intent routing
 

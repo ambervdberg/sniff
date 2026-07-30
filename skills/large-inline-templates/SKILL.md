@@ -31,33 +31,19 @@ The line count of each `@Component`'s inline `template: \`...\`` literal.
 Components that use `templateUrl` (an external file) are ignored, they are not an
 inline-template smell. The component's `selector` is used as the name.
 
-## Prerequisites
-
-- `ast-grep` on PATH (`ast-grep --version`). Install: https://ast-grep.github.io
-- Python 3 (any recent version) to run the bundled script.
-
 ## Usage
 
-Run the script and report the table. `PATH` defaults to the current directory.
+Run the detector through the installed sniff CLI:
 
-```bash
-python "<skill_dir>/scripts/large_inline_templates.py" [PATH] [--top N] [--min N] [--include-tests]
-```
+1. Ensure sniff is installed. Try `sniff version`. If it fails, install it:
+   `uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
+   and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
+2. Run: `sniff --only large-inline-templates [DIR] [--top N] [--min N]
+   [--include-tests]`
+3. Report the table; do not paste raw file contents.
 
-`<skill_dir>` is the directory containing this SKILL.md. Examples:
-
-```bash
-# Whole repo, top 20, tests excluded
-python "<skill_dir>/scripts/large_inline_templates.py"
-
-# Only templates of 30+ lines
-python "<skill_dir>/scripts/large_inline_templates.py" apps/web --min 30
-```
-
-The output is already final-form, a `LINES / SELECTOR / LOCATION` table sorted
-largest-first.
-
-**Print the entire table to the user verbatim.** It IS the answer. Do NOT replace
+The output is a `LINES / SELECTOR / LOCATION` table sorted largest-first.
+**Print the entire table verbatim.** It IS the answer. Do NOT replace
 it with a summary or describe it in prose, the user wants every row. You may add
 ONE optional takeaway line after the table, but the full table comes first and in
 full. Do not re-read the listed files unless the user then asks you to extract one.
