@@ -121,7 +121,7 @@ pipeline enforces fixtures later, not this create step).
 
 Add `--dry-run` first to preview. `<skill_dir>` is this skill's directory.
 
-## Step 5a — Scaffold a detector instead (`--target core|external`)
+## Step 5a: Scaffold a detector instead (`--target core|external`)
 
 Use this instead of Step 5 when the goal is a real **detector** that shows up
 in `sniff --list` / a full `sniff` scan, not a one-off query skill. Pick a
