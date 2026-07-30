@@ -19,7 +19,7 @@ Rank functions/methods by how many parameters they take, cheaply.
 
 Long parameter lists are a classic smell (hard to call, easy to mix up
 arguments), but counting them by hand means reading files and burning tokens.
-This skill pushes the work into a bundled script: it asks `ast-grep` for the
+This skill runs through the installed sniff CLI: it asks `ast-grep` for the
 functions and their parameter lists, counts each list's top-level entries, and
 prints a ~20-row table. You only ever see the table. Keep it that way, never
 pipe raw `ast-grep --json` output into your own context.

@@ -8,10 +8,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Breaking:** the old plugin-scripts layout (skills importing `_ast-harness`
   via a relative path hack) is replaced by an installable package, `sniff-smells`
-  (`src/sniff/`). Install with `uv tool install sniff-smells`. The CLI surface is
-  unchanged: same `sniff` command, same subcommands and flags.
+  (`src/sniff/`). Install with `uv tool install sniff-smells`. The `sniff` command
+  and existing flags are unchanged.
 - External, project-specific detectors: drop a `detector.yml` manifest under
   `.sniff/detectors/<name>/` in the scanned project to add a custom check.
+- Project config via `.sniff.toml` in the scanned repo: `[rules]` to disable a
+  pattern rule or change its severity, `[detectors]` to skip detectors or override
+  their thresholds, `[ignore]` for extra path globs.
+- Consumer-local pattern rules: drop rule files in `.sniff/rules/` and they run
+  alongside the built-in catalog.
+- `sniff contribute <rule-id>` upstreams a local rule into the sniff repo, either
+  into an existing checkout or via a `gh` fork and pull request.
+- Detector flag passthrough: with `--only <one detector>`, unknown trailing flags
+  are forwarded to that detector and take precedence over `.sniff.toml`.
 
 ## [0.9.5]
 

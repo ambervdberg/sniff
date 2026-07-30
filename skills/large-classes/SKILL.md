@@ -11,8 +11,8 @@ Largest classes by line count
 ## Why this exists
 
 The naive way to answer this is to read files or dump AST JSON into the
-conversation, both of which burn thousands of tokens. This skill pushes all of
-that into a bundled script: it runs `ast-grep`, parses the JSON internally, folds
+conversation, both of which burn thousands of tokens. This skill runs all of
+that through the installed sniff CLI: it runs `ast-grep`, parses the JSON internally, folds
 nested matches into their parent, and prints a small ranked table. You only ever
 see the table. Never pipe raw `ast-grep --json` output into your own context to
 re-rank it by hand.

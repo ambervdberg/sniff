@@ -19,7 +19,7 @@ Rank the longest methods/functions in a codebase by line count, cheaply.
 
 The naive way to answer "what's the biggest method?" is to read files or dump
 AST JSON into the conversation, both of which burn thousands of tokens. This
-skill pushes all of that work into a bundled script: it runs `ast-grep`, parses
+skill runs all of that work through the installed sniff CLI: it runs `ast-grep`, parses
 the JSON internally, folds away nested closures, and prints a ~20-row table. You
 only ever see the table. Keep it that way, never pipe the raw `ast-grep --json`
 output into your own context to re-rank it by hand.

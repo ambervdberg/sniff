@@ -6,7 +6,7 @@
    ```bash
    git clone https://github.com/ambervdberg/sniff.git
    cd sniff
-   uv pip install -e .[dev]
+   uv pip install -e ".[dev]"
    ```
 
 2. Install [ast-grep](https://ast-grep.github.io) (required for all pattern-rule work):
@@ -85,11 +85,13 @@ Severity guidance:
 
 ## Engines
 
-A new check needs one of four engine types. Use the engine that fits your smell:
+A new check needs one of five engine types (the same five `sniff-create` picks from).
+Use the engine that fits your smell:
 
 | Engine | For | Example |
 | --- | --- | --- |
 | **pattern rule** | a specific code shape, flagged with a severity | any type, empty imports: [] |
+| **node span** | rank AST nodes by line count | largest methods, large classes |
 | **node metric** | score each method/class from its AST | nesting depth, cyclomatic / cognitive complexity, inline-template line count |
 | **file metric** | a number per file, no AST | largest files (split candidates) |
 | **cross-file** | needs a whole-project graph | inheritance depth |
@@ -105,12 +107,15 @@ External, project-specific detectors need no code in this repo: drop a `detector
 manifest plus its script under `<scan-dir>/.sniff/detectors/<name>/` and sniff discovers
 it automatically when scanning that directory.
 
+Consumer repos can also tune a run without touching this repo, via a `.sniff.toml`
+config file (see the Configuration section of the README).
+
 ## PR checklist
 
 Before opening a PR:
 
 - [ ] `sniff test-rules` passes
 - [ ] `python -m pytest tests -q` passes
-- [ ] Add a note to `CHANGELOG.md` under `## [Unreleased]`
+- [ ] Add a note as a new entry at the top of `CHANGELOG.md`
 - [ ] If this is a version bump, run `python scripts/bump_version.py <version>` (not for feature PRs)
 - [ ] CI passes (GitHub Actions will run the checks)

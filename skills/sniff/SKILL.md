@@ -73,9 +73,22 @@ sniff doctor                         # check prerequisites, exit 0/1
 sniff prime                          # agent-optimized context, never scans
 sniff baseline write [DIR]           # save per-detector counts to .sniff/baseline.json
 sniff diff [DIR]                     # compare current scan to the saved baseline
+sniff diff --comment [DIR]           # same, as a markdown table to paste in a PR
+sniff test-rules                     # run the rule fixture tests, exit 0/1
+sniff contribute <rule-id>           # upstream a local .sniff/rules/ rule
 ```
 
 `DIR` defaults to the current directory.
+
+## Project config
+
+A consumer repo can drop a `.sniff.toml` beside its sources to tune every run:
+
+- `[rules]` disable a pattern rule (`<rule-id> = false`) or change its severity (`<rule-id> = "warning"`).
+- `[detectors]` skip detectors (`skip = "..."`) or override a detector's threshold (`<name>.top = 15`).
+- `[ignore]` extra path globs to exclude (`globs = ["gen/**"]`).
+
+With `--only <one detector>`, extra CLI flags are forwarded to that detector and win over `.sniff.toml`.
 
 ## Detector names
 

@@ -26,9 +26,9 @@ Every check fits exactly one engine. Pick before anything else; it decides the t
 | --- | --- | --- |
 | **pattern rule** | a specific code shape, flagged with a severity (e.g. `any` type, empty `imports: []`) | yes |
 | **node-span** | "largest X" ranked by line count (methods, classes, ...) | yes |
-| **node-metric** | a *computed score* per method/class: nesting depth, cyclomatic / cognitive complexity, params, inline-template line count | engine yes (`sniff.node_metric`): depth (`deepest-nesting`), cyclomatic (`cyclomatic-complexity`), cognitive (`cognitive-complexity`), params (`most-parameters`), inline-template LOC (`large-inline-templates`) done; create generator in progress (`sniff-...6.5`) |
+| **node-metric** | a *computed score* per method/class: nesting depth, cyclomatic / cognitive complexity, params, inline-template line count | engine yes (`sniff.node_metric`): depth (`deepest-nesting`), cyclomatic (`cyclomatic-complexity`), cognitive (`cognitive-complexity`), params (`most-parameters`), inline-template LOC (`large-inline-templates`) done; create generator in progress |
 | **file-metric** | a number per *file*, no AST: largest files, lines of code | engine yes (`largest-files`); no create generator yet |
-| **cross-file** | needs a whole-project graph: inheritance depth | not yet (`sniff-...8`) |
+| **cross-file** | needs a whole-project graph: inheritance depth | not yet |
 
 ### Scope gate
 
@@ -161,5 +161,9 @@ live.
    confirm the table / findings render.
 2. **Commit** the new files.
 3. **Make it live**: a freshly created skill is not loaded until the plugin refreshes.
-   Run `/plugin update sniff` (or reinstall from the local path). Until then the
-   script still works run directly by path.
+   Run `/plugin update sniff` (or reinstall from the local path). Until then you can
+   still run the generated script directly by path, as long as `sniff-smells` is
+   installed (or importable via `PYTHONPATH`), since the script imports the shared
+   engine from it. A new *core* detector is only visible to an installed `sniff`
+   after the tool is reinstalled; an editable install (`pip install -e .`) picks it
+   up immediately.

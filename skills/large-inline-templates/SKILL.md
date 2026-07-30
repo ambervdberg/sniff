@@ -19,8 +19,8 @@ Rank Angular components by inline-template size, cheaply.
 
 A short inline `template` is fine; a 60-line one buried in a decorator is a smell
 that belongs in its own `.html` file. Spotting them by eye means reading
-component files and burning tokens. This skill pushes the work into a bundled
-script: it asks `ast-grep` for the `@Component` decorators, reads each inline
+component files and burning tokens. This skill runs through the installed
+sniff CLI: it asks `ast-grep` for the `@Component` decorators, reads each inline
 template's line count from the decorator, and prints a ~20-row table. You only
 ever see the table. Keep it that way, never pipe raw `ast-grep --json` output
 into your own context.

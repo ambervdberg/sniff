@@ -20,7 +20,7 @@ Rank functions/methods by how deeply their control flow nests, cheaply.
 
 Deeply nested loops and branches (the "pyramid of doom") are a top refactor
 smell, but spotting them by eye means reading files and burning thousands of
-tokens. This skill pushes the work into a bundled script: it asks `ast-grep` for
+tokens. This skill runs through the installed sniff CLI: it asks `ast-grep` for
 the functions and the nesting constructs, derives each function's depth from
 node containment, and prints a ~20-row table. You only ever see the table. Keep
 it that way, never pipe raw `ast-grep --json` output into your own context.

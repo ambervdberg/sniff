@@ -18,8 +18,8 @@ Rank functions/methods by cyclomatic complexity, cheaply.
 ## Why this exists
 
 Branch-heavy functions are hard to test and to read, but counting paths by hand
-means reading files and burning tokens. This skill pushes the work into a
-bundled script: it asks `ast-grep` for the functions and the decision points,
+means reading files and burning tokens. This skill runs through the
+installed sniff CLI: it asks `ast-grep` for the functions and the decision points,
 derives each function's complexity from node containment, and prints a ~20-row
 table. You only ever see the table. Keep it that way, never pipe raw
 `ast-grep --json` output into your own context.

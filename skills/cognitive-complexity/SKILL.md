@@ -20,7 +20,7 @@ Rank functions/methods by how hard they are to read, cheaply.
 Cyclomatic complexity counts paths; cognitive complexity tries to model how hard
 code is for a human to follow, by punishing deep nesting more than flat
 branching. Measuring it by hand means reading files and burning tokens. This
-skill pushes the work into a bundled script: it asks `ast-grep` for the functions
+skill runs through the installed sniff CLI: it asks `ast-grep` for the functions
 and their control structures, derives each function's score from node
 containment, and prints a ~20-row table. You only ever see the table. Keep it
 that way, never pipe raw `ast-grep --json` output into your own context.
