@@ -42,6 +42,15 @@ IGNORE_DIRS = {
 SEVERITY_ORDER = {"error": 0, "warning": 1, "info": 2, "hint": 3}
 
 
+def ast_grep_exe() -> str:
+    """Absolute path to ast-grep, resolving Windows .cmd/.exe shims; bare name if not found.
+
+    Mirrors harness.ast_grep_exe on purpose: this script is also run standalone, so it
+    keeps its no-import-dependency on the harness. Windows CreateProcess ignores PATHEXT
+    for a bare argv[0], so the npm-installed `ast-grep.cmd` shim would raise WinError 2."""
+    return shutil.which("ast-grep") or "ast-grep"
+
+
 def _require_ast_grep() -> None:
     if not shutil.which("ast-grep"):
         sys.exit("error: ast-grep is not installed or not on PATH. See https://ast-grep.github.io")
@@ -251,7 +260,7 @@ def run_scan(path: str) -> list[dict]:
 
     try:
         proc = subprocess.run(
-            ["ast-grep", "scan", "-c", config, "--json=compact", path],
+            [ast_grep_exe(), "scan", "-c", config, "--json=compact", path],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
     finally:

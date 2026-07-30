@@ -12,6 +12,8 @@ import shutil
 import subprocess
 import sys
 
+from sniff.harness import ast_grep_exe
+
 # Rules implemented in Python inside format.py, not as ast-grep rules.
 PYTHON_RULES = {"no-multiline-single-comment"}
 
@@ -64,7 +66,7 @@ def run_test_rules(repo_root: str) -> int:
 
     sgconfig = os.path.join(_patterns_dir(repo_root), "sgconfig.yml")
     proc = subprocess.run(
-        ["ast-grep", "test", "-c", sgconfig, "--skip-snapshot-tests"],
+        [ast_grep_exe(), "test", "-c", sgconfig, "--skip-snapshot-tests"],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     print(proc.stdout.strip() or proc.stderr.strip())

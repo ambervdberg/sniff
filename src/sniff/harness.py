@@ -114,6 +114,15 @@ class Match:
         return f"{self.file}:{self.line}"
 
 
+def ast_grep_exe() -> str:
+    """Absolute path to ast-grep, resolving Windows .cmd/.exe shims; bare name if not found.
+
+    Windows CreateProcess does not resolve the `.cmd` shim npm installs for a bare
+    "ast-grep" argv[0], so passing the bare name to subprocess raises WinError 2.
+    shutil.which does apply PATHEXT, so the resolved path works on every platform."""
+    return shutil.which("ast-grep") or "ast-grep"
+
+
 def _require_ast_grep() -> None:
     """Fail fast with a clear message if the ast-grep binary is missing."""
     if not shutil.which("ast-grep"):
@@ -249,7 +258,7 @@ def _scan(root: str, lang: str, rule_yaml: str) -> list[dict]:
     """Run one inline rule over the tree and return ast-grep's raw match dicts."""
     try:
         proc = subprocess.run(
-            ["ast-grep", "scan", "--inline-rules", rule_yaml, "--json=compact", root],
+            [ast_grep_exe(), "scan", "--inline-rules", rule_yaml, "--json=compact", root],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
     except FileNotFoundError:
