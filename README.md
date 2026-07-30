@@ -19,7 +19,7 @@ uv tool install sniff-smells
 uv tool install ast-grep-cli
 ```
 
-Requires Python 3.9+ and works the same on Windows, macOS, and Linux. The first line puts the
+Requires Python 3.10+ and works the same on Windows, macOS, and Linux. The first line puts the
 `sniff` command on PATH via [uv](https://docs.astral.sh/uv/); the second installs
 [`ast-grep`](https://ast-grep.github.io), the scan engine most detectors run on. One-time per
 machine, not per repo. Run `sniff doctor` to confirm both are present.
@@ -106,7 +106,7 @@ globs = ["docs/**", "**/*.generated.ts"]
 
 Details worth knowing:
 
-- The parser is a hand-written TOML subset (stdlib only, Python 3.9): `[section]` headers plus
+- The parser is a hand-written TOML subset (stdlib only): `[section]` headers plus
   flat `key = value` lines, with quoted strings, ints, or `true`/`false` as values. Unknown
   sections and keys produce a warning, never an error.
 - `[ignore] globs` accepts the array form above or the flat form
