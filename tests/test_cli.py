@@ -10,11 +10,12 @@ import sys
 import tempfile
 import unittest
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-RUN = os.path.join(HERE, "run.py")
+from sniff import cli as run_module
 
-sys.path.insert(0, HERE)
-import run as run_module  # needs sys.path set up first
+HERE = os.path.dirname(os.path.abspath(__file__))
+SRC = os.path.join(HERE, "..", "src")
+RUN = [sys.executable, "-m", "sniff.cli"]
+SUBPROCESS_ENV = {**os.environ, "PYTHONPATH": SRC}
 
 
 class SniffCliHelpTest(unittest.TestCase):
@@ -22,7 +23,7 @@ class SniffCliHelpTest(unittest.TestCase):
 
     def _run(self, *args: str) -> str:
         """Run the sniff CLI script and return stdout."""
-        proc = subprocess.run([sys.executable, RUN, *args], capture_output=True, text=True, check=True)
+        proc = subprocess.run([*RUN, *args], capture_output=True, text=True, check=True, env=SUBPROCESS_ENV)
         return proc.stdout
 
     def test_help_names_default_and_all_flag(self):
@@ -43,7 +44,7 @@ class SniffHallucinatedFlagHintTest(unittest.TestCase):
     """A known-hallucinated flag prints a corrective hint before argparse errors out."""
 
     def _run_stderr(self, *args: str) -> str:
-        proc = subprocess.run([sys.executable, RUN, *args], capture_output=True, text=True)
+        proc = subprocess.run([*RUN, *args], capture_output=True, text=True, env=SUBPROCESS_ENV)
         return proc.stderr
 
     def test_unknown_flag_prints_hint(self):
@@ -61,7 +62,7 @@ class SniffVersionCommandTest(unittest.TestCase):
     """`sniff version` prints a version string and exits 0."""
 
     def test_version_prints_version_string(self):
-        proc = subprocess.run([sys.executable, RUN, "version"], capture_output=True, text=True)
+        proc = subprocess.run([*RUN, "version"], capture_output=True, text=True, env=SUBPROCESS_ENV)
         self.assertEqual(proc.returncode, 0)
         self.assertRegex(proc.stdout.strip(), r"^sniff \S+$")
 
@@ -70,7 +71,7 @@ class SniffDoctorCommandTest(unittest.TestCase):
     """`sniff doctor` checks prerequisites and exits 0/1 based on the result."""
 
     def test_doctor_reports_python_and_manifest_checks(self):
-        proc = subprocess.run([sys.executable, RUN, "doctor"], capture_output=True, text=True)
+        proc = subprocess.run([*RUN, "doctor"], capture_output=True, text=True, env=SUBPROCESS_ENV)
         self.assertIn(proc.returncode, (0, 1))
         self.assertIn("python", proc.stdout)
         self.assertIn("detector manifest(s) valid", proc.stdout)
@@ -109,7 +110,9 @@ class SniffJsonOutputTest(unittest.TestCase):
     """--json emits parseable JSON for both --list and a scan, markdown stays default."""
 
     def test_list_json_is_parseable_detector_array(self):
-        proc = subprocess.run([sys.executable, RUN, "--list", "--json"], capture_output=True, text=True, check=True)
+        proc = subprocess.run(
+            [*RUN, "--list", "--json"], capture_output=True, text=True, check=True, env=SUBPROCESS_ENV,
+        )
         data = json.loads(proc.stdout)
         self.assertIsInstance(data, list)
         names = {d["name"] for d in data}
@@ -118,8 +121,8 @@ class SniffJsonOutputTest(unittest.TestCase):
 
     def test_scan_json_is_parseable_per_detector(self):
         proc = subprocess.run(
-            [sys.executable, RUN, "--json", "--only", "sniff-patterns", "."],
-            capture_output=True, text=True, check=True,
+            [*RUN, "--json", "--only", "sniff-patterns", "."],
+            capture_output=True, text=True, check=True, env=SUBPROCESS_ENV,
         )
         data = json.loads(proc.stdout)
         self.assertEqual(data["path"], ".")
@@ -129,8 +132,8 @@ class SniffJsonOutputTest(unittest.TestCase):
 
     def test_default_markdown_output_unchanged_without_json_flag(self):
         proc = subprocess.run(
-            [sys.executable, RUN, "--only", "sniff-patterns", "."],
-            capture_output=True, text=True, check=True,
+            [*RUN, "--only", "sniff-patterns", "."],
+            capture_output=True, text=True, check=True, env=SUBPROCESS_ENV,
         )
         self.assertTrue(proc.stdout.startswith("sniff: 1 detectors over"))
         self.assertIn("## sniff-patterns", proc.stdout)
@@ -140,7 +143,7 @@ class SniffPrimeCommandTest(unittest.TestCase):
     """`sniff prime` prints agent context without running a scan."""
 
     def test_prime_includes_version_detectors_commands_caveats_no_scan(self):
-        proc = subprocess.run([sys.executable, RUN, "prime"], capture_output=True, text=True)
+        proc = subprocess.run([*RUN, "prime"], capture_output=True, text=True, env=SUBPROCESS_ENV)
         self.assertEqual(proc.returncode, 0)
         self.assertTrue(proc.stdout.startswith("sniff "))
         self.assertIn("PREREQUISITES", proc.stdout)
@@ -161,7 +164,7 @@ class SniffBaselineDiffTest(unittest.TestCase):
             fh.write("def foo(a, b, c, d, e, f, g):\n    pass\n")
 
     def _run(self, *args: str) -> subprocess.CompletedProcess:
-        return subprocess.run([sys.executable, RUN, *args], capture_output=True, text=True)
+        return subprocess.run([*RUN, *args], capture_output=True, text=True, env=SUBPROCESS_ENV)
 
     def test_baseline_write_saves_json_file(self):
         proc = self._run("baseline", "write", self.tmp)
@@ -240,7 +243,7 @@ class SniffMissingDirTest(unittest.TestCase):
     """A nonexistent DIR fails fast with a hint instead of running every detector."""
 
     def test_nonexistent_dir_errors_without_running_detectors(self):
-        proc = subprocess.run([sys.executable, RUN, "/no/such/dir"], capture_output=True, text=True)
+        proc = subprocess.run([*RUN, "/no/such/dir"], capture_output=True, text=True, env=SUBPROCESS_ENV)
         self.assertEqual(proc.returncode, 1)
         self.assertIn("is not a directory", proc.stderr)
         self.assertNotIn("## ", proc.stdout)

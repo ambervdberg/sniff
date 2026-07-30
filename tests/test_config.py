@@ -1,6 +1,6 @@
 """Tests for .sniff.toml config loading (detector thresholds, rule overrides)."""
 
-import config
+from sniff import config
 
 
 def _write(tmp_path, text):

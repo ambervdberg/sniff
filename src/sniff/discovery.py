@@ -25,8 +25,9 @@ import os
 import shlex
 from dataclasses import dataclass, field
 
-# skills/sniff/scripts/discovery.py -> skills root is three levels up.
-SKILLS_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# src/sniff/discovery.py -> repo root is three levels up; skills/ lives beside src/.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SKILLS_ROOT = os.path.join(_REPO_ROOT, "skills")
 
 
 @dataclass

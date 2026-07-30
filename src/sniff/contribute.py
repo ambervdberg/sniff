@@ -16,6 +16,8 @@ import subprocess
 import sys
 import tempfile
 
+from sniff import test_rules
+
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".sniff", "config.toml")
 UPSTREAM = "ambervdberg/sniff"
 
@@ -73,7 +75,7 @@ def run_contribute(rule_id: str, project_dir: str, dry_run: bool = False) -> int
 def _core_rule_ids() -> "set[str]":
     """Rule ids shipped in this install's catalog."""
     here = os.path.dirname(os.path.abspath(__file__))
-    rules_dir = os.path.normpath(os.path.join(here, "..", "..", "sniff-patterns", "rules"))
+    rules_dir = os.path.normpath(os.path.join(here, "..", "..", "skills", "sniff-patterns", "rules"))
     return {os.path.splitext(n)[0] for n in os.listdir(rules_dir) if n.endswith((".yml", ".yaml"))}
 
 
@@ -93,10 +95,6 @@ def _contribute_to_checkout(rule_id: str, project_dir: str, checkout: str) -> in
     shutil.copy2(fixture_src, os.path.join(patterns, "rule-tests", rule_id + ".yml"))
     subprocess.run(["git", "-C", checkout, "add", "skills/sniff-patterns"], check=False)
 
-    try:
-        import test_rules
-    except ModuleNotFoundError:
-        from skills.sniff.scripts import test_rules
     if test_rules.run_test_rules(checkout) != 0:
         print("error: fixture tests failed in the checkout; fix before PR", file=sys.stderr)
         return 1

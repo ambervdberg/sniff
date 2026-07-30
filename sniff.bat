@@ -1,2 +1,3 @@
 @echo off
-python "%~dp0skills\sniff\scripts\run.py" %*
+set PYTHONPATH=%~dp0src;%PYTHONPATH%
+python -m sniff.cli %*

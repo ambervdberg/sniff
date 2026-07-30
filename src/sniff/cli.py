@@ -13,12 +13,12 @@ shells out to the detector's existing script, so the standalone skill and the
 aggregate run always agree.
 
 Usage:
-    python run.py [DIR] [--only a,b] [--skip a,b] [--list]
-    python run.py version
-    python run.py doctor
-    python run.py prime
-    python run.py baseline write [DIR]
-    python run.py diff [DIR]
+    sniff [DIR] [--only a,b] [--skip a,b] [--list]
+    sniff version
+    sniff doctor
+    sniff prime
+    sniff baseline write [DIR]
+    sniff diff [DIR]
 """
 
 from __future__ import annotations
@@ -32,15 +32,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, replace
 
-try:
-    import discovery  # direct run: python run.py
-except ModuleNotFoundError:
-    from skills.sniff.scripts import discovery  # installed via uv tool install
-
-try:
-    import config  # direct run: python run.py
-except ModuleNotFoundError:
-    from skills.sniff.scripts import config  # installed via uv tool install
+from sniff import config, contribute, discovery, test_rules
 
 
 # Flags seen hallucinated in eval runs (gpt-5.4-nano, gpt-5.4-mini, sonnet-4-6).
@@ -208,7 +200,7 @@ def run_detector_json(detector: discovery.Detector, path: str) -> dict:
     }
 
 
-# Repo root, two levels above skills/ (discovery.SKILLS_ROOT is skills/).
+# Repo root, one level above skills/ (discovery.SKILLS_ROOT is skills/).
 # Only present in a source checkout; an installed package has neither file,
 # so version/consistency checks fall back to package metadata or skip.
 _REPO_ROOT = os.path.dirname(discovery.SKILLS_ROOT)
@@ -537,39 +529,33 @@ def run_diff(argv: list[str]) -> int:
     return 1 if worse else 0
 
 
-def main() -> None:
+def main(argv: "list[str] | None" = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+
     # version/doctor are subcommands, not detector flags, so they're handled before
     # the DIR-positional parser below would otherwise treat "doctor" as a path.
-    if sys.argv[1:2] == ["version"]:
+    if argv[:1] == ["version"]:
         print(f"sniff {get_version()}")
-        return
-    if sys.argv[1:2] == ["doctor"]:
-        sys.exit(run_doctor())
-    if sys.argv[1:2] == ["prime"]:
+        return 0
+    if argv[:1] == ["doctor"]:
+        return run_doctor()
+    if argv[:1] == ["prime"]:
         run_prime()
-        return
-    if sys.argv[1:2] == ["baseline"]:
-        sys.exit(run_baseline(sys.argv[2:]))
-    if sys.argv[1:2] == ["diff"]:
-        sys.exit(run_diff(sys.argv[2:]))
-    if sys.argv[1:2] == ["test-rules"]:
-        try:
-            import test_rules
-        except ModuleNotFoundError:
-            from skills.sniff.scripts import test_rules
-        sys.exit(test_rules.run_test_rules(_REPO_ROOT))
-    if sys.argv[1:2] == ["contribute"]:
-        try:
-            import contribute
-        except ModuleNotFoundError:
-            from skills.sniff.scripts import contribute
+        return 0
+    if argv[:1] == ["baseline"]:
+        return run_baseline(argv[1:])
+    if argv[:1] == ["diff"]:
+        return run_diff(argv[1:])
+    if argv[:1] == ["test-rules"]:
+        return test_rules.run_test_rules(_REPO_ROOT)
+    if argv[:1] == ["contribute"]:
         import argparse as _ap
         p = _ap.ArgumentParser(prog="sniff contribute")
         p.add_argument("rule_id")
         p.add_argument("--dir", default=".", help="project dir holding .sniff/ (default: .)")
         p.add_argument("--dry-run", action="store_true")
-        a = p.parse_args(sys.argv[2:])
-        sys.exit(contribute.run_contribute(a.rule_id, a.dir, a.dry_run))
+        a = p.parse_args(argv[1:])
+        return contribute.run_contribute(a.rule_id, a.dir, a.dry_run)
 
     parser = argparse.ArgumentParser(
         prog="sniff",
@@ -603,8 +589,8 @@ def main() -> None:
     parser.add_argument("--list-patterns", action="store_true", help="list pattern rules catalog (RULE / SEVERITY / MESSAGE) and exit")
     parser.add_argument("--json", action="store_true", help="emit JSON instead of markdown (works with scan and --list)")
 
-    warn_hallucinated_flags(sys.argv[1:])
-    args = parser.parse_args()
+    warn_hallucinated_flags(argv)
+    args = parser.parse_args(argv)
 
     detectors = _discover_with_warnings()
 
@@ -616,26 +602,26 @@ def main() -> None:
             ], indent=2))
         else:
             print(discovery.render_list(detectors))
-        return
+        return 0
 
     if args.list_patterns:
         patterns = next((d for d in detectors if d.name == "sniff-patterns"), None)
         if not patterns:
             print("error: sniff-patterns detector not found (run --list to see available detectors)", file=sys.stderr)
-            sys.exit(1)
+            return 1
         proc = subprocess.run([sys.executable, patterns.script, "--list-rules", args.path], capture_output=True, text=True)
         print(proc.stdout.strip())
         if proc.returncode != 0:
-            sys.exit(proc.returncode)
-        return
+            return proc.returncode
+        return 0
 
     if not detectors:
         print("No detectors found (no skills/*/detector.yml manifests).")
-        return
+        return 0
 
     if not os.path.isdir(args.path):
         print(f"error: {args.path!r} is not a directory. Check the path and try again.", file=sys.stderr)
-        sys.exit(1)
+        return 1
 
     cfg = config.load(args.path)
     selected, unknown = select_with_config(detectors, _split_csv(args.only), _split_csv(args.skip), cfg)
@@ -651,7 +637,7 @@ def main() -> None:
             print(json.dumps({"path": args.path, "detectors": []}, indent=2))
         else:
             print("No detectors selected after --only/--skip.")
-        return
+        return 0
 
     selected = [apply_config_to_detector(d, cfg) for d in selected]
     if cfg.extra_ignores:
@@ -663,7 +649,7 @@ def main() -> None:
     if args.json:
         results = [run_detector_json(d, args.path) for d in selected]
         print(json.dumps({"path": args.path, "detectors": results}, indent=2))
-        return
+        return 0
 
     names = ", ".join(d.name for d in selected)
     print(f"sniff: {len(selected)} detectors over {args.path!r}: {names}\n")
@@ -673,6 +659,8 @@ def main() -> None:
         print(run_detector(detector, args.path))
         print()
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

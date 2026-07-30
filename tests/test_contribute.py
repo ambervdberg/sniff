@@ -2,7 +2,8 @@
 
 import os
 import subprocess
-import contribute
+
+from sniff import contribute
 
 def _mk_local_rule(tmp_path, rule_id="no-x", with_fixture=True):
     rules = tmp_path / ".sniff" / "rules"; rules.mkdir(parents=True)
