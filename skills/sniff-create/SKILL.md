@@ -33,7 +33,8 @@ Every check fits exactly one engine. Pick before anything else; it decides the t
 ### Scope gate
 
 - `create.py` can scaffold **pattern rule**, **node-span**, and **node-metric**
-  skills today.
+  skills today, plus a full **detector** (see Step 5a) for either this repo's
+  registry or a consuming repo.
 - **node-metric**: the engine ships five metrics (`depth`, `cyclomatic`,
   `cognitive`, `params`, `template-lines`). Scaffold a skill around one with
   `create.py node-metric --metric <m>` (see Step 3). To add a *new* metric the
@@ -119,6 +120,36 @@ makes `--test-valid`/`--test-invalid` optional (the contributing project's own
 pipeline enforces fixtures later, not this create step).
 
 Add `--dry-run` first to preview. `<skill_dir>` is this skill's directory.
+
+## Step 5a — Scaffold a detector instead (`--target core|external`)
+
+Use this instead of Step 5 when the goal is a real **detector** that shows up
+in `sniff --list` / a full `sniff` scan, not a one-off query skill. Pick a
+target:
+
+- **`--target external`** (default): for a *consuming* repo, not this one. Run
+  it with `--dest <that repo's root>`. Writes a self-contained manifest +
+  script under `<dest>/.sniff/detectors/<name>/`: no import of `sniff`, so it
+  keeps working across sniff version upgrades. Auto-discovered the next time
+  `sniff` runs there, no registration step.
+- **`--target core`**: for *this* repo, to become a real built-in. Writes
+  `src/sniff/detectors/<name>.py` with the `NAME`/`TITLE`/`DEFAULT_ARGS`/`main`
+  shape every built-in has, importing `from sniff import harness as h`. The
+  script prints a reminder afterward: add the import and a `BUILTIN` entry in
+  `src/sniff/detectors/__init__.py` yourself, `create.py` does not touch the
+  registry.
+
+```bash
+python "<skill_dir>/scripts/create.py" detector \
+  --name <kebab-name> --title "<one-line title>" --description "<what it detects>" \
+  --target external --dest <consuming-repo-root>   # or: --target core
+```
+
+`--title`/`--description` default from `--name` if omitted. Both scaffolds
+leave a `TODO:` marker in the generated script's body, the mechanical shape is
+in place but the actual detection logic (ast-grep call, node-metric wiring, or
+plain file walk) is still yours to write and validate (Step 4) before it goes
+live.
 
 ## Step 6 — Self-test, then make it live
 

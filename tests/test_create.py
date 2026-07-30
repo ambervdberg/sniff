@@ -18,8 +18,10 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "skills", "sniff-create", "scripts"))
+sys.path.insert(0, os.path.join(HERE, "..", "src"))
 
 import create
+from sniff import discovery
 
 
 def run_create(argv):
@@ -87,6 +89,59 @@ def test_rule_repo_mode_requires_test_invalid(tmp_path, monkeypatch):
     with pytest.raises(SystemExit):
         run_create(["rule", "--name", "no-y", "--language", "typescript",
                     "--title", "t", "--message", "m", "--pattern", "y()"])
+
+
+def test_create_external_detector_is_discoverable(tmp_path):
+    """--target external (the default) scaffolds a manifest + standalone script
+    under <dest>/.sniff/detectors/<name>/ that sniff.discovery.discover() picks
+    up with no further registration step."""
+    run_create(["detector", "--name", "my-smell", "--target", "external",
+                "--dest", str(tmp_path)])
+
+    detector_dir = tmp_path / ".sniff" / "detectors" / "my-smell"
+    assert (detector_dir / "detector.yml").is_file()
+    assert (detector_dir / "my-smell.py").is_file()
+
+    detectors, errors = discovery.discover(str(tmp_path))
+    assert errors == []
+    assert any(d.name == "my-smell" for d in detectors)
+
+
+def test_create_external_detector_script_runs_standalone():
+    """The external script must not import sniff: it has to keep working in a
+    consuming repo whose sniff version has drifted from the one that scaffolded
+    it."""
+    templates_dir = os.path.join(os.path.dirname(create.__file__), "..", "templates")
+    template_path = os.path.join(templates_dir, "detector_external_script.py.tmpl")
+    with open(template_path, encoding="utf-8") as fh:
+        lines = fh.readlines()
+    import_lines = [ln for ln in lines if ln.startswith("import ") or ln.startswith("from ")]
+    assert not any("sniff" in ln for ln in import_lines)
+    assert "SNIFF_EXTRA_IGNORE" in "".join(lines)
+
+
+class CoreDetectorCreateTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self._orig = create.SRC_DETECTORS_DIR
+        create.SRC_DETECTORS_DIR = self.tmp
+
+    def tearDown(self):
+        create.SRC_DETECTORS_DIR = self._orig
+
+    def test_core_target_writes_registry_shaped_module(self):
+        run_create(["detector", "--name", "my-smell", "--target", "core"])
+
+        module_path = os.path.join(self.tmp, "my_smell.py")
+        self.assertTrue(os.path.isfile(module_path))
+        content = open(module_path, encoding="utf-8").read()
+
+        self.assertIn('NAME = "my-smell"', content)
+        self.assertIn("TITLE =", content)
+        self.assertIn("DEFAULT_ARGS", content)
+        self.assertIn("def main(", content)
+        self.assertIn("from sniff import harness as h", content)
+        self.assertNotIn("@@", content)
 
 
 if __name__ == "__main__":
