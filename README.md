@@ -141,6 +141,8 @@ The action installs `ast-grep` and `sniff`, then runs `sniff diff --comment` aga
 | `cyclomatic-complexity` | Rank functions by cyclomatic complexity (S1541). |
 | `cognitive-complexity` | Rank functions by cognitive complexity (nesting-weighted read difficulty). |
 | `most-parameters` | Rank functions by parameter count (long-parameter-list smell). |
+| `most-imports` | Rank files by import count (high-coupling smell). |
+| `no-duplicate-string` | Flag repeated string literals that should be extracted as constants. |
 | `large-inline-templates` | Rank Angular components by inline-template line count. |
 | `sniff` | Umbrella runner: runs **all** detectors in one pass. Use this for a full scan. |
 | `sniff-patterns` | Run the pattern rule catalog in one `ast-grep scan` pass; compact findings table. |
@@ -165,14 +167,15 @@ src/sniff/        installable package (dist sniff-smells, command sniff)
   harness.py        shared ast-grep integration
   node_metric.py    per-node scoring (complexity, nesting, ...)
   rules_testing.py  `sniff test-rules` fixture runner
-  detectors/         one module per built-in detector (10, plus sniff-patterns)
+  detectors/         one module per built-in metric detector (10)
+  patterns_detector.py  the sniff-patterns rule-catalog detector (11th, at package root)
   patterns/          rule catalog: rules/, rule-tests/, sgconfig.yml
 skills/           thin SKILL.md wrappers around the sniff CLI, one per detector
   largest-methods/  large-classes/  largest-files/  deepest-nesting/
   cyclomatic-complexity/  cognitive-complexity/  most-parameters/  most-imports/
   no-duplicate-string/  large-inline-templates/  sniff/  sniff-patterns/
   sniff-create/     scripts/ + templates/, the skill/rule generator
-tests/            pytest suite (114 tests)
+tests/            pytest suite
 scripts/          bump_version.py and other maintenance scripts
 docs/             design spec
 ```
