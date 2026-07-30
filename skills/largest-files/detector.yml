@@ -1,5 +1,0 @@
-# sniff detector manifest. Discovered by skills/sniff (sniff --all).
-name: largest-files
-title: Largest files
-script: scripts/largest-files.py
-args:

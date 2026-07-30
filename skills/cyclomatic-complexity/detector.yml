@@ -1,5 +1,0 @@
-# sniff detector manifest. Discovered by skills/sniff (sniff --all).
-name: cyclomatic-complexity
-title: High cyclomatic complexity methods
-script: scripts/cyclomatic_complexity.py
-args:

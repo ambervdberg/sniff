@@ -2,22 +2,24 @@
 """Rank the largest source files by non-blank line count.
 
 The file-metric engine: no AST, just a line count per file. Big files are split
-candidates. Uses the shared _ast-harness helpers for the file walk (same ignore
-list and test handling as the AST skills) so behaviour stays consistent.
+candidates. Uses the shared harness helpers for the file walk (same ignore
+list and test handling as the AST detectors) so behaviour stays consistent.
 
 Usage:
-    python largest-files.py [PATH] [--top N] [--include-tests]
+    python -m sniff.detectors.largest_files [PATH] [--top N] [--include-tests]
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from dataclasses import dataclass
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
-from sniff import harness as h  # pylint: disable=wrong-import-position
+from sniff import harness as h
+
+NAME = "largest-files"
+TITLE = "Largest files"
+DEFAULT_ARGS: "list[str]" = []
 
 
 @dataclass
@@ -26,14 +28,17 @@ class FileStat:
     lines: int
 
 
-def main() -> None:
+def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(description="Rank the largest source files by non-blank line count.")
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
     parser.add_argument("--top", type=int, default=10, help="how many to show (default: 10)")
     parser.add_argument("--include-tests", action="store_true", help="include *.spec.* / *.test.* files")
-    args = parser.parse_args()
+    parser.add_argument("--extra-ignore", action="append", default=[],
+                        help="glob to exclude, relative to PATH (repeatable)")
+    args = parser.parse_args(argv)
 
-    files = h.iter_source_files(args.path, include_tests=args.include_tests)
+    files = h.iter_source_files(args.path, include_tests=args.include_tests,
+                                 extra_ignores=args.extra_ignore)
     if not files:
         sys.exit(f"No supported source files found under {args.path!r}.")
 
@@ -54,7 +59,8 @@ def main() -> None:
         top=args.top,
         header=header,
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -215,6 +215,7 @@ def inline_template_lines(
     path: str = ".",
     langs: "list[str] | None" = None,
     include_tests: bool = False,
+    extra_ignores: "list[str] | None" = None,
 ) -> list[h.Match]:
     """Score each Angular @Component by its inline-template line count.
 
@@ -231,7 +232,7 @@ def inline_template_lines(
 
     decorators = h.run(
         {l: ["decorator"] for l in langs}, path, lang=langs,
-        include_tests=include_tests, with_name=False,
+        include_tests=include_tests, with_name=False, extra_ignores=extra_ignores,
     )
 
     scored: list[h.Match] = []
@@ -255,6 +256,7 @@ def params(
     path: str = ".",
     langs: "list[str] | None" = None,
     include_tests: bool = False,
+    extra_ignores: "list[str] | None" = None,
 ) -> list[h.Match]:
     """Score every function under `path` by its parameter count.
 
@@ -271,10 +273,11 @@ def params(
         return []
 
     functions = h.fold_nested(
-        h.run(FUNCTION_KINDS, path, lang=langs, include_tests=include_tests)
+        h.run(FUNCTION_KINDS, path, lang=langs, include_tests=include_tests, extra_ignores=extra_ignores)
     )
     lists = h.run(
-        PARAM_LIST_KINDS, path, lang=langs, include_tests=include_tests, with_name=False
+        PARAM_LIST_KINDS, path, lang=langs, include_tests=include_tests, with_name=False,
+        extra_ignores=extra_ignores,
     )
 
     by_file: dict[str, list[h.Match]] = {}
@@ -354,6 +357,7 @@ def _cognitive_within(func: h.Match, nodes: list[h.Match]) -> int:
 
 def _functions_and_nesting(
     path: str, langs: "list[str] | None", include_tests: bool,
+    extra_ignores: "list[str] | None" = None,
 ) -> "tuple[list[h.Match], dict[str, list[h.Match]]]":
     """Shared scan for the nesting-based metrics (depth, cognitive).
 
@@ -367,10 +371,11 @@ def _functions_and_nesting(
         return [], {}
 
     functions = h.fold_nested(
-        h.run(FUNCTION_KINDS, path, lang=langs, include_tests=include_tests)
+        h.run(FUNCTION_KINDS, path, lang=langs, include_tests=include_tests, extra_ignores=extra_ignores)
     )
     nodes = h.run(
-        NESTING_KINDS, path, lang=langs, include_tests=include_tests, with_name=False
+        NESTING_KINDS, path, lang=langs, include_tests=include_tests, with_name=False,
+        extra_ignores=extra_ignores,
     )
 
     # Bucket nesting nodes by file so each function only scans its own file's nodes.
@@ -385,12 +390,13 @@ def nesting_depth(
     path: str = ".",
     langs: "list[str] | None" = None,
     include_tests: bool = False,
+    extra_ignores: "list[str] | None" = None,
 ) -> list[h.Match]:
     """Score every function under `path` by its maximum control-flow nesting depth.
 
     Returns the function Matches with `metrics['depth']` set. Unsupported
     languages (no NESTING_KINDS entry) are simply skipped."""
-    functions, by_file = _functions_and_nesting(path, langs, include_tests)
+    functions, by_file = _functions_and_nesting(path, langs, include_tests, extra_ignores)
 
     for func in functions:
         func.metrics["depth"] = _depth_within(func, by_file.get(func.file, []))
@@ -402,6 +408,7 @@ def cognitive(
     path: str = ".",
     langs: "list[str] | None" = None,
     include_tests: bool = False,
+    extra_ignores: "list[str] | None" = None,
 ) -> list[h.Match]:
     """Score every function under `path` by cognitive complexity.
 
@@ -412,7 +419,7 @@ def cognitive(
 
     Note: boolean-operator sequences (which Sonar also scores) are not yet
     counted here; use cyclomatic complexity for boolean-heavy code."""
-    functions, by_file = _functions_and_nesting(path, langs, include_tests)
+    functions, by_file = _functions_and_nesting(path, langs, include_tests, extra_ignores)
 
     for func in functions:
         func.metrics["cognitive"] = _cognitive_within(func, by_file.get(func.file, []))
@@ -424,6 +431,7 @@ def cyclomatic(
     path: str = ".",
     langs: "list[str] | None" = None,
     include_tests: bool = False,
+    extra_ignores: "list[str] | None" = None,
 ) -> list[h.Match]:
     """Score every function under `path` by cyclomatic complexity (S1541).
 
@@ -439,11 +447,12 @@ def cyclomatic(
         return []
 
     functions = h.fold_nested(
-        h.run(FUNCTION_KINDS, path, lang=langs, include_tests=include_tests)
+        h.run(FUNCTION_KINDS, path, lang=langs, include_tests=include_tests, extra_ignores=extra_ignores)
     )
     # _decision_rule is a per-language callable, the engine's escape-hatch shape.
     decisions = h.run(
-        _decision_rule, path, lang=langs, include_tests=include_tests, with_name=False
+        _decision_rule, path, lang=langs, include_tests=include_tests, with_name=False,
+        extra_ignores=extra_ignores,
     )
 
     by_file: dict[str, list[h.Match]] = {}

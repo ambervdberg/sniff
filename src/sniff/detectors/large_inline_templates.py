@@ -8,7 +8,7 @@ file; this finds the worst offenders. The calling agent only ever sees the
 table, never the AST.
 
 Usage:
-    python large_inline_templates.py [PATH] [--top N] [--min N] [--include-tests]
+    python -m sniff.detectors.large_inline_templates [PATH] [--top N] [--min N] [--include-tests]
 
 PATH defaults to the current directory. Only TypeScript/TSX is scanned (where
 Angular components live). Components using templateUrl are ignored.
@@ -17,29 +17,34 @@ Angular components live). Components using templateUrl are ignored.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
-from sniff import harness as h  # pylint: disable=wrong-import-position
-from sniff import node_metric as nm  # pylint: disable=wrong-import-position
+from sniff import harness as h
+from sniff import node_metric as nm
+
+NAME = "large-inline-templates"
+TITLE = "Large Angular inline templates"
+DEFAULT_ARGS: "list[str]" = []
 
 
-def main() -> None:
+def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(description="Rank Angular components by inline-template line count.")
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
     parser.add_argument("--top", type=int, default=10, help="how many to show (default: 10)")
     parser.add_argument("--min", type=int, default=1, dest="minimum",
                         help="only show templates at least this many lines (default: 1)")
     parser.add_argument("--include-tests", action="store_true", help="include *.spec.* / *.test.* files")
-    args = parser.parse_args()
+    parser.add_argument("--extra-ignore", action="append", default=[],
+                        help="glob to exclude, relative to PATH (repeatable)")
+    args = parser.parse_args(argv)
 
-    scored = nm.inline_template_lines(args.path, include_tests=args.include_tests)
+    scored = nm.inline_template_lines(args.path, include_tests=args.include_tests,
+                                       extra_ignores=args.extra_ignore)
     scored = [m for m in scored if m.metrics.get("template_lines", 0) >= args.minimum]
 
     if not scored:
         print(f"No Angular inline templates >= {args.minimum} lines under {args.path!r}.")
-        return
+        return 0
 
     header = (
         f"Largest inline templates: {min(args.top, len(scored))} of {len(scored)} components "
@@ -57,7 +62,8 @@ def main() -> None:
         top=args.top,
         header=header,
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

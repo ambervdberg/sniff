@@ -1,5 +1,0 @@
-# sniff detector manifest. Discovered by skills/sniff (sniff --all).
-name: deepest-nesting
-title: Deepest nested blocks
-script: scripts/deepest_nesting.py
-args:

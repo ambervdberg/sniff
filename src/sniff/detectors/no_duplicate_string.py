@@ -3,12 +3,12 @@
 
 Extracts string literals from TypeScript/JavaScript files and identifies strings
 that appear in multiple distinct files. Useful for spotting constants that should
-be centralized or extracted into a shared module. Uses the shared _ast-harness
-helpers for the file walk (same ignore list and test handling as AST skills) so
-behaviour stays consistent.
+be centralized or extracted into a shared module. Uses the shared harness
+helpers for the file walk (same ignore list and test handling as AST detectors)
+so behaviour stays consistent.
 
 Usage:
-    python no_duplicate_string.py [PATH] [--threshold N] [--min-len N] [--top N] [--include-tests]
+    python -m sniff.detectors.no_duplicate_string [PATH] [--threshold N] [--min-len N] [--top N] [--include-tests]
 
 PATH defaults to '.'; threshold (default 3) is how many distinct files a string must
 appear in to be flagged; min-len (default 4) filters out very short strings that
@@ -20,14 +20,16 @@ excluded, since those duplicates are structural, not smell.
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import sys
 from dataclasses import dataclass
 from collections import defaultdict
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
-from sniff import harness as h  # pylint: disable=wrong-import-position
+from sniff import harness as h
+
+NAME = "no-duplicate-string"
+TITLE = "Duplicated string literals (S1192)"
+DEFAULT_ARGS: "list[str]" = []
 
 
 # Regex to extract string literals: "..." or '...' (non-empty, single-line only).
@@ -110,7 +112,7 @@ class DuplicateString:
     locations: list[str]  # file:line pointers (up to 3)
 
 
-def main() -> None:
+def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(
         description="Find string literals duplicated across 3+ files (SonarQube S1192)."
     )
@@ -131,10 +133,15 @@ def main() -> None:
         "--include-tests", action="store_true",
         help="include *.spec.* / *.test.* files"
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--extra-ignore", action="append", default=[],
+        help="glob to exclude, relative to PATH (repeatable)"
+    )
+    args = parser.parse_args(argv)
 
     # Scan for source files.
-    files = h.iter_source_files(args.path, include_tests=args.include_tests)
+    files = h.iter_source_files(args.path, include_tests=args.include_tests,
+                                 extra_ignores=args.extra_ignore)
     if not files:
         sys.exit(f"No supported source files found under {args.path!r}.")
 
@@ -165,7 +172,7 @@ def main() -> None:
             f"No strings duplicated in {args.threshold}+ files "
             f"(min length: {args.min_len}; tests {'included' if args.include_tests else 'excluded'})."
         )
-        return
+        return 0
 
     # Sort by count descending.
     duplicates.sort(key=lambda d: d.count, reverse=True)
@@ -186,7 +193,8 @@ def main() -> None:
         top=args.top,
         header=header,
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -8,7 +8,7 @@ small DEPTH / NAME / LOCATION table. Deeply nested functions are the prime
 ever sees the table, never the AST.
 
 Usage:
-    python deepest_nesting.py [PATH] [--top N] [--lang L ...] [--min-depth N] [--include-tests]
+    python -m sniff.detectors.deepest_nesting [PATH] [--top N] [--lang L ...] [--min-depth N] [--include-tests]
 
 PATH defaults to the current directory. Languages are auto-detected unless
 --lang is given (repeatable). Only languages the engine has nesting kinds for
@@ -18,15 +18,17 @@ are scored.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
-from sniff import harness as h  # pylint: disable=wrong-import-position
-from sniff import node_metric as nm  # pylint: disable=wrong-import-position
+from sniff import harness as h
+from sniff import node_metric as nm
+
+NAME = "deepest-nesting"
+TITLE = "Deepest nested blocks"
+DEFAULT_ARGS: "list[str]" = []
 
 
-def main() -> None:
+def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(description="Rank functions by control-flow nesting depth (S134).")
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
     parser.add_argument("--top", type=int, default=10, help="how many to show (default: 10)")
@@ -34,13 +36,16 @@ def main() -> None:
     parser.add_argument("--min-depth", type=int, default=1,
                         help="only show functions at least this deep (default: 1, hide flat ones)")
     parser.add_argument("--include-tests", action="store_true", help="include *.spec.* / *.test.* files")
-    args = parser.parse_args()
+    parser.add_argument("--extra-ignore", action="append", default=[],
+                        help="glob to exclude, relative to PATH (repeatable)")
+    args = parser.parse_args(argv)
 
     langs = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path))
     if not langs:
         sys.exit(f"No supported source files found under {args.path!r}.")
 
-    scored = nm.nesting_depth(args.path, langs=langs, include_tests=args.include_tests)
+    scored = nm.nesting_depth(args.path, langs=langs, include_tests=args.include_tests,
+                               extra_ignores=args.extra_ignore)
 
     # Drop functions below the threshold so the table is all genuine smells.
     scored = [m for m in scored if m.metrics.get("depth", 0) >= args.min_depth]
@@ -48,7 +53,7 @@ def main() -> None:
     if not scored:
         scorable = ", ".join(l for l in langs if l in nm.NESTING_KINDS) or "none"
         print(f"No functions at nesting depth >= {args.min_depth} (scorable languages: {scorable}).")
-        return
+        return 0
 
     header = (
         f"Deepest {min(args.top, len(scored))} of {len(scored)} functions by nesting depth "
@@ -66,7 +71,8 @@ def main() -> None:
         top=args.top,
         header=header,
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -120,16 +120,25 @@ def _require_ast_grep() -> None:
         sys.exit("error: ast-grep is not installed or not on PATH. See https://ast-grep.github.io")
 
 
-def _extra_ignore_patterns() -> list[str]:
-    """Glob patterns from SNIFF_EXTRA_IGNORE (set by run.py from .sniff.toml's
-    `[ignore] globs = "..."`), comma-separated. Empty when unset."""
+def _extra_ignore_patterns(extra_ignores: "list[str] | None" = None) -> list[str]:
+    """Glob patterns to exclude, comma-separated where applicable.
+
+    `extra_ignores` is the parsed `--extra-ignore` args a built-in detector
+    collected from argparse; when given (even an empty list), it wins outright.
+    Only when it is absent (None) does this fall back to SNIFF_EXTRA_IGNORE (set
+    by cli.py around subprocess/external detectors, from .sniff.toml's
+    `[ignore] globs = "..."`)."""
+    if extra_ignores is not None:
+        return [p.strip() for p in extra_ignores if p.strip()]
     raw = os.environ.get("SNIFF_EXTRA_IGNORE", "")
     return [p.strip() for p in raw.split(",") if p.strip()]
 
 
-def _in_ignored_dir(path: str, root: "str | None" = None) -> bool:
+def _in_ignored_dir(
+    path: str, root: "str | None" = None, extra_ignores: "list[str] | None" = None
+) -> bool:
     """True if any path segment is an ignored (vendored/build) directory, or the
-    path matches a SNIFF_EXTRA_IGNORE glob.
+    path matches an extra-ignore glob (see `_extra_ignore_patterns`).
 
     The vendored-dir check runs on the raw path (base-independent). The glob check
     runs on `path` relative to `root` (forward-slashed), so a consumer's
@@ -139,7 +148,7 @@ def _in_ignored_dir(path: str, root: "str | None" = None) -> bool:
     vendored-dir list rather than replacing it, so both apply together."""
     if any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", path)):
         return True
-    patterns = _extra_ignore_patterns()
+    patterns = _extra_ignore_patterns(extra_ignores)
     if not patterns:
         return False
     rel = path
@@ -169,12 +178,16 @@ def detect_languages(root: str) -> set[str]:
     return found
 
 
-def iter_source_files(root: str, include_tests: bool = True) -> "list[str]":
+def iter_source_files(
+    root: str, include_tests: bool = True, extra_ignores: "list[str] | None" = None
+) -> "list[str]":
     """Yield supported source file paths (forward-slashed) under root.
 
     The file-metric engine's counterpart to detect_languages: it walks once,
     prunes ignored directories, keeps only known source extensions, and (unless
-    include_tests) drops *.spec.* / *.test.* files."""
+    include_tests) drops *.spec.* / *.test.* files. `extra_ignores`, when a
+    non-empty list, additionally drops files matching one of those globs
+    (scan-root-relative), mirroring `run()`'s handling for AST-based detectors."""
     out: list[str] = []
 
     for dirpath, dirnames, filenames in os.walk(root):
@@ -185,6 +198,8 @@ def iter_source_files(root: str, include_tests: bool = True) -> "list[str]":
                 continue
             path = os.path.join(dirpath, name).replace("\\", "/")
             if not include_tests and TEST_RE.search(path):
+                continue
+            if extra_ignores and _in_ignored_dir(path, root, extra_ignores):
                 continue
             out.append(path)
 
@@ -294,12 +309,15 @@ def run(
     lang: "str | Sequence[str] | None" = None,
     include_tests: bool = False,
     with_name: bool = True,
+    extra_ignores: "list[str] | None" = None,
 ) -> list[Match]:
     """Scan `path` for a structural pattern and return the matches.
 
     Languages are auto-detected from file extensions unless `lang` is given
     (a single id or a sequence). Test files are excluded unless `include_tests`.
-    See module docstring for the three accepted shapes of `rule_or_pattern`."""
+    `extra_ignores`, when given, is the caller's parsed `--extra-ignore` globs and
+    wins over SNIFF_EXTRA_IGNORE (see `_extra_ignore_patterns`). See module
+    docstring for the three accepted shapes of `rule_or_pattern`."""
     _require_ast_grep()
 
     if lang is None:
@@ -321,7 +339,7 @@ def run(
 
     # Drop vendored/build dirs explicitly: ast-grep only skips them when they are
     # gitignored, which is not guaranteed (e.g. a tree with no .gitignore).
-    raw = [m for m in raw if not _in_ignored_dir(m["file"], path)]
+    raw = [m for m in raw if not _in_ignored_dir(m["file"], path, extra_ignores)]
 
     if not include_tests:
         raw = [m for m in raw if not TEST_RE.search(m["file"])]

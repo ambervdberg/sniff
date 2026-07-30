@@ -7,7 +7,7 @@ Functions with many parameters are prime "introduce a parameter object / split
 this" refactor targets. The calling agent only ever sees the table, never the AST.
 
 Usage:
-    python most_parameters.py [PATH] [--top N] [--lang L ...] [--min N] [--include-tests]
+    python -m sniff.detectors.most_parameters [PATH] [--top N] [--lang L ...] [--min N] [--include-tests]
 
 PATH defaults to the current directory. Languages auto-detected unless --lang is
 given (repeatable). Only languages the engine has parameter kinds for are scored.
@@ -16,15 +16,17 @@ given (repeatable). Only languages the engine has parameter kinds for are scored
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
-from sniff import harness as h  # pylint: disable=wrong-import-position
-from sniff import node_metric as nm  # pylint: disable=wrong-import-position
+from sniff import harness as h
+from sniff import node_metric as nm
+
+NAME = "most-parameters"
+TITLE = "Methods with most parameters"
+DEFAULT_ARGS: "list[str]" = []
 
 
-def main() -> None:
+def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(description="Rank functions by parameter count.")
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
     parser.add_argument("--top", type=int, default=10, help="how many to show (default: 10)")
@@ -32,19 +34,22 @@ def main() -> None:
     parser.add_argument("--min", type=int, default=3, dest="minimum",
                         help="only show functions with at least this many params (default: 3, ignores <=2)")
     parser.add_argument("--include-tests", action="store_true", help="include *.spec.* / *.test.* files")
-    args = parser.parse_args()
+    parser.add_argument("--extra-ignore", action="append", default=[],
+                        help="glob to exclude, relative to PATH (repeatable)")
+    args = parser.parse_args(argv)
 
     langs = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path))
     if not langs:
         sys.exit(f"No supported source files found under {args.path!r}.")
 
-    scored = nm.params(args.path, langs=langs, include_tests=args.include_tests)
+    scored = nm.params(args.path, langs=langs, include_tests=args.include_tests,
+                        extra_ignores=args.extra_ignore)
     scored = [m for m in scored if m.metrics.get("params", 0) >= args.minimum]
 
     if not scored:
         scorable = ", ".join(l for l in langs if l in nm.PARAM_LIST_KINDS) or "none"
         print(f"No functions with >= {args.minimum} params (scorable languages: {scorable}).")
-        return
+        return 0
 
     header = (
         f"Most parameters: {min(args.top, len(scored))} of {len(scored)} functions "
@@ -62,7 +67,8 @@ def main() -> None:
         top=args.top,
         header=header,
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -5,19 +5,21 @@ Files with many imports signal high coupling and are likely god files or good
 candidates for refactoring. Uses ast-grep to find import declarations per file.
 
 Usage:
-    python most_imports.py [PATH] [--top N] [--include-tests]
+    python -m sniff.detectors.most_imports [PATH] [--top N] [--include-tests]
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
-from sniff import harness as h  # pylint: disable=wrong-import-position
+from sniff import harness as h
+
+NAME = "most-imports"
+TITLE = "Files by import count"
+DEFAULT_ARGS: "list[str]" = []
 
 
 @dataclass
@@ -26,12 +28,14 @@ class FileStat:
     count: int
 
 
-def main() -> None:
+def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(description="Rank files by import statement count.")
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
     parser.add_argument("--top", type=int, default=10, help="how many to show (default: 10)")
     parser.add_argument("--include-tests", action="store_true", help="include *.spec.* / *.test.* files")
-    args = parser.parse_args()
+    parser.add_argument("--extra-ignore", action="append", default=[],
+                        help="glob to exclude, relative to PATH (repeatable)")
+    args = parser.parse_args(argv)
 
     # Supported languages for import counting: TypeScript, JavaScript variants.
     langs = ["typescript", "tsx", "javascript"]
@@ -43,11 +47,12 @@ def main() -> None:
         lang=langs,
         include_tests=args.include_tests,
         with_name=False,
+        extra_ignores=args.extra_ignore,
     )
 
     if not matches:
         print(f"No import statements found under {args.path!r}.")
-        return
+        return 0
 
     # Count imports per file.
     counts: dict[str, int] = defaultdict(int)
@@ -71,7 +76,8 @@ def main() -> None:
         top=args.top,
         header=header,
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

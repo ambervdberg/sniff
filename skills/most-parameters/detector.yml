@@ -1,5 +1,0 @@
-# sniff detector manifest. Discovered by skills/sniff (sniff --all).
-name: most-parameters
-title: Methods with most parameters
-script: scripts/most_parameters.py
-args:

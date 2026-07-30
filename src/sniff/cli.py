@@ -24,6 +24,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import os
 import re
@@ -135,13 +137,17 @@ def _override_args(args: list[str], overrides: dict[str, str]) -> list[str]:
 def apply_config_to_detector(detector: discovery.Detector, cfg: config.Config) -> discovery.Detector:
     """Fold .sniff.toml overrides that target one detector into its args.
 
-    Config can change what a selected detector's own subprocess sees:
+    Config can change what a selected detector's own run sees:
     `[detectors] <name>.<arg> = value` overrides that detector's CLI args;
     `[rules] <id> = false` (sniff-patterns only) becomes `--disable <ids>` so the
-    pattern catalog skips those rules; and `[rules] <id> = "<severity>"`
-    (sniff-patterns only) becomes `--severity-override <id>=<severity>`. Returns
-    `detector` unchanged (same object) when none applies, so callers can skip
-    work for the common no-config case."""
+    pattern catalog skips those rules; `[rules] <id> = "<severity>"`
+    (sniff-patterns only) becomes `--severity-override <id>=<severity>`; and
+    `[ignore] globs = "..."` becomes repeated `--extra-ignore <glob>` args for a
+    built-in (module) detector, since `module.main(argv)` parses that flag itself
+    (a subprocess/external detector still gets it via SNIFF_EXTRA_IGNORE, set
+    once in main() around the subprocess batch, not here). Returns `detector`
+    unchanged (same object) when none applies, so callers can skip work for the
+    common no-config case."""
     args = detector.args
     overrides = cfg.thresholds.get(detector.name)
     if overrides:
@@ -151,16 +157,54 @@ def apply_config_to_detector(detector: discovery.Detector, cfg: config.Config) -
     if detector.name == "sniff-patterns" and cfg.severity_overrides:
         for rule_id, level in sorted(cfg.severity_overrides.items()):
             args = [*args, "--severity-override", f"{rule_id}={level}"]
+    if detector.module is not None and cfg.extra_ignores:
+        for glob_pat in cfg.extra_ignores:
+            args = [*args, "--extra-ignore", glob_pat]
     if args is detector.args:
         return detector
     return replace(detector, args=args)
 
 
-def run_detector(detector: discovery.Detector, path: str) -> str:
-    """Run one detector's script over `path`, return its stdout (or an error note).
+def _run_module_detector(detector: discovery.Detector, path: str) -> "tuple[str, int, str | None]":
+    """Run a built-in detector's module.main() in-process, capturing its stdout.
 
-    A detector that fails (non-zero exit, crash) yields an error section instead of
-    aborting the whole run, so one broken detector cannot suppress the others."""
+    Mirrors what the subprocess path gets from a script: (stdout text, exit code,
+    error message). Detectors call `sys.exit("some message")` on a usage error
+    (e.g. no supported source files); in-process that raises SystemExit with a
+    string `.code` instead of printing to stderr and exiting, so it is caught
+    here and folded into the same shape run_detector/_json already expect."""
+    buf = io.StringIO()
+    error: "str | None" = None
+    try:
+        with contextlib.redirect_stdout(buf):
+            result = detector.module.main([path, *detector.args])
+        code = result if isinstance(result, int) else 0
+    except SystemExit as exc:
+        if isinstance(exc.code, int):
+            code = exc.code
+        elif exc.code is None:
+            code = 0
+        else:
+            code = 1
+            error = str(exc.code)
+    return buf.getvalue(), code, error
+
+
+def run_detector(detector: discovery.Detector, path: str) -> str:
+    """Run one detector over `path`, return its stdout (or an error note).
+
+    Built-ins (`detector.module` set) run in-process; external detectors still
+    shell out to their script. A detector that fails (non-zero exit, crash)
+    yields an error section instead of aborting the whole run, so one broken
+    detector cannot suppress the others."""
+    if detector.module is not None:
+        out, code, error = _run_module_detector(detector, path)
+        out = out.strip()
+        if code != 0:
+            err = error or f"exit code {code}"
+            return f"{out}\n\n_detector exited non-zero: {err}_".strip()
+        return out or "_no output_"
+
     cmd = [sys.executable, detector.script, path, *detector.args]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -175,11 +219,22 @@ def run_detector(detector: discovery.Detector, path: str) -> str:
 
 
 def run_detector_json(detector: discovery.Detector, path: str) -> dict:
-    """Run one detector's script over `path`, return a JSON-serializable result.
+    """Run one detector over `path`, return a JSON-serializable result.
 
-    Mirrors run_detector's subprocess handling but keeps stdout/stderr/exit_code
-    structured instead of folding them into a markdown string, so `--json`
-    output stays machine-parseable (e.g. by evals/scorer.py)."""
+    Mirrors run_detector's handling (in-process for built-ins, subprocess for
+    external) but keeps stdout/stderr/exit_code structured instead of folding
+    them into a markdown string, so `--json` output stays machine-parseable
+    (e.g. by evals/scorer.py)."""
+    if detector.module is not None:
+        out, code, error = _run_module_detector(detector, path)
+        return {
+            "detector": detector.name,
+            "title": detector.title,
+            "exit_code": code,
+            "output": out.strip(),
+            "error": error,
+        }
+
     cmd = [sys.executable, detector.script, path, *detector.args]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -640,10 +695,11 @@ def main(argv: "list[str] | None" = None) -> int:
         return 0
 
     selected = [apply_config_to_detector(d, cfg) for d in selected]
-    if cfg.extra_ignores:
-        # Inherited by detector subprocess.run calls (no explicit env= kwarg
-        # restricts them), so both sniff-patterns' format.py and the shared
-        # ast-harness pick this up via SNIFF_EXTRA_IGNORE.
+    if cfg.extra_ignores and any(d.module is None for d in selected):
+        # Built-ins get extra-ignore globs as --extra-ignore args (folded in by
+        # apply_config_to_detector above); this env var is only needed for the
+        # remaining subprocess/external detectors (sniff-patterns' format.py),
+        # inherited by their subprocess.run calls (no explicit env= restricts them).
         os.environ["SNIFF_EXTRA_IGNORE"] = ",".join(cfg.extra_ignores)
 
     if args.json:

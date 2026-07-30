@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Discover smell detectors by globbing skills/*/detector.yml.
+"""Discover smell detectors: built-in registry modules plus manifest-based ones.
 
-Each detector skill drops a small `detector.yml` manifest next to its script. The
-umbrella runner (`run.py`) globs every manifest under the skills root and invokes
-the named script uniformly, so adding a detector is zero-cost: drop a manifest and
-it joins `sniff` automatically, with no edit to the runner. This mirrors the
-sniff-patterns rule catalog, where adding a rule file costs nothing.
+The 10 built-in detectors (complexity, nesting, size, etc.) live as modules in
+`sniff.detectors.BUILTIN` and run in-process (see cli.py). sniff-patterns is not
+yet in that registry (a later task adds it), so it is still discovered the old
+way: `skills/sniff-patterns/detector.yml` is globbed and its script run as a
+subprocess, exactly like every detector used to work before the registry existed.
 
 The manifest is parsed without PyYAML (the project stays dependency-free, matching
 how sniff-patterns hand-parses its rule files). It is therefore a FLAT key: value file:
 
-    name: cognitive-complexity
-    title: High cognitive complexity methods
-    script: scripts/cognitive_complexity.py
+    name: sniff-patterns
+    title: Pattern rule catalog
+    script: scripts/format.py
     args: --top 20
 
 `args` is optional and space-split into extra CLI args appended after the scan DIR.
@@ -24,6 +24,9 @@ import glob
 import os
 import shlex
 from dataclasses import dataclass, field
+from types import ModuleType
+
+from sniff.detectors import BUILTIN
 
 # src/sniff/discovery.py -> repo root is three levels up; skills/ lives beside src/.
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,11 +35,15 @@ SKILLS_ROOT = os.path.join(_REPO_ROOT, "skills")
 
 @dataclass
 class Detector:
-    """One discovered detector: enough to invoke it and label its section."""
+    """One discovered detector: enough to invoke it and label its section.
+
+    Exactly one of `script` (subprocess/external detector) or `module` (built-in,
+    run in-process) is set."""
 
     name: str
     title: str
-    script: str  # absolute path to the detector's script
+    script: str = ""                      # set for subprocess (external) detectors
+    module: "ModuleType | None" = None    # set for built-in detectors
     args: list[str] = field(default_factory=list)
     skill_dir: str = ""
 
@@ -57,11 +64,18 @@ def _parse_manifest(path: str) -> dict[str, str]:
 def discover() -> tuple[list[Detector], list[str]]:
     """Return (detectors, errors).
 
-    Globs skills/*/detector.yml, parses each into a Detector. A manifest missing a
-    required field (name + script) is collected as an error string rather than
-    crashing the whole run, so one broken detector cannot hide all the others.
-    Detectors are returned sorted by name for stable output."""
-    detectors: list[Detector] = []
+    Built-in detectors come straight from `sniff.detectors.BUILTIN`, one Detector
+    per module, no manifest involved. Any remaining manifest-based detector
+    (currently just sniff-patterns) is still found by globbing
+    skills/*/detector.yml, parsed into a Detector the same way as before the
+    registry existed. A manifest missing a required field (name + script) is
+    collected as an error string rather than crashing the whole run, so one
+    broken detector cannot hide all the others. Detectors are returned sorted by
+    name for stable output."""
+    detectors: list[Detector] = [
+        Detector(name=m.NAME, title=m.TITLE, module=m, args=list(m.DEFAULT_ARGS))
+        for m in BUILTIN
+    ]
     errors: list[str] = []
 
     for manifest in sorted(glob.glob(os.path.join(SKILLS_ROOT, "*", "detector.yml"))):

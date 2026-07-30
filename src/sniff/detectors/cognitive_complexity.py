@@ -9,7 +9,7 @@ table. High scores flag the functions that are hardest to follow, the prime
 table, never the AST.
 
 Usage:
-    python cognitive_complexity.py [PATH] [--top N] [--lang L ...] [--min N] [--include-tests]
+    python -m sniff.detectors.cognitive_complexity [PATH] [--top N] [--lang L ...] [--min N] [--include-tests]
 
 PATH defaults to the current directory. Languages auto-detected unless --lang is
 given (repeatable). Only languages the engine has nesting kinds for are scored.
@@ -18,15 +18,17 @@ given (repeatable). Only languages the engine has nesting kinds for are scored.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "src"))
-from sniff import harness as h  # pylint: disable=wrong-import-position
-from sniff import node_metric as nm  # pylint: disable=wrong-import-position
+from sniff import harness as h
+from sniff import node_metric as nm
+
+NAME = "cognitive-complexity"
+TITLE = "High cognitive complexity methods"
+DEFAULT_ARGS: "list[str]" = []
 
 
-def main() -> None:
+def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(description="Rank functions by cognitive complexity.")
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
     parser.add_argument("--top", type=int, default=10, help="how many to show (default: 10)")
@@ -34,19 +36,22 @@ def main() -> None:
     parser.add_argument("--min", type=int, default=1, dest="minimum",
                         help="only show functions at least this complex (default: 1)")
     parser.add_argument("--include-tests", action="store_true", help="include *.spec.* / *.test.* files")
-    args = parser.parse_args()
+    parser.add_argument("--extra-ignore", action="append", default=[],
+                        help="glob to exclude, relative to PATH (repeatable)")
+    args = parser.parse_args(argv)
 
     langs = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path))
     if not langs:
         sys.exit(f"No supported source files found under {args.path!r}.")
 
-    scored = nm.cognitive(args.path, langs=langs, include_tests=args.include_tests)
+    scored = nm.cognitive(args.path, langs=langs, include_tests=args.include_tests,
+                           extra_ignores=args.extra_ignore)
     scored = [m for m in scored if m.metrics.get("cognitive", 0) >= args.minimum]
 
     if not scored:
         scorable = ", ".join(l for l in langs if l in nm.NESTING_KINDS) or "none"
         print(f"No functions at cognitive >= {args.minimum} (scorable languages: {scorable}).")
-        return
+        return 0
 
     header = (
         f"Hardest to read: {min(args.top, len(scored))} of {len(scored)} functions by cognitive complexity "
@@ -64,7 +69,8 @@ def main() -> None:
         top=args.top,
         header=header,
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
