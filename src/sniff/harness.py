@@ -30,6 +30,7 @@ Stable public API (kept small so generated scripts stay ~20 lines):
 from __future__ import annotations
 
 import fnmatch
+import functools
 import json
 import os
 import re
@@ -144,6 +145,60 @@ def _extra_ignore_patterns(extra_ignores: "list[str] | None" = None) -> list[str
     return [p.strip() for p in raw.split(",") if p.strip()]
 
 
+@functools.lru_cache(maxsize=None)
+def _git_visible_files(root: str) -> "frozenset[str] | None":
+    """Root-relative forward-slashed paths git does not ignore, or None when unknown.
+
+    ast-grep honors .gitignore natively, so the AST-based detectors already skip
+    ignored files; without this the os.walk-based file-metric detectors would
+    disagree with them on the same repo. Asking git is deliberate: .gitignore
+    semantics (negation, nested files, precedence, core.excludesFile) are far too
+    subtle to reimplement, and `ls-files` also picks up .git/info/exclude and the
+    user's global ignore file for free.
+
+    None means "no gitignore data" (not a repo, git missing, git failed) and the
+    caller falls back to the fixed IGNORE_DIRS list alone. Cached because several
+    detectors walk the same root in one run."""
+    try:
+        proc = subprocess.run(
+            # -z is deliberate: without it git quote-escapes non-ASCII paths per
+            # core.quotePath, which would never match a walked path. `git -C
+            # <dir> ls-files` prints paths relative to <dir>, exactly the key
+            # the walkers build below.
+            ["git", "-C", root, "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError:
+        return None  # git not installed
+    if proc.returncode != 0:
+        return None  # not a git repo (or other git failure)
+    return frozenset(p for p in proc.stdout.split("\0") if p)
+
+
+def _is_gitignored(path: str, root: str) -> bool:
+    """True if git ignores `path`, a file under `root`.
+
+    `path` may use either separator (detect_languages walks with the native one,
+    iter_source_files has already forward-slashed its paths), so the relative key
+    is normalized before the lookup: git always reports forward slashes.
+
+    Absence from the visible set is what marks a file ignored, so an unknown
+    result (`None`) has to mean "not ignored" -- otherwise a missing git would
+    make every detector report an empty repo."""
+    visible = _git_visible_files(os.path.abspath(root))
+    if visible is None:
+        return False
+    try:
+        rel = os.path.relpath(path, root)
+    except ValueError:
+        # Different drive on Windows: relpath raises, treat as not ignored.
+        return False
+    return rel.replace("\\", "/") not in visible
+
+
 def _in_ignored_dir(
     path: str, root: "str | None" = None, extra_ignores: "list[str] | None" = None
 ) -> bool:
@@ -173,17 +228,25 @@ def _in_ignored_dir(
 
 
 def detect_languages(root: str) -> set[str]:
-    """Walk the tree once and collect which supported languages are present."""
+    """Walk the tree once and collect which supported languages are present.
+
+    Gitignored files are skipped when `root` is a git repo (see `_is_gitignored`),
+    so this agrees with the AST-based detectors, which ast-grep already filters
+    through .gitignore natively."""
     found: set[str] = set()
 
-    for _dirpath, dirnames, filenames in os.walk(root):
+    for dirpath, dirnames, filenames in os.walk(root):
         # Prune ignored directories in place so os.walk never descends into them.
         dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
 
         for name in filenames:
             lang = EXT_LANG.get(os.path.splitext(name)[1].lower())
-            if lang:
-                found.add(lang)
+            if not lang:
+                continue
+            path = os.path.join(dirpath, name)
+            if _is_gitignored(path, root):
+                continue
+            found.add(lang)
 
     return found
 
@@ -197,7 +260,10 @@ def iter_source_files(
     prunes ignored directories, keeps only known source extensions, and (unless
     include_tests) drops *.spec.* / *.test.* files. `extra_ignores`, when a
     non-empty list, additionally drops files matching one of those globs
-    (scan-root-relative), mirroring `run()`'s handling for AST-based detectors."""
+    (scan-root-relative), mirroring `run()`'s handling for AST-based detectors.
+    Gitignored files are skipped when `root` is a git repo (see `_is_gitignored`),
+    so this agrees with the AST-based detectors, which ast-grep already filters
+    through .gitignore natively."""
     out: list[str] = []
 
     for dirpath, dirnames, filenames in os.walk(root):
@@ -210,6 +276,8 @@ def iter_source_files(
             if not include_tests and TEST_RE.search(path):
                 continue
             if extra_ignores and _in_ignored_dir(path, root, extra_ignores):
+                continue
+            if _is_gitignored(path, root):
                 continue
             out.append(path)
 

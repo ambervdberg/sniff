@@ -12,6 +12,7 @@ from __future__ import annotations
 import io
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import textwrap
@@ -21,6 +22,7 @@ from contextlib import redirect_stdout
 from sniff import harness as h
 
 HAS_AST_GREP = shutil.which("ast-grep") is not None
+HAS_GIT = shutil.which("git") is not None
 
 
 def _match(file, start, end, b_start, b_end, name="(anon)"):
@@ -207,6 +209,72 @@ class FileMetricTest(unittest.TestCase):
     def test_count_code_lines_skips_blanks(self):
         path = next(f for f in h.iter_source_files(self.root) if f.endswith("app.ts"))
         self.assertEqual(h.count_code_lines(path), 2)
+
+
+@unittest.skipUnless(HAS_GIT, "git not on PATH")
+class GitignoreAwarenessTest(unittest.TestCase):
+    """The os.walk-based walkers skip gitignored files, so they agree with the
+    AST detectors (ast-grep filters through .gitignore natively).
+
+    The other half of the contract matters just as much: when git cannot answer
+    (no repo here, or no git at all) nothing may be hidden, otherwise every
+    non-git project would suddenly scan as empty."""
+
+    def setUp(self):
+        # _git_visible_files is lru_cached on the root path; clearing keeps these
+        # tests independent of each other and of whatever ran before them.
+        h._git_visible_files.cache_clear()
+        self.root = tempfile.mkdtemp()
+
+    def tearDown(self):
+        h._git_visible_files.cache_clear()
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def _write(self, rel, body):
+        path = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(body)
+
+    def _git_init(self):
+        subprocess.run(["git", "init", self.root], capture_output=True, text=True, check=True)
+
+    def test_iter_source_files_skips_gitignored_file(self):
+        self._write(".gitignore", "skipme/\n")
+        self._write("keep/a.py", "x = 1\n")
+        self._write("skipme/b.py", "y = 2\n")
+        self._git_init()
+
+        files = h.iter_source_files(self.root)
+
+        names = {os.path.basename(f) for f in files}
+        self.assertIn("a.py", names)
+        self.assertNotIn("b.py", names)
+
+    def test_iter_source_files_keeps_everything_when_not_a_git_repo(self):
+        # Same tree, no `git init`: git fails, _git_visible_files returns None,
+        # and the walker must fall back to showing every source file.
+        self._write(".gitignore", "skipme/\n")
+        self._write("keep/a.py", "x = 1\n")
+        self._write("skipme/b.py", "y = 2\n")
+
+        self.assertIsNone(h._git_visible_files(os.path.abspath(self.root)),
+                          "precondition: this tree is not a git repo")
+
+        names = {os.path.basename(f) for f in h.iter_source_files(self.root)}
+        self.assertIn("a.py", names)
+        self.assertIn("b.py", names)
+
+    def test_detect_languages_skips_gitignored_file(self):
+        self._write(".gitignore", "skipme/\n")
+        self._write("keep/a.ts", "const a = 1;\n")
+        self._write("skipme/b.py", "y = 2\n")
+        self._git_init()
+
+        langs = h.detect_languages(self.root)
+
+        self.assertIn("typescript", langs)
+        self.assertNotIn("python", langs)
 
 
 if __name__ == "__main__":
