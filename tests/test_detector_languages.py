@@ -164,19 +164,34 @@ def test_sniff_patterns_language_list_grows_with_local_rules(tmp_path):
     assert "go" in patterns.languages
 
 
+REGENERATE = "run `python scripts/update_docs.py`"
+
+
 def test_readme_pattern_catalog_matches_the_rules():
     """Same reason as the matrix: a stale rule list sends readers after rule ids
     that no longer exist, or hides ones that do."""
     from sniff.patterns import format as fmt
 
     block = _readme_block("pattern-catalog")
-    assert block == fmt.render_catalog_table(fmt.catalog_rules()).strip()
+    assert block == fmt.render_catalog_table(fmt.catalog_rules()).strip(), REGENERATE
 
 
 def test_readme_matrix_matches_the_detectors():
     """A hand-edited matrix would claim support the code does not have."""
     detectors, _ = discovery.discover()
-    assert _readme_block("language-matrix") == discovery.render_language_matrix(detectors).strip()
+    matrix = discovery.render_language_matrix(detectors).strip()
+    assert _readme_block("language-matrix") == matrix, REGENERATE
+
+
+def test_update_docs_script_agrees_with_these_tests():
+    """The script must produce exactly what the drift tests demand.
+
+    Without this, the two could disagree and leave the suite red no matter how
+    many times someone runs the fix it tells them to run."""
+    sys.path.insert(0, os.path.join(REPO_ROOT, "scripts"))
+    import update_docs
+
+    assert update_docs.main(["--check"]) == 0, REGENERATE
 
 
 def _readme_block(marker: str) -> str:
