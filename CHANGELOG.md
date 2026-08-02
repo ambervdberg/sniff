@@ -8,58 +8,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [0.12.0] - 2026-08-02
 
-- Every detector now skips files your `.gitignore` excludes, when the scanned
-  directory is a git repo. Previously only the pattern and AST detectors did, so
-  `largest-files` would report build output that `sniff-patterns` had skipped.
-  `.git/info/exclude` and your global ignore file count too.
-- New `sniff --ignore GLOB` flag to exclude paths without writing a config file.
-  Repeatable, and it adds to `.sniff.toml`'s `[ignore] globs` rather than replacing
-  them.
-- `sniff-patterns` no longer floods its output with one rule's hits: each rule now
-  lists at most 10 locations, followed by a `+N more` row, while the heading keeps
-  reporting the rule's full count. Pass `--top-locs 0` for the old behaviour of
-  listing every location, or `--top-locs N` to pick your own cap.
+- Every detector now skips files in `.gitignore`.
+- New `sniff --ignore GLOB` flag to exclude paths. Repeatable, adds to `.sniff.toml`.
+- `sniff-patterns` lists at most 10 locations per rule. `--top-locs N` to change,
+  `0` for all.
 
 ## [0.11.0] - 2026-08-02
 
-- Fix: lifecycle hooks never ran under Codex, and the Stop hook fired twice under
-  Claude Code. Both hosts now load one file, `hooks/hooks.json`, and hook commands
-  no longer depend on the working directory they were launched from.
-- The SessionStart hook no longer requires the CLI to be preinstalled: when `sniff`
-  is not on PATH it runs the PyPI package through `uvx`, pinned to the plugin's own
-  version, and otherwise prints a one-line install hint instead of failing.
-- Fix: 8.5 MB of local `.beads` tracker state was published to PyPI. The sdist is
-  now the `sniff` CLI and nothing else: 3956 KB to 49 KB.
-- Added a MIT `LICENSE`. The project previously had none, which left it
-  all-rights-reserved despite shipping on PyPI and as an installable plugin.
-- Codex plugin manifest gained the metadata install surfaces expect: license,
-  website, brand colour, logo, and prose starter prompts.
-- Fix: `.claude-plugin/marketplace.json` was stuck at `0.1.1` while the plugin was
-  at `0.10.0`, so Claude Code warned on every marketplace validation. Versions are
-  now bumped together, and a test fails the build if they drift apart again.
-- `sniff doctor` and `sniff prime` no longer report version drift; that check moved
-  into the test suite.
+- Fix: hooks never ran under Codex, and the Stop hook fired twice under Claude Code.
+- The SessionStart hook no longer needs the CLI preinstalled; it falls back to `uvx`.
+- Fix: the sdist is the `sniff` CLI and nothing else: 3956 KB to 49 KB.
+- Added a MIT `LICENSE`.
+- Codex plugin manifest gained the metadata install surfaces expect.
+- Fix: `.claude-plugin/marketplace.json` no longer drifts from the plugin version.
+- `sniff doctor` and `sniff prime` no longer report version drift.
 
 ## [0.10.0] - 2026-07-30
 
-- **Breaking:** the plugin-scripts layout is replaced by an installable package,
-  `sniff-smells`. Install with `uv tool install sniff-smells`. The `sniff` command
-  and its flags are unchanged.
-- Custom detectors: add a `detector.yml` under `.sniff/detectors/<name>/` in the
-  scanned project. Local pattern rules in `.sniff/rules/` run alongside the catalog.
-- Project config via `.sniff.toml`: `[rules]` to disable a rule or change severity,
-  `[detectors]` to skip detectors or override thresholds, `[ignore]` for path globs.
-- `sniff contribute <rule-id>` upstreams a local rule, into an existing checkout or
-  via a `gh` fork and pull request.
-- With `--only <one detector>`, trailing flags pass through to that detector and
-  take precedence over `.sniff.toml`.
+- **Breaking:** now an installable package. Install with `uv tool install sniff-smells`;
+  the `sniff` command and its flags are unchanged.
+- Custom detectors via `.sniff/detectors/<name>/detector.yml`, local rules via
+  `.sniff/rules/`.
+- Project config via `.sniff.toml`: `[rules]`, `[detectors]`, `[ignore]`.
+- `sniff contribute <rule-id>` upstreams a local rule.
+- With `--only <one detector>`, trailing flags pass through to it.
 
 ## [0.9.5]
 
-- New subcommands: `sniff version`, `sniff doctor` (checks Python, ast-grep, and
-  detector manifests), and `sniff prime` (agent context, no scan).
+- New subcommands: `sniff version`, `sniff doctor`, `sniff prime`.
 - `sniff baseline write` / `sniff diff` save and compare per-detector finding counts.
 - `--json` output for `--list` and scans.
-- Every detector (complexity, nesting, parameters, method/class/file size, inline
-  templates, duplicate strings, pattern rules) runs standalone or aggregated.
+- Every detector runs standalone or aggregated.
 - Native Codex plugin alongside the Claude Code plugin.
