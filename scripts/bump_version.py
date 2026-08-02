@@ -16,8 +16,9 @@ VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def _write_json(path: str, data: dict) -> None:
-    """Write JSON back with the repo's house style: 2-space indent, trailing newline."""
-    with open(path, "w", encoding="utf-8") as fh:
+    """Write JSON back with the repo's house style: 2-space indent, trailing newline,
+    LF line endings (newline="" stops Windows from translating \\n to \\r\\n)."""
+    with open(path, "w", encoding="utf-8", newline="") as fh:
         json.dump(data, fh, indent=2)
         fh.write("\n")
 
@@ -30,7 +31,7 @@ def bump(root: str, version: str) -> list[str]:
     with open(pyproject_path, "r", encoding="utf-8") as fh:
         text = fh.read()
     text = re.sub(r'(?m)^version\s*=\s*"[^"]+"', f'version = "{version}"', text)
-    with open(pyproject_path, "w", encoding="utf-8") as fh:
+    with open(pyproject_path, "w", encoding="utf-8", newline="") as fh:
         fh.write(text)
     touched.append(pyproject_path)
 
