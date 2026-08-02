@@ -39,7 +39,7 @@ def main(argv: "list[str] | None" = None) -> int:
                         help="glob to exclude, relative to PATH (repeatable)")
     args = parser.parse_args(argv)
 
-    langs = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path))
+    langs = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
     if not langs:
         sys.exit(f"No supported source files found under {args.path!r}.")
 
