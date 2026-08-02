@@ -43,6 +43,11 @@ Run the detector through the installed sniff CLI:
 `DIR` defaults to the current directory. Filter with `--severity` or a single
 `--rule`. Vendored/build dirs are always skipped.
 
+Rules print worst severity first (error, warning, info, hint). Each heading carries
+the rule's full hit count, but only its first 10 locations are listed; the rest
+collapse into a `+N more` row. Use `--top-locs 0` to list every location of every
+rule, or `--top-locs N --rule <id>` to expand one rule.
+
 ## Adding rules
 
 Use `sniff-create` (rule mode) to add a rule, or drop a standard ast-grep rule file

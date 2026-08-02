@@ -6,6 +6,9 @@ matches. This script folds that JSON into a small RULE / SEVERITY / COUNT /
 TOP LOCATIONS table so the calling agent only ever sees the
 summary, never the raw per-match JSON.
 
+Rules print worst severity first (error, warning, info, hint), each heading carries
+the full hit count, and only the first `--top-locs` locations are listed.
+
 Usage:
     python format.py [DIR] [--severity error|warning|info|hint] [--rule ID] [--top-locs N]
                      [--extra-ignore GLOB ...]
@@ -40,6 +43,13 @@ IGNORE_DIRS = {
 
 # ast-grep severity ordering, worst first, for sorting the table.
 SEVERITY_ORDER = {"error": 0, "warning": 1, "info": 2, "hint": 3}
+
+# How many locations one rule may list before the rest collapse into a "+N more"
+# row. A single noisy rule used to print every hit (118 rows for py-print-statement
+# on this repo), which swamps the caller's context and defeats the point of a
+# summary table. The heading still carries the true total, and `--top-locs 0`
+# restores the full list when an agent really wants to act on every hit.
+DEFAULT_TOP_LOCS = 10
 
 
 def ast_grep_exe() -> str:
@@ -171,7 +181,9 @@ def print_rule_table(rows: list[tuple[str, str, int, list[str]]]) -> None:
     removes that repetition while keeping each section self-contained: the agent
     reads the heading for rule+severity, then every row underneath is a location for
     that rule. Narrow single-column rows always render (no viewport overflow).
-    `rows` is already sorted; each is (rule_id, severity, count, locs)."""
+    `rows` is already sorted worst-severity first; each is
+    (rule_id, severity, count, locs), where `count` is the true total and `locs`
+    may be a --top-locs-capped prefix of it."""
     if not rows:
         return
 
@@ -187,6 +199,13 @@ def print_rule_table(rows: list[tuple[str, str, int, list[str]]]) -> None:
             print("| (none) |")
         for loc in locs:
             print(f"| {cell(loc)} |")
+
+        # The list is capped by --top-locs, so say how many hits are not shown.
+        # Without this row the table silently reads as the complete set even
+        # though the heading count disagrees with the number of rows.
+        hidden = count - len(locs)
+        if hidden > 0:
+            print(f"| +{hidden} more (raise --top-locs to list them) |")
         print()
 
 
@@ -333,8 +352,9 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument("path", nargs="?", default=".", metavar="DIR", help="directory to scan (default: .)")
     parser.add_argument("--severity", help="only show this severity (error|warning|info|hint)")
     parser.add_argument("--rule", help="only show this rule id")
-    parser.add_argument("--top-locs", type=int, default=0,
-                        help="cap locations listed per rule (default: 0 = list every location)")
+    parser.add_argument("--top-locs", type=int, default=DEFAULT_TOP_LOCS,
+                        help=f"cap locations listed per rule (default: {DEFAULT_TOP_LOCS}; "
+                             "0 = list every location)")
     parser.add_argument("--list-rules", action="store_true",
                         help="print catalog of available rule IDs and exit")
     parser.add_argument("--disable", help="comma-separated rule ids to skip (e.g. from .sniff.toml [rules])")
@@ -397,6 +417,8 @@ def main(argv: "list[str] | None" = None) -> int:
             continue
 
         entry = by_rule.setdefault(rule_id, {"severity": sev, "count": 0, "locs": []})
+        # `count` tracks every hit even once the location list stops growing, so
+        # the heading and the "+N more" row always report the true total.
         entry["count"] += 1
         # top_locs == 0 means list every location so the agent can act on all of
         # them; a positive value caps the list.
