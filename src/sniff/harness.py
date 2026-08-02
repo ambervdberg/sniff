@@ -187,7 +187,18 @@ def _is_repo_root(path: str) -> bool:
     out = _run_git(path, ["rev-parse", "--show-toplevel"])
     if out is None:
         return False
-    return os.path.normcase(os.path.abspath(out.strip())) == os.path.normcase(os.path.abspath(path))
+    return _same_dir(out.strip(), path)
+
+
+def _same_dir(left: str, right: str) -> bool:
+    """True if two path strings name the same directory.
+
+    `realpath`, not `abspath`: on Windows the same directory has two spellings,
+    and git always answers with the long one. A caller working under a path that
+    contains an 8.3 alias (`C:\\Users\\RUNNER~1\\...`, which is what `%TEMP%`
+    expands to for a long user name) would otherwise compare unequal to itself.
+    It also collapses symlinks, which does the same job on POSIX."""
+    return os.path.normcase(os.path.realpath(left)) == os.path.normcase(os.path.realpath(right))
 
 
 @functools.lru_cache(maxsize=None)

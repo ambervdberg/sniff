@@ -25,6 +25,18 @@ HAS_AST_GREP = shutil.which("ast-grep") is not None
 HAS_GIT = shutil.which("git") is not None
 
 
+def _short_path(path: str) -> str:
+    """The 8.3 spelling of `path` on Windows, or `path` unchanged elsewhere."""
+    if sys.platform != "win32":
+        return path
+
+    import ctypes
+
+    buffer = ctypes.create_unicode_buffer(len(path) + 260)
+    written = ctypes.windll.kernel32.GetShortPathNameW(path, buffer, len(buffer))
+    return buffer.value if written else path
+
+
 def _match(file, start, end, b_start, b_end, name="(anon)"):
     """Construct a Match without touching disk."""
     return h.Match(file=file, start_line=start, end_line=end,
@@ -406,6 +418,21 @@ class GitignoreAwarenessTest(unittest.TestCase):
         names = {os.path.basename(f) for f in h.iter_source_files(self.root)}
 
         self.assertIn("root.py", names)
+
+    @unittest.skipUnless(sys.platform == "win32", "8.3 aliases are a Windows filesystem feature")
+    def test_repo_root_recognized_through_an_8_3_short_path(self):
+        # Windows gives the same directory two spellings, and git always answers
+        # with the long one. Compared as plain strings they differ, so a scan
+        # started from the short spelling decided its own submodules were not
+        # checked out and skipped every file in them. `%TEMP%` expands to the
+        # short form whenever the user name is long, which is why this only ever
+        # failed on CI: the runner user is `runneradmin`.
+        self._git_init()
+        short = _short_path(self.root)
+        if os.path.normcase(short) == os.path.normcase(self.root):
+            self.skipTest("this filesystem hands out no 8.3 alias for the temp dir")
+
+        self.assertTrue(h._is_repo_root(short), f"{short} is the same repo as {self.root}")
 
     def test_reset_git_ignore_cache_forgets_the_previous_answer(self):
         # A library consumer that scans, writes files, and scans again would
