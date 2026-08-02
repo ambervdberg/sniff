@@ -6,25 +6,24 @@
    ```bash
    git clone https://github.com/ambervdberg/sniff.git
    cd sniff
-   uv pip install -e ".[dev]"
+   uv sync --extra dev
    ```
 
-2. Install [ast-grep](https://ast-grep.github.io) (required for all pattern-rule work):
+   This installs ast-grep too, so no separate install is needed for development.
+
+2. Verify setup:
    ```bash
-   # macOS/Linux via Homebrew
-   brew install ast-grep
-   # Or download a pre-built binary from https://ast-grep.github.io
+   uv run sniff doctor
    ```
 
-3. Verify setup:
+3. Run the test suite:
    ```bash
-   sniff doctor
+   uv run python -m pytest tests -q
    ```
 
-4. Run the test suite:
-   ```bash
-   python -m pytest tests -q
-   ```
+Always go through `uv run`. It puts this repo's `sniff` on PATH, so tests that
+shell out to the CLI exercise your working tree rather than whatever global
+`uv tool install sniff-smells` build happens to be installed.
 
 ## Adding a pattern rule
 
@@ -47,7 +46,7 @@ All fixtures must pass before you open a PR.
 
 ## Promoting a local rule from a project that uses sniff
 
-This section is for a *different* repo: one where you installed the sniff plugin
+This section is for a *different* repo: one where you installed the sniff CLI
 and wrote a project-specific rule that turned out generally useful. Run these
 steps from that project, not from this sniff repo, to send the rule upstream
 into this catalog.
@@ -94,7 +93,7 @@ Use the engine that fits your smell:
 | **node span** | rank AST nodes by line count | largest methods, large classes |
 | **node metric** | score each method/class from its AST | nesting depth, cyclomatic / cognitive complexity, inline-template line count |
 | **file metric** | a number per file, no AST | largest files (split candidates) |
-| **cross-file** | needs a whole-project graph | inheritance depth |
+| **cross-file** (planned, not built yet) | needs a whole-project graph | inheritance depth |
 
 Pattern rules and node metrics run on [ast-grep](https://ast-grep.github.io). File metrics
 are plain Python.
@@ -114,8 +113,11 @@ config file (see the Configuration section of the README).
 
 Before opening a PR:
 
-- [ ] `sniff test-rules` passes
-- [ ] `python -m pytest tests -q` passes
+- [ ] `uv run sniff test-rules` passes
+- [ ] `uv run python -m pytest tests -q` passes
 - [ ] Add a note as a new entry at the top of `CHANGELOG.md`
-- [ ] If this is a version bump, run `python scripts/bump_version.py <version>` (not for feature PRs)
+- [ ] If this is a version bump, run `python scripts/bump_version.py <version>` (not for feature PRs).
+      Never hand-edit a version: the script is the only thing that keeps `pyproject.toml`,
+      both `plugin.json` files, and the `marketplace.json` entries in lockstep, and
+      `tests/test_version_consistency.py` fails the build if they drift apart.
 - [ ] CI passes (GitHub Actions will run the checks)

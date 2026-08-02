@@ -1,12 +1,16 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ambervdberg/sniff/main/assets/sniff-logo.png" alt="sniff logo" width="220">
+</p>
+
 # sniff
 
 Token-cheap **code-smell CLI for AI agents**. Point `sniff` at a repo, get back a small
 ranked table or findings list, never raw source or AST dumped into the conversation.
 
 The CLI is **agent-agnostic** (Claude Code, Codex, Gemini, ...) and installs with
-`uv tool install sniff-smells`. The bundled `SKILL.md` wrappers and the `.claude-plugin/`
-marketplace packaging are integrations layered on top: they teach an agent when to reach for
-`sniff`, but each one shells out to the same CLI.
+`uv tool install sniff-smells`. The bundled `SKILL.md` wrappers and the plugin manifests
+(`.claude-plugin/` for Claude Code, `.codex-plugin/` for Codex) are integrations layered on
+top: they teach an agent when to reach for `sniff`, but each one shells out to the same CLI.
 
 The goal: a self-serve, private alternative to a SonarCloud-style scan, assembled from small
 detectors you can grow one at a time. Each smell is its own detector or catalog rule, so an
@@ -24,6 +28,8 @@ Requires Python 3.10+ and works the same on Windows, macOS, and Linux. The first
 [`ast-grep`](https://ast-grep.github.io), the scan engine most detectors run on. One-time per
 machine, not per repo. Run `sniff doctor` to confirm both are present.
 
+No `uv`? `pip install sniff-smells` works the same.
+
 ## Quickstart
 
 ```bash
@@ -38,6 +44,9 @@ reading this file.
 
 ## Per-ecosystem setup
 
+Every option below wraps the same `sniff` CLI, so `uv tool install sniff-smells` (or
+`pip install sniff-smells`, see Install above) is still required underneath.
+
 ### Claude Code (plugin)
 
 ```bash
@@ -46,8 +55,20 @@ reading this file.
 ```
 
 To update: refresh the marketplace entry (`/plugin marketplace update sniff`), then re-run
-`/plugin install sniff`. The plugin wraps the same `sniff` CLI as the skills do, so
-`uv tool install sniff-smells` is still required underneath.
+`/plugin install sniff`.
+
+### Codex (plugin)
+
+```bash
+codex plugin marketplace add ambervdberg/sniff
+```
+
+Then, in a Codex CLI session, run `/plugins` to install the `sniff` plugin from that
+marketplace, and start a new session before its skills and hooks are available. This reads
+the native manifest at `.codex-plugin/plugin.json`; the git repo itself is the marketplace
+source (`.claude-plugin/marketplace.json` is the legacy-compatible repo marketplace path the
+Codex packaging spec also accepts). To update: `codex plugin marketplace upgrade sniff`, then
+reinstall from `/plugins`.
 
 ### Any agent (Codex, Cursor, ...)
 
@@ -72,7 +93,7 @@ for the exact command list.
 | `sniff --skip a,b [DIR]` | Run all detectors except the named ones. |
 | `sniff --json [DIR]` | Scan output as JSON instead of markdown (also works with `--list`). |
 | `sniff version` | Print the installed version. |
-| `sniff doctor` | Check prerequisites (Python, ast-grep, manifests, version drift, `.sniff.toml`); exits 0/1. |
+| `sniff doctor` | Check prerequisites (Python, ast-grep, manifests, `.sniff.toml`); exits 0/1. |
 | `sniff prime` | Agent-optimized context (version, detectors, prereqs, usage hints); never scans. |
 | `sniff baseline write [DIR]` | Save per-detector finding counts to `.sniff/baseline.json`. |
 | `sniff diff [DIR]` | Compare a fresh scan to the saved baseline; exits 1 if any detector regressed. |
@@ -159,7 +180,10 @@ baseline, failing the job if any detector regressed.
 
 ## What's here
 
-| Skill | Does |
+Detectors: everything `sniff --list` prints, usable from the CLI alone with no plugin
+installed. Each also ships as a thin SKILL.md wrapper so an agent can trigger it by name.
+
+| Detector | Does |
 | --- | --- |
 | `largest-methods` | Rank the longest methods/functions by line count. |
 | `large-classes` | Rank the longest classes by line count. |
@@ -171,35 +195,47 @@ baseline, failing the job if any detector regressed.
 | `most-imports` | Rank files by import count (high-coupling smell). |
 | `no-duplicate-string` | Flag repeated string literals that should be extracted as constants. |
 | `large-inline-templates` | Rank Angular components by inline-template line count. |
-| `sniff` | Umbrella runner: runs **all** detectors in one pass. Use this for a full scan. |
 | `sniff-patterns` | Run the pattern rule catalog in one `ast-grep scan` pass; compact findings table. |
-| `sniff-create` | Scaffold a new smell skill or catalog rule from a short conversation. |
+
+Skills the plugin surface adds on top of that detector list:
+
+| Skill | Does |
+| --- | --- |
+| `sniff` | Umbrella runner: runs **all** detectors in one pass. Wraps the CLI's default `sniff [DIR]` scan. |
+| `sniff-create` | Scaffold a new smell skill or catalog rule from a short conversation. No CLI equivalent. |
 
 `src/sniff/` contains the shared engine (harness.py for AST-grep integration,
 node_metric.py for scoring).
 
 ## Engines
 
-A smell needs an engine. `sniff-create` picks the right one when you make a new check:
+A smell needs an engine. `sniff-create` picks the right one when you make a new check; see
+[CONTRIBUTING.md](CONTRIBUTING.md#engines) for the full breakdown of all five.
 
 | Engine | For | Example |
 | --- | --- | --- |
 | **pattern rule** | a specific code shape, flagged with a severity | `any` type, empty `imports: []` |
+| **node span** | rank AST nodes by line count | largest methods, large classes |
 | **node metric** | score each method/class from its AST | nesting depth, cyclomatic / cognitive complexity, inline-template line count |
 | **file metric** | a number per file, no AST | largest files (split candidates) |
 
-`pattern rule` and `node metric` run on [ast-grep](https://ast-grep.github.io);
-`file metric` is plain Python. A fourth engine (cross-file project graph, for smells like
-inheritance depth) is planned, not available yet.
+`pattern rule`, `node span`, and `node metric` run on [ast-grep](https://ast-grep.github.io);
+`file metric` is plain Python. A fifth engine, cross-file (a whole-project graph, for smells
+like inheritance depth), is planned but not built yet.
 
 ## Layout
 
 ```
-.claude-plugin/   plugin.json (skills, Stop hook) + marketplace.json
+.claude-plugin/   plugin.json (skills) + marketplace.json
 .codex-plugin/    plugin.json (native Codex plugin manifest)
 .github/workflows/  CI (test matrix, ubuntu + windows) and release (PyPI trusted publishing)
-hooks.json        Codex lifecycle hooks (SessionStart -> sniff prime, Stop -> costly-search nudge)
+action.yml        composite GitHub Action; CI mode (see above) depends on it
+hooks/hooks.json  lifecycle hooks (SessionStart -> sniff prime, Stop -> costly-search nudge);
+                  single source for BOTH hosts, since Claude Code and Codex each
+                  auto-discover this exact path
+assets/           plugin logo + composer icon (the 1024px master is untracked, in docs/)
 evals/            LLM eval harness: cases.jsonl, runner.py (simulated), scorer.py, smoke/ (real-agent)
+LICENSE           MIT
 src/sniff/        installable package (dist sniff-smells, command sniff)
   cli.py            entry point, argument parsing, subcommands
   config.py         .sniff.toml config loading
@@ -223,10 +259,11 @@ docs/             design spec
 
 ## Suggest-create hook
 
-A `Stop` hook (declared in `plugin.json`) watches each turn and, when it spots a
-costly repeated structural search (>= 6 read/grep/glob calls plus a structural
-prompt), prints one line suggesting you run `sniff-create` to turn it into a
-token-cheap skill. Suggest-only: it never creates anything and never blocks.
+A `Stop` hook (defined in `hooks/hooks.json`, auto-discovered by both Claude Code and Codex)
+watches each turn and, when it spots a costly repeated structural search (>= 6
+read/grep/glob calls plus a structural prompt), prints one line suggesting you run
+`sniff-create` to turn it into a token-cheap skill. Suggest-only: it never creates
+anything and never blocks.
 The detector lives in `skills/sniff-create/scripts/detect_costly_search.py`.
 
 ### Tuning
@@ -254,15 +291,25 @@ calls and the prompt text, never your reasoning, so:
 ## Tests
 
 ```bash
-python -m pytest tests -q
+uv sync --extra dev
+uv run python -m pytest tests -q
 ```
 
 ## Release
 
-`python scripts/bump_version.py <new-version>` rewrites the version in `pyproject.toml`,
-`.claude-plugin/plugin.json`, and `.codex-plugin/plugin.json` together, so `sniff doctor`'s
-version-drift check stays green. After bumping, update `CHANGELOG.md`, commit, and tag
+`python scripts/bump_version.py <new-version>` rewrites the version in four places together:
+`pyproject.toml`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, and every plugin
+entry in `.claude-plugin/marketplace.json`. `tests/test_version_consistency.py` fails the
+build if any of the four drift apart. After bumping, update `CHANGELOG.md`, commit, and tag
 `v<new-version>`.
+
+What gets published is an explicit allowlist in `[tool.hatch.build.targets.sdist]`, not
+whatever happens to sit in the repo. Hatchling's default sweeps in every file it can see,
+including ones git ignores through a nested `.gitignore`, which is how 8.5 MB of `.beads`
+tracker state ended up in a release. Patterns need a leading `/` to anchor them to the
+project root, or they match at any depth. The plugin surface (`skills/`, `hooks/`, the two
+`plugin.json` manifests) deliberately stays out: plugin users install from the git
+marketplace, and the PyPI package is only the `sniff` CLI.
 
 ## Contributing
 

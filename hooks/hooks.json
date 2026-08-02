@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -c \"import sys;sys.path.insert(0,'src');from sniff.cli import main;sys.exit(main(['prime']))\""
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/prime.py\"",
+            "statusMessage": "Loading sniff context"
           }
         ]
       }
@@ -17,7 +18,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"./skills/sniff-create/scripts/detect_costly_search.py\""
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/skills/sniff-create/scripts/detect_costly_search.py\"",
+            "statusMessage": "Checking for costly searches"
           }
         ]
       }

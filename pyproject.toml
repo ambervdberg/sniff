@@ -4,14 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sniff-smells"
-version = "0.10.0"
+version = "0.11.0"
 description = "Token-efficient code-smell detection for AI agents"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "ast-grep-cli"]
 
 [project.scripts]
 sniff = "sniff.cli:main"
@@ -19,3 +21,12 @@ sniff = "sniff.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/sniff"]
 exclude = ["src/sniff/patterns/rule-tests"]
+
+# Build allowlist
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/README.md",
+  "/CHANGELOG.md",
+  "/LICENSE",
+]

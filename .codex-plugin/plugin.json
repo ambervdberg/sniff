@@ -1,6 +1,6 @@
 {
   "name": "sniff",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Token-cheap code-smell skills. A self-serve, private SonarCloud-style scan built from small skills you grow one at a time: pattern rules, AST node metrics, and file metrics that return a compact findings table instead of dumping source into the conversation.",
   "author": {
     "name": "Amber van den Berg",
@@ -8,6 +8,7 @@
   },
   "homepage": "https://github.com/ambervdberg/sniff",
   "repository": "https://github.com/ambervdberg/sniff",
+  "license": "MIT",
   "keywords": [
     "ast-grep",
     "code-smells",
@@ -25,14 +26,19 @@
     "developerName": "Amber van den Berg",
     "category": "Developer Tools",
     "capabilities": [
-      "Read"
+      "Read",
+      "Write"
     ],
     "defaultPrompt": [
-      "sniff",
-      "sniff --list",
-      "sniff --help",
-      "sniff-create a detector for TODO comments older than 90 days"
+      "Use sniff to scan this repo for code smells.",
+      "Use sniff --list to show every detector available.",
+      "Use sniff --help to show every flag, subcommand, and usage example.",
+      "Use sniff to create your own code-smell detector."
     ],
+    "websiteURL": "https://github.com/ambervdberg/sniff",
+    "brandColor": "#008B8B",
+    "logo": "./assets/sniff-logo.png",
+    "composerIcon": "./assets/sniff-icon.png",
     "screenshots": []
   }
 }

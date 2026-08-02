@@ -11,11 +11,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # setup-uv installs the interpreter too, so no separate setup-python step.
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "3.14"
-      - run: pip install -e .[dev]
-      - run: npm install -g @ast-grep/cli
-      - run: sniff doctor
-      - run: sniff test-rules
-      - run: python -m pytest tests -q
+          enable-cache: true
+      # --locked fails the build if uv.lock has drifted from pyproject.toml,
+      # so CI exercises the pinned dependency set rather than a fresh resolve.
+      # ast-grep ships in the dev extra, which puts it on PATH inside `uv run`.
+      - run: uv sync --locked --extra dev
+      - run: uv run sniff doctor
+      - run: uv run sniff test-rules
+      - run: uv run python -m pytest tests -q

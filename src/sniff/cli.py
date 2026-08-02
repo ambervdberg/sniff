@@ -278,17 +278,6 @@ def _pyproject_version() -> str | None:
     return match.group(1) if match else None
 
 
-def _plugin_version() -> str | None:
-    """Read version from .claude-plugin/plugin.json, or None if not present."""
-    path = os.path.join(_REPO_ROOT, ".claude-plugin", "plugin.json")
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-    except (OSError, json.JSONDecodeError):
-        return None
-    return data.get("version")
-
-
 def _installed_package_version() -> str | None:
     """Version reported by importlib.metadata for the installed distribution
     (`sniff-smells`, or the legacy `sniff` name), or None."""
@@ -319,7 +308,6 @@ class EnvironmentFacts:
     errors: list[str]
     has_ast_grep: bool
     pkg_version: str | None
-    plugin_version: str | None
     installed_version: str | None
 
 
@@ -330,7 +318,6 @@ def _gather_environment_facts() -> EnvironmentFacts:
         errors=errors,
         has_ast_grep=shutil.which("ast-grep") is not None,
         pkg_version=_pyproject_version(),
-        plugin_version=_plugin_version(),
         installed_version=_installed_package_version(),
     )
 
@@ -369,14 +356,6 @@ def run_doctor() -> int:
         lines.append(f"FAIL duplicate detector name(s): {', '.join(dupes)}")
     else:
         lines.append("PASS no duplicate detector names")
-
-    if facts.pkg_version is None or facts.plugin_version is None:
-        lines.append("SKIP version consistency (not a source checkout)")
-    elif facts.pkg_version == facts.plugin_version:
-        lines.append(f"PASS package and plugin versions match ({facts.pkg_version})")
-    else:
-        ok = False
-        lines.append(f"FAIL version drift: pyproject.toml={facts.pkg_version} plugin.json={facts.plugin_version}")
 
     local_rules_dir = os.path.join(".sniff", "rules")
     if os.path.isdir(local_rules_dir):
@@ -430,11 +409,6 @@ def run_prime() -> None:
         caveats.append("ast-grep is not on PATH; every detector except sniff-patterns will fail to run.")
     if facts.errors:
         caveats.append(f"{len(facts.errors)} detector manifest error(s); run `sniff doctor` for details.")
-    if facts.pkg_version and facts.plugin_version and facts.pkg_version != facts.plugin_version:
-        caveats.append(
-            f"version drift: pyproject.toml={facts.pkg_version} vs plugin.json={facts.plugin_version}; "
-            "installed CLI may be stale."
-        )
     if facts.installed_version and facts.pkg_version and facts.installed_version != facts.pkg_version:
         caveats.append(
             f"stale install: pip-installed sniff is {facts.installed_version}, source checkout is {facts.pkg_version}; "
