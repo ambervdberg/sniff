@@ -195,11 +195,15 @@ inheritance depth) is planned, not available yet.
 ## Layout
 
 ```
-.claude-plugin/   plugin.json (skills, Stop hook) + marketplace.json
+.claude-plugin/   plugin.json (skills) + marketplace.json
 .codex-plugin/    plugin.json (native Codex plugin manifest)
 .github/workflows/  CI (test matrix, ubuntu + windows) and release (PyPI trusted publishing)
-hooks.json        Codex lifecycle hooks (SessionStart -> sniff prime, Stop -> costly-search nudge)
+hooks/hooks.json  lifecycle hooks (SessionStart -> sniff prime, Stop -> costly-search nudge);
+                  single source for BOTH hosts, since Claude Code and Codex each
+                  auto-discover this exact path
+assets/           plugin logo + composer icon (the 1024px master is untracked, in docs/)
 evals/            LLM eval harness: cases.jsonl, runner.py (simulated), scorer.py, smoke/ (real-agent)
+LICENSE           MIT
 src/sniff/        installable package (dist sniff-smells, command sniff)
   cli.py            entry point, argument parsing, subcommands
   config.py         .sniff.toml config loading
@@ -254,7 +258,8 @@ calls and the prompt text, never your reasoning, so:
 ## Tests
 
 ```bash
-python -m pytest tests -q
+uv sync --extra dev
+uv run python -m pytest tests -q
 ```
 
 ## Release
@@ -263,6 +268,14 @@ python -m pytest tests -q
 `.claude-plugin/plugin.json`, and `.codex-plugin/plugin.json` together, so `sniff doctor`'s
 version-drift check stays green. After bumping, update `CHANGELOG.md`, commit, and tag
 `v<new-version>`.
+
+What gets published is an explicit allowlist in `[tool.hatch.build.targets.sdist]`, not
+whatever happens to sit in the repo. Hatchling's default sweeps in every file it can see,
+including ones git ignores through a nested `.gitignore`, which is how 8.5 MB of `.beads`
+tracker state ended up in a release. Patterns need a leading `/` to anchor them to the
+project root, or they match at any depth. The plugin surface (`skills/`, `hooks/`, the two
+`plugin.json` manifests) deliberately stays out: plugin users install from the git
+marketplace, and the PyPI package is only the `sniff` CLI.
 
 ## Contributing
 
