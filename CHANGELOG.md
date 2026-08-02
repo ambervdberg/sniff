@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+- Fix: `.claude-plugin/marketplace.json` declared version `0.1.1` while
+  `plugin.json` was at `0.10.0`. plugin.json wins at install time, so the stale
+  entry was silently ignored and Claude Code warned on every marketplace validation.
+  The marketplace also gained the missing top-level `description`.
+- `scripts/bump_version.py` now rewrites the marketplace plugin entries too, and
+  `sniff doctor` fails on any manifest whose version disagrees with `plugin.json`,
+  so this drift cannot come back unnoticed.
+
 ## [0.10.0] - 2026-07-30
 
 - **Breaking:** the old plugin-scripts layout (skills importing `_ast-harness`

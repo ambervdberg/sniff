@@ -106,6 +106,23 @@ def test_doctor_warns_on_shadowed_local_rule(tmp_path, monkeypatch, capsys):
     assert "shadows core rule" in capsys.readouterr().out
 
 
+def test_satellite_manifest_versions_match_plugin_json():
+    """The real checkout must never ship a marketplace entry or codex manifest whose
+    version disagrees with plugin.json -- Claude Code warns and silently ignores it."""
+    plugin_version = run_module._plugin_version()
+    satellites = run_module._satellite_versions()
+    assert satellites, "expected at least the marketplace entry to declare a version"
+    assert all(v == plugin_version for v in satellites.values()), satellites
+
+
+def test_doctor_fails_on_satellite_version_drift(monkeypatch, capsys):
+    monkeypatch.setattr(run_module, "_satellite_versions", lambda: {"marketplace.json[sniff]": "0.0.1"})
+    exit_code = run_module.run_doctor()
+    out = capsys.readouterr().out
+    assert "FAIL version drift: marketplace.json[sniff]=0.0.1" in out
+    assert exit_code == 1
+
+
 class SniffJsonOutputTest(unittest.TestCase):
     """--json emits parseable JSON for both --list and a scan, markdown stays default."""
 
