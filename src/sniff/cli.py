@@ -15,7 +15,7 @@ calls the detector's own entry point, so the standalone skill and the aggregate
 run always agree.
 
 Usage:
-    sniff [DIR] [--only a,b] [--skip a,b] [--list]
+    sniff [DIR] [--only a,b] [--skip a,b] [--ignore GLOB ...] [--list]
     sniff version
     sniff doctor
     sniff prime
@@ -400,6 +400,7 @@ def run_prime() -> None:
     lines.append("  sniff --list                      list detectors as a markdown table")
     lines.append("  sniff --list-patterns              list sniff-patterns rule catalog")
     lines.append("  sniff --json [DIR]                 machine-readable scan output")
+    lines.append("  sniff --ignore <glob> [DIR]        exclude paths (repeatable; adds to .sniff.toml)")
     lines.append("  sniff doctor                       check prerequisites, exit 0/1")
     lines.append("  sniff version                      print installed version")
     lines.append("")
@@ -412,7 +413,7 @@ def run_prime() -> None:
     if facts.installed_version and facts.pkg_version and facts.installed_version != facts.pkg_version:
         caveats.append(
             f"stale install: pip-installed sniff is {facts.installed_version}, source checkout is {facts.pkg_version}; "
-            "reinstall (pip install -e .) to pick up local changes."
+            "upgrade with `uv tool upgrade sniff-smells`"
         )
 
     lines.append("CAVEATS")
@@ -637,6 +638,7 @@ def main(argv: "list[str] | None" = None) -> int:
             "  sniff --only largest-methods,cyclomatic-complexity\n"
             "  sniff --only largest-methods . --top 5   # extra flags go to that one detector\n"
             "  sniff --skip sniff-patterns  # skip pattern rules\n"
+            "  sniff --ignore \"docs/**\"      # exclude paths (repeatable)\n"
             "  sniff version                # print installed version\n"
             "  sniff doctor                 # check prerequisites and exit 0/1\n"
             "  sniff prime                  # agent-optimized context (no scan)\n"
@@ -657,6 +659,8 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument("--list", action="store_true", help="list discovered detectors and exit")
     parser.add_argument("--list-patterns", action="store_true", help="list pattern rules catalog (RULE / SEVERITY / MESSAGE) and exit")
     parser.add_argument("--json", action="store_true", help="emit JSON instead of markdown (works with scan and --list)")
+    parser.add_argument("--ignore", action="append", default=[], metavar="GLOB",
+                        help="glob to exclude, relative to DIR (repeatable); adds to .sniff.toml [ignore] globs")
 
     warn_hallucinated_flags(argv)
 
@@ -703,6 +707,14 @@ def main(argv: "list[str] | None" = None) -> int:
         return 1
 
     cfg = config.load(args.path)
+
+    # `--ignore` adds to the scanned repo's `[ignore] globs` instead of replacing
+    # them: a one-off exclusion on the command line should not silently discard the
+    # exclusions that repo already committed. Folding it into cfg here means every
+    # downstream consumer (per-detector --extra-ignore args and the
+    # SNIFF_EXTRA_IGNORE export for external detectors) picks it up for free.
+    cfg.extra_ignores = [*cfg.extra_ignores, *args.ignore]
+
     selected, unknown = select_with_config(detectors, _split_csv(args.only), _split_csv(args.skip), cfg)
     for name in unknown:
         import difflib

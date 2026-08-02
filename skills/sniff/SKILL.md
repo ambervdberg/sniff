@@ -68,6 +68,7 @@ sniff --skip <detector>[,...]        # exclude detectors
 sniff --list                         # list available detectors and exit
 sniff --list-patterns                # list pattern rules and exit
 sniff --json [DIR]                   # scan or --list output as JSON
+sniff --ignore <glob> [DIR]          # exclude paths; repeatable, adds to .sniff.toml
 sniff version                        # print installed version
 sniff doctor                         # check prerequisites, exit 0/1
 sniff prime                          # agent-optimized context, never scans
