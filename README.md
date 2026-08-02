@@ -113,7 +113,7 @@ Drop a `.sniff.toml` in the root of the repo being scanned to turn rules off, re
 severities, skip detectors, retune thresholds, and ignore paths. `sniff doctor` validates it.
 
 ```toml
-[rules]                           #targets the sniff-patterns catalog only. Key is a rule id:
+[rules]                           # targets the sniff-patterns catalog only. Key is a rule id:
 no-console-log = false            # turn a pattern rule off
 no-explicit-any = "error"         # re-grade it (error | warning | info | hint)
 
@@ -126,11 +126,11 @@ deepest-nesting.min-depth = 3
 globs = ["docs/**", "**/*.generated.ts"]
 ```
 
- Details worth knowing:
+Details worth knowing:
 
-- `[rules]` only affects pattern rules. `[detectors]` affects the detectors, and each `<detector>.<arg>` 
+- `[rules]` only affects pattern rules. `[detectors]` affects the detectors, and each `<detector>.<arg>`
   key becomes a `--arg` flag on that detector.
-- `globs` also accepts one string: `globs = "docs/**,**/*.generated.ts"`. 
+- `globs` also accepts one string: `globs = "docs/**,**/*.generated.ts"`.
   Paths are matched from the root of the repo you scan.
 - A section or key that sniff does not recognize is a warning, not an error, so a typo never stops a scan.
 
@@ -155,24 +155,8 @@ sniff --ignore "docs/**" --ignore "**/*.generated.ts" .
 
 ### Local rules
 
-A repo can carry its own pattern rules in `.sniff/rules/*.yml` without touching this catalog.
-They are discovered alongside the core rules and run in the same `ast-grep scan` pass, so core
-and local findings arrive together. `sniff --list-patterns` tags each row `core` or `local` in
-the ORIGIN column. A local rule whose id collides with a core rule id is ignored with a warning.
-
-Add fixtures next to it at `.sniff/rule-tests/<rule-id>.yml`, then promote a rule that has
-proven itself:
-
-```bash
-sniff contribute <rule-id> --dry-run    # show which backend would be used
-sniff contribute <rule-id>
-```
-
-Two backends. If `SNIFF_REPO` (or `repo = "..."` in `~/.sniff/config.toml`) points at a local
-sniff checkout, the rule and its fixtures are copied there on a `rule/<rule-id>` branch and the
-fixture tests run, leaving the commit and PR to you. Otherwise `sniff contribute` falls back to
-the `gh` CLI: fork, branch, commit, push, and open a PR against `ambervdberg/sniff`. Guards run
-first, so a missing rule, missing fixtures, or a core-id collision fails before anything moves.
+A repo can carry its own pattern rules in `.sniff/rules/*.yml` without touching this
+catalog. See [Add a rule](#add-a-rule).
 
 ### External detectors
 
@@ -311,10 +295,12 @@ it against your actual code before saving anything, so you never guess at syntax
    catalog's. If nothing shows up, `sniff --list-patterns` tells you whether the rule
    loaded at all: yours appears tagged `local`.
 
-An id that collides with a catalog rule is ignored with a warning.
+Local rules run in the same `ast-grep scan` pass as the catalog, so both sets of
+findings arrive together. An id that collides with a catalog rule is ignored with a
+warning.
 
 Want to contribute the rule to the catalog? Add examples at `.sniff/rule-tests/<id>.yml`
-first, then `sniff contribute <rule-id>` opens the PR:
+first:
 
 ```yaml
 id: no-alert
@@ -325,6 +311,14 @@ invalid:
   - |
     alert("boom");
 ```
+
+Then `sniff contribute <rule-id>` moves it upstream, `--dry-run` first if you want to
+see which backend it would use. Point `SNIFF_REPO` (or `repo = "..."` in
+`~/.sniff/config.toml`) at a local sniff checkout and the rule and its fixtures are
+copied there on a `rule/<rule-id>` branch with the fixture tests run, leaving the commit
+and PR to you. Otherwise it uses the `gh` CLI: fork, branch, commit, push, and open a PR
+against `ambervdberg/sniff`. Guards run first, so a missing rule, missing fixtures, or a
+colliding id fails before anything moves.
 
 ## Engines
 
