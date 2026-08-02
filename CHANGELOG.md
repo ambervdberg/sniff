@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-02
+
 - Fix: lifecycle hooks never ran under Codex, and the Stop hook fired twice under
   Claude Code. Both hosts now load one file, `hooks/hooks.json`, and hook commands
   no longer depend on the working directory they were launched from.

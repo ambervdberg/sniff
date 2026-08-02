@@ -10,7 +10,7 @@
       "name": "sniff",
       "source": "./",
       "description": "Token-cheap code-smell skills: ranked-size skills (largest-methods, large-classes etc), a sniff-patterns rule catalog, and sniff-create that scaffolds new smell skills or rules.",
-      "version": "0.10.0"
+      "version": "0.11.0"
     }
   ]
 }
