@@ -19,3 +19,5 @@ Thumbs.db
 
 evals/results/
 evals/smoke/results/
+
+*.local.*
