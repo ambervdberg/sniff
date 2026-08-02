@@ -4,6 +4,6 @@
 id: prefer-at-over-length-index
 language: typescript
 severity: warning
-message: "Use `.at(-N)` instead of `arr[arr.length - N]` (sonarqube typescript:S7755)."
+message: "Use `.at(-N)` instead of `arr[arr.length - N]`."
 rule:
   pattern: "$ARR[$ARR.length - $N]"

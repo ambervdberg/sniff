@@ -256,27 +256,34 @@ detector, including detectors your repo adds.
 
 ## Pattern rules
 
-The catalog `sniff-patterns` runs, worst severity first. `sniff --list-patterns`
-prints the same rules grouped by language, plus any your repo adds under
+The catalog `sniff-patterns` runs, worst severity first within each language.
+`sniff --list-patterns` prints the same rules, plus any your repo adds under
 `.sniff/rules/`.
 
 <!-- pattern-catalog:start -->
-| RULE | LANGUAGE | SEVERITY | MESSAGE |
-| --- | --- | --- | --- |
-| no-empty-catch | typescript | error | Empty catch block swallows errors; add error handling or use a comment explaining why. |
-| py-bare-except | python | warning | Bare except: swallows all exceptions, including KeyboardInterrupt and SystemExit; catch Exception or a specific type instead. |
-| py-mutable-default-arg | python | warning | Mutable default argument is shared across all calls; use None and initialize inside the function body instead. |
-| py-nested-conditional-expr | python | warning | Nested conditional expression; extract to if/elif/else or a helper function for readability. |
-| no-any-cast | typescript | warning | 'as any' defeats type safety; use a precise type or 'unknown'. |
-| no-boolean-param | typescript | warning | Boolean parameter enables unclear call sites; use a more descriptive type, enum, or extracted method. |
-| no-console-log | typescript | warning | Remove console.log/debug/info in production; use a logging library. |
-| no-explicit-any | typescript | warning | Explicit 'any' defeats type safety; use a precise type or 'unknown'. |
-| no-multiline-single-comment | typescript | warning | Block comment spans multiple lines with only one content line; use single-line syntax instead. |
-| no-nested-ternary | typescript | warning | Nested ternary; extract to if/else or a helper for readability (sonarqube typescript:S3358). |
-| no-non-null-assertion | typescript | warning | Non-null assertion operator `!` bypasses type safety; use proper null checks instead. |
-| prefer-at-over-length-index | typescript | warning | Use `.at(-N)` instead of `arr[arr.length - N]` (sonarqube typescript:S7755). |
-| prefer-optional-chain | typescript | warning | Use optional chaining `?.` instead of `&&` guard for property access. |
-| py-print-statement | python | info | Bare print() call; use a logging library instead of print for anything beyond throwaway debugging. |
+### python
+
+| SEVERITY | RULE | MESSAGE |
+| --- | --- | --- |
+| warning | py-bare-except | Bare except: swallows all exceptions, including KeyboardInterrupt and SystemExit; catch Exception or a specific type instead. |
+| warning | py-mutable-default-arg | Mutable default argument is shared across all calls; use None and initialize inside the function body instead. |
+| warning | py-nested-conditional-expr | Nested conditional expression; extract to if/elif/else or a helper function for readability. |
+| info | py-print-statement | Bare print() call; use a logging library instead of print for anything beyond throwaway debugging. |
+
+### typescript
+
+| SEVERITY | RULE | MESSAGE |
+| --- | --- | --- |
+| error | no-empty-catch | Empty catch block swallows errors; add error handling or use a comment explaining why. |
+| warning | no-any-cast | 'as any' defeats type safety; use a precise type or 'unknown'. |
+| warning | no-boolean-param | Boolean parameter enables unclear call sites; use a more descriptive type, enum, or extracted method. |
+| warning | no-console-log | Remove console.log/debug/info in production; use a logging library. |
+| warning | no-explicit-any | Explicit 'any' defeats type safety; use a precise type or 'unknown'. |
+| warning | no-multiline-single-comment | Block comment spans multiple lines with only one content line; use single-line syntax instead. |
+| warning | no-nested-ternary | Nested ternary; extract to if/else or a helper for readability. |
+| warning | no-non-null-assertion | Non-null assertion operator `!` bypasses type safety; use proper null checks instead. |
+| warning | prefer-at-over-length-index | Use `.at(-N)` instead of `arr[arr.length - N]`. |
+| warning | prefer-optional-chain | Use optional chaining `?.` instead of `&&` guard for property access. |
 <!-- pattern-catalog:end -->
 
 ## Engines

@@ -258,21 +258,30 @@ def print_list_rules(rules: list[tuple[str, str, str, str, str]]) -> None:
 
 
 def render_catalog_table(rules: list[tuple[str, str, str, str, str]]) -> str:
-    """One flat markdown table of the rule catalog, worst severity first.
+    """The rule catalog as one markdown table per language, worst severity first.
 
-    The CLI's --list-rules view groups by language and names each rule's origin,
-    which is what an agent picking a rule id needs. A reader of the docs wants the
-    opposite: the whole catalog at a glance, so this stays one table and shows the
-    language as a column."""
-    lines = ["| RULE | LANGUAGE | SEVERITY | MESSAGE |", "| --- | --- | --- | --- |"]
+    Half the catalog cannot apply to any one reader, so the language is a heading
+    rather than a column: it splits the list before the reader has to filter it.
+    Severity leads each table so the ordering inside a block is visible instead of
+    having to be inferred. The CLI's --list-rules view has the same shape and adds
+    an ORIGIN column, which only matters once a repo has local rules."""
+    lines: list[str] = []
 
-    for rule_id, severity, message, _origin, language in sorted(
-            rules, key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[4], r[0])):
-        # Escape pipes so the markdown table stays valid.
-        safe_msg = _unquoted(message).replace("|", "\\|")
-        lines.append(f"| {rule_id} | {language} | {severity} | {safe_msg} |")
+    for language in sorted({language for *_rest, language in rules}):
+        lines.append(f"### {language}\n")
+        lines.append("| SEVERITY | RULE | MESSAGE |")
+        lines.append("| --- | --- | --- |")
 
-    return "\n".join(lines)
+        group = [r for r in rules if r[4] == language]
+        for rule_id, severity, message, _origin, _language in sorted(
+                group, key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[0])):
+            # Escape pipes so the markdown table stays valid.
+            safe_msg = _unquoted(message).replace("|", "\\|")
+            lines.append(f"| {severity} | {rule_id} | {safe_msg} |")
+
+        lines.append("")
+
+    return "\n".join(lines).strip()
 
 
 def _unquoted(message: str) -> str:
