@@ -46,7 +46,7 @@ All fixtures must pass before you open a PR.
 
 ## Promoting a local rule from a project that uses sniff
 
-This section is for a *different* repo: one where you installed the sniff plugin
+This section is for a *different* repo: one where you installed the sniff CLI
 and wrote a project-specific rule that turned out generally useful. Run these
 steps from that project, not from this sniff repo, to send the rule upstream
 into this catalog.
@@ -93,7 +93,7 @@ Use the engine that fits your smell:
 | **node span** | rank AST nodes by line count | largest methods, large classes |
 | **node metric** | score each method/class from its AST | nesting depth, cyclomatic / cognitive complexity, inline-template line count |
 | **file metric** | a number per file, no AST | largest files (split candidates) |
-| **cross-file** | needs a whole-project graph | inheritance depth |
+| **cross-file** (planned, not built yet) | needs a whole-project graph | inheritance depth |
 
 Pattern rules and node metrics run on [ast-grep](https://ast-grep.github.io). File metrics
 are plain Python.
