@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
-"""Integration test: the Stop hook is wired in plugin.json and behaves.
+"""Integration test: the Stop hook is wired in hooks/hooks.json and behaves.
 
 Proves Phase 4 end-to-end without a live Claude session: read the Stop-hook
-command straight out of plugin.json, expand ${CLAUDE_PLUGIN_ROOT}, then run it
-exactly as the harness would, feeding synthetic Stop-hook JSON on stdin.
+command straight out of hooks/hooks.json, expand ${CLAUDE_PLUGIN_ROOT}, then
+run it exactly as the harness would, feeding synthetic Stop-hook JSON on stdin.
+
+hooks/hooks.json is the single source of hooks for BOTH hosts: Claude Code and
+Codex each auto-discover that exact path. The Claude manifest deliberately
+declares no inline "hooks" block, because an inline block is additive rather
+than a replacement, so keeping one would register the Stop hook twice and fire
+the nudge twice per turn. See test_codex_plugin_wiring.py for the guards.
 
 AC: a single nudge line on a costly structural turn; nothing on a normal turn.
 
@@ -22,13 +28,13 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 # repo root = plugin root: tests -> <root>
 PLUGIN_ROOT = os.path.normpath(os.path.join(HERE, ".."))
-PLUGIN_JSON = os.path.join(PLUGIN_ROOT, ".claude-plugin", "plugin.json")
+HOOKS_JSON = os.path.join(PLUGIN_ROOT, "hooks", "hooks.json")
 
 
 def stop_hook_command() -> str:
-    """The expanded Stop-hook command as declared in plugin.json."""
+    """The expanded Stop-hook command as declared in hooks/hooks.json."""
 
-    manifest = json.load(open(PLUGIN_JSON, encoding="utf-8"))
+    manifest = json.load(open(HOOKS_JSON, encoding="utf-8"))
     command = manifest["hooks"]["Stop"][0]["hooks"][0]["command"]
     return command.replace("${CLAUDE_PLUGIN_ROOT}", PLUGIN_ROOT)
 
@@ -75,7 +81,7 @@ class HookWiringTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0)
 
     def test_hook_is_registered_as_stop(self):
-        manifest = json.load(open(PLUGIN_JSON, encoding="utf-8"))
+        manifest = json.load(open(HOOKS_JSON, encoding="utf-8"))
         self.assertIn("Stop", manifest.get("hooks", {}))
 
 

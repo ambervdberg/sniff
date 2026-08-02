@@ -2,8 +2,12 @@
 """Integration test: the Codex plugin manifest and hooks are wired correctly.
 
 Mirrors test_hook_wiring.py's approach for the Claude plugin, but for the
-native Codex plugin: .codex-plugin/plugin.json (manifest) and hooks.json
-(SessionStart/Stop wiring) at the repo root.
+native Codex plugin: .codex-plugin/plugin.json (manifest) and hooks/hooks.json
+(SessionStart/Stop wiring) at the plugin root.
+
+hooks/hooks.json is the path Codex auto-discovers, so no "hooks" entry is
+needed in the manifest. Moving or renaming this file silently disables every
+hook in Codex, which is why the path is asserted here.
 
 AC: .codex-plugin/plugin.json exists and validates. Hooks do not run scans
 automatically. Default prompts include scan, list, and sniff-create.
@@ -23,7 +27,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # repo root = plugin root: tests -> <root>
 PLUGIN_ROOT = os.path.normpath(os.path.join(HERE, ".."))
 CODEX_PLUGIN_JSON = os.path.join(PLUGIN_ROOT, ".codex-plugin", "plugin.json")
-HOOKS_JSON = os.path.join(PLUGIN_ROOT, "hooks.json")
+CLAUDE_PLUGIN_JSON = os.path.join(PLUGIN_ROOT, ".claude-plugin", "plugin.json")
+HOOKS_JSON = os.path.join(PLUGIN_ROOT, "hooks", "hooks.json")
 
 
 class CodexPluginManifestTest(unittest.TestCase):
@@ -35,13 +40,71 @@ class CodexPluginManifestTest(unittest.TestCase):
         self.assertIn("skills", manifest)
         self.assertIn("interface", manifest)
 
-    def test_default_prompts_cover_scan_list_and_sniff_create(self):
+    def _default_prompts(self) -> list[str]:
+        with open(CODEX_PLUGIN_JSON, encoding="utf-8") as fh:
+            return json.load(fh)["interface"]["defaultPrompt"]
+
+    def test_default_prompts_are_prose_not_cli_invocations(self):
+        """Starter prompts are what a user clicks, so they read as sentences.
+
+        The spec's own examples are prose ("Use My Plugin to summarize new CRM
+        notes."), never bare commands. Asserting shape rather than literal
+        substrings also keeps the copy editable: an earlier version of this test
+        grepped for "sniff-create", which forced the user-facing wording to
+        carry an internal skill name.
+        """
+
+        for prompt in self._default_prompts():
+            self.assertTrue(prompt[0].isupper(), prompt)
+            self.assertTrue(prompt.endswith("."), prompt)
+            self.assertIn("sniff", prompt)
+
+    def test_default_prompts_cover_scan_list_and_create(self):
+        joined = " ".join(self._default_prompts()).lower()
+        for intent in ("scan", "list", "create"):
+            self.assertIn(intent, joined)
+
+
+class SingleHookSourceTest(unittest.TestCase):
+    """Guards the one-file-serves-both-hosts arrangement. Do not relax these.
+
+    Claude Code and Codex both auto-discover hooks at exactly hooks/hooks.json,
+    so that file is the single source of hooks for both. Two mistakes are easy
+    to make here, and each one is silent at runtime:
+
+    1. Re-adding an inline "hooks" block to .claude-plugin/plugin.json. The
+       Claude manifest's "hooks" field is additive, not a replacement, so the
+       Stop hook would register twice and nudge twice per turn.
+    2. "Correcting" ${CLAUDE_PLUGIN_ROOT} to ${PLUGIN_ROOT} because this is a
+       Codex-facing file. Codex sets both variables, but Claude Code sets only
+       CLAUDE_PLUGIN_ROOT, so bare PLUGIN_ROOT breaks every hook under Claude.
+    """
+
+    def _hook_commands(self) -> list[str]:
+        with open(HOOKS_JSON, encoding="utf-8") as fh:
+            events = json.load(fh)["hooks"]
+        return [
+            entry["command"]
+            for matchers in events.values()
+            for matcher in matchers
+            for entry in matcher["hooks"]
+        ]
+
+    def test_claude_manifest_declares_no_inline_hooks(self):
+        with open(CLAUDE_PLUGIN_JSON, encoding="utf-8") as fh:
+            manifest = json.load(fh)
+        self.assertNotIn("hooks", manifest)
+
+    def test_codex_manifest_relies_on_auto_discovery(self):
         with open(CODEX_PLUGIN_JSON, encoding="utf-8") as fh:
             manifest = json.load(fh)
-        prompts = " ".join(manifest["interface"]["defaultPrompt"])
-        self.assertIn("sniff", prompts)
-        self.assertIn("--list", prompts)
-        self.assertIn("sniff-create", prompts)
+        self.assertNotIn("hooks", manifest)
+
+    def test_hook_commands_use_the_portable_plugin_root_variable(self):
+        for command in self._hook_commands():
+            self.assertNotRegex(command, r"\$\{?PLUGIN_ROOT")
+            if "PLUGIN_ROOT" in command:
+                self.assertIn("${CLAUDE_PLUGIN_ROOT}", command)
 
 
 class CodexHooksWiringTest(unittest.TestCase):
