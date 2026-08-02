@@ -18,6 +18,11 @@ dev = ["pytest", "ast-grep-cli"]
 [project.scripts]
 sniff = "sniff.cli:main"
 
+[project.urls]
+Repository = "https://github.com/ambervdberg/sniff"
+Issues = "https://github.com/ambervdberg/sniff/issues"
+Changelog = "https://github.com/ambervdberg/sniff/blob/main/CHANGELOG.md"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/sniff"]
 exclude = ["src/sniff/patterns/rule-tests"]
