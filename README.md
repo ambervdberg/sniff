@@ -88,7 +88,7 @@ for the exact command list.
 | `sniff [DIR]` | Scan `DIR` (default: `.`) with all detectors. |
 | `sniff --all [DIR]` | Same as above (explicit alias). |
 | `sniff --list` | List all available detectors. |
-| `sniff --list-patterns` | List all pattern rules (RULE / SEVERITY / ORIGIN / MESSAGE). |
+| `sniff --list-patterns` | List all pattern rules (RULE / SEVERITY / ORIGIN / ALSO RUNS ON / MESSAGE). |
 | `sniff --only a,b [DIR]` | Run only the named detectors (e.g. `--only sniff-patterns` for pattern rules). |
 | `sniff --skip a,b [DIR]` | Run all detectors except the named ones. |
 | `sniff --json [DIR]` | Scan output as JSON instead of markdown (also works with `--list`). |
@@ -139,7 +139,8 @@ globs = ["docs/**", "**/*.generated.ts"]
 Three layers stack, in this order:
 
 1. **Vendored and build directories**, always: `node_modules`, `dist`, `build`, `out`,
-   `coverage`, `target`, `vendor`, `.venv`, `.git`, `.next`, `.angular`, `.nx`, `__pycache__`.
+   `coverage`, `target`, `vendor`, `.venv`, `venv`, `.git`, `.nx`, `.angular`, `.astro`,
+   `.next`, `.svelte-kit`, `.nuxt`, `.turbo`, `__pycache__`, `.claude`.
 2. **Anything `.gitignore` excludes**, when the scanned directory is a git repo. Your
    `.git/info/exclude` and global ignore file count too, since sniff asks git rather than
    parsing the ignore files itself. Outside a git repo this layer is simply absent.
@@ -407,11 +408,11 @@ uv run python -m pytest tests -q
 
 ## Release
 
-`python scripts/bump_version.py <new-version>` rewrites the version in four places together:
-`pyproject.toml`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, and every plugin
-entry in `.claude-plugin/marketplace.json`. `tests/test_version_consistency.py` fails the
-build if any of the four drift apart. After bumping, update `CHANGELOG.md`, commit, and tag
-`v<new-version>`.
+`python scripts/bump_version.py <new-version>` rewrites the version in five places together:
+`pyproject.toml`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, every plugin
+entry in `.claude-plugin/marketplace.json`, and `uv.lock` (which it refreshes by running
+`uv lock` itself). `tests/test_version_consistency.py` fails the build if any of the five
+drift apart. After bumping, update `CHANGELOG.md`, commit, and tag `v<new-version>`.
 
 What gets published is an explicit allowlist in `[tool.hatch.build.targets.sdist]`, not
 whatever happens to sit in the repo. Hatchling's default sweeps in every file it can see,
