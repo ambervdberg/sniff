@@ -286,6 +286,28 @@ The catalog `sniff-patterns` runs, worst severity first within each language.
 | warning | prefer-optional-chain | Use optional chaining `?.` instead of `&&` guard for property access. |
 <!-- pattern-catalog:end -->
 
+### Add your own rule
+
+Drop a `.yml` file in `.sniff/rules/` in the repo you scan. No install step: the
+next `sniff` run picks it up and reports its findings alongside the catalog's.
+
+```yaml
+# .sniff/rules/no-alert.yml
+id: no-alert
+language: typescript          # one ast-grep language per rule
+severity: warning             # error | warning | info
+message: "alert() blocks the page; use a dialog component instead."
+rule:
+  pattern: alert($MSG)        # $NAME captures one node, $$$NAME captures a list
+```
+
+`pattern` matches code, not text: it only sees what the parser produces, so a rule
+cannot match a comment.
+
+`sniff --list-patterns` shows it tagged `local`, so you can tell it apart from the
+catalog. An id that collides with a catalog rule is ignored with a warning.
+`sniff contribute <rule-id>` opens a PR to add yours here.
+
 ## Engines
 
 A smell needs an engine. `sniff-create` picks the right one when you make a new check; see
