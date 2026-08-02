@@ -3,7 +3,7 @@
 
 Where `harness.py` ranks nodes by physical size (lines), this layer computes a
 *derived* numeric metric per node and ranks by that. The first metric is
-**nesting depth** (SonarSource S134): how deeply control-flow blocks stack
+**nesting depth**: how deeply control-flow blocks stack
 inside a function. Deeply nested code is the classic refactor smell.
 
 It stays true to the AST without hand-walking a parse tree: it asks ast-grep for
@@ -81,7 +81,7 @@ NESTING_KINDS = {
 # Languages this metric can actually score (have a nesting-kinds entry).
 SUPPORTED_LANGS = sorted(NESTING_KINDS)
 
-# Decision-point node kinds per language for cyclomatic complexity (S1541).
+# Decision-point node kinds per language for cyclomatic complexity.
 # Each is one branch in the control-flow graph: a branch, loop, case, or catch.
 # Boolean operators (&&/||/and/or) and ternaries add branches too, but in some
 # grammars they share a node kind with other operators, so those are matched by
@@ -342,7 +342,7 @@ def _cognitive_within(func: h.Match, nodes: list[h.Match]) -> int:
     """Cognitive-complexity score for one function from its nesting nodes.
 
     Each control structure costs 1, plus a nesting penalty equal to how many
-    other control structures enclose it (SonarSource's nesting increment). So a
+    other control structures enclose it (the nesting increment). So a
     branch three levels deep costs 1 + 3 = 4, while two sibling branches cost
     1 + 1 = 2. The sum over all the function's control structures is its score."""
     inside = [n for n in nodes if _contains(func, n)]
@@ -413,11 +413,11 @@ def cognitive(
     """Score every function under `path` by cognitive complexity.
 
     Each control structure costs 1 plus a nesting penalty for how deeply it sits
-    (SonarSource's nesting increment), so deeply nested branching scores far above
+    (the nesting increment), so deeply nested branching scores far above
     the same number of flat branches. Returns the function Matches with
     `metrics['cognitive']` set. Unsupported languages are skipped.
 
-    Note: boolean-operator sequences (which Sonar also scores) are not yet
+    Note: boolean-operator sequences are not yet
     counted here; use cyclomatic complexity for boolean-heavy code."""
     functions, by_file = _functions_and_nesting(path, langs, include_tests, extra_ignores)
 
@@ -433,7 +433,7 @@ def cyclomatic(
     include_tests: bool = False,
     extra_ignores: "list[str] | None" = None,
 ) -> list[h.Match]:
-    """Score every function under `path` by cyclomatic complexity (S1541).
+    """Score every function under `path` by cyclomatic complexity.
 
     Complexity = 1 + the number of decision points (branches, loops, cases,
     catches, boolean operators, ternaries) inside the function. Returns the

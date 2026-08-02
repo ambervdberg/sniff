@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Find string literals duplicated across 3+ files (SonarQube S1192).
+"""Find string literals duplicated across 3+ files.
 
 Extracts string literals from every supported source file and identifies strings
 that appear in multiple distinct files. Useful for spotting constants that should
@@ -28,7 +28,7 @@ from collections import defaultdict
 from sniff import harness as h
 
 NAME = "no-duplicate-string"
-TITLE = "Duplicated string literals (S1192)"
+TITLE = "Duplicated string literals"
 DEFAULT_ARGS: "list[str]" = []
 
 # Literals are found by regex, not by a parser, so every language the file walk
@@ -118,7 +118,7 @@ class DuplicateString:
 
 def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Find string literals duplicated across 3+ files (SonarQube S1192)."
+        description="Find string literals duplicated across 3+ files."
     )
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
     parser.add_argument(

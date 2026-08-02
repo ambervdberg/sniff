@@ -2,7 +2,7 @@
 """Rank functions/methods by cognitive complexity (how hard they are to read).
 
 A node-metric skill: it leans on the shared node_metric engine to score each
-function by SonarSource-style cognitive complexity (every control structure
+function by cognitive complexity (every control structure
 costs more the deeper it sits), then prints a small COGNITIVE / NAME / LOCATION
 table. High scores flag the functions that are hardest to follow, the prime
 "flatten and extract" refactor targets. The calling agent only ever sees the

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rank functions/methods by cyclomatic complexity (SonarSource S1541).
+"""Rank functions/methods by cyclomatic complexity.
 
 A node-metric skill: it leans on the shared node_metric engine to score each
 function by its number of independent paths (1 + decision points), then prints a
@@ -33,7 +33,7 @@ LANGUAGES = list(nm.CYCLOMATIC_LANGS)
 
 
 def main(argv: "list[str] | None" = None) -> int:
-    parser = argparse.ArgumentParser(description="Rank functions by cyclomatic complexity (S1541).")
+    parser = argparse.ArgumentParser(description="Rank functions by cyclomatic complexity.")
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
     parser.add_argument("--top", type=int, default=10, help="how many to show (default: 10)")
     parser.add_argument("--lang", action="append", help="force a language (repeatable); skips auto-detect")

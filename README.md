@@ -207,8 +207,8 @@ installed. Each also ships as a thin SKILL.md wrapper so an agent can trigger it
 | `largest-methods` | Rank the longest methods/functions by line count. |
 | `large-classes` | Rank the longest classes by line count. |
 | `largest-files` | Rank the largest source files by non-blank line count (no AST). |
-| `deepest-nesting` | Rank functions by control-flow nesting depth (S134). |
-| `cyclomatic-complexity` | Rank functions by cyclomatic complexity (S1541). |
+| `deepest-nesting` | Rank functions by control-flow nesting depth. |
+| `cyclomatic-complexity` | Rank functions by cyclomatic complexity. |
 | `cognitive-complexity` | Rank functions by cognitive complexity (nesting-weighted read difficulty). |
 | `most-parameters` | Rank functions by parameter count (long-parameter-list smell). |
 | `most-imports` | Rank files by import count (high-coupling smell). |

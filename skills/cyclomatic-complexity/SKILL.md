@@ -2,7 +2,7 @@
 name: cyclomatic-complexity
 description: >-
   Find the most cyclomatically complex functions/methods in a codebase, ranked
-  by number of independent paths (SonarSource S1541), using ast-grep structural
+  by number of independent paths, using ast-grep structural
   matching. Use whenever the user wants to know which functions are too complex,
   asks "what's the most complex function", hunts for branch-heavy refactor
   candidates, wants a complexity hotspot list, or asks where to simplify control
@@ -28,8 +28,8 @@ table. You only ever see the table. Keep it that way, never pipe raw
 
 Cyclomatic complexity = 1 + the number of decision points in a function: each
 `if`/`elif`, loop, `case`, `catch`/`except`, ternary, and boolean operator
-(`&&`/`||`/`and`/`or`) adds one. A straight-line function is 1. This is
-SonarSource rule **S1541**, computed from AST node ranges, not text.
+(`&&`/`||`/`and`/`or`) adds one. A straight-line function is 1. Computed from
+AST node ranges, not text.
 
 ## Usage
 
@@ -55,10 +55,10 @@ asks you to actually refactor one.
   best-tested; Java, C#, Go, Ruby, C/C++ are mapped but less battle-tested. A
   language with no decision-kinds mapping is skipped (not scored); if something
   you expected shows nothing, pass `--lang` and sanity-check.
-- **Approximate, not exact Sonar parity.** Boolean operators are counted per
+- **Approximate.** Boolean operators are counted per
   operator (`a && b && c` adds 2), and decision points inside a nested function
   currently count toward the enclosing function too. Treat the ranking as a
-  hotspot finder, not a certified S1541 value.
+  hotspot finder, not a certified complexity value.
 - **Complexity, not size or nesting.** A complex function isn't always the
   longest or the deepest, those are separate skills (`largest-methods`,
   `deepest-nesting`).
