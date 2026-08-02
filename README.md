@@ -113,7 +113,7 @@ Drop a `.sniff.toml` in the root of the repo being scanned to turn rules off, re
 severities, skip detectors, retune thresholds, and ignore paths. `sniff doctor` validates it.
 
 ```toml
-[rules]
+[rules]                           #targets the sniff-patterns catalog only. Key is a rule id:
 no-console-log = false            # turn a pattern rule off
 no-explicit-any = "error"         # re-grade it (error | warning | info | hint)
 
@@ -126,15 +126,13 @@ deepest-nesting.min-depth = 3
 globs = ["docs/**", "**/*.generated.ts"]
 ```
 
-Details worth knowing:
+ Details worth knowing:
 
-- The parser is a hand-written TOML subset (stdlib only): `[section]` headers plus
-  flat `key = value` lines, with quoted strings, ints, or `true`/`false` as values. Unknown
-  sections and keys produce a warning, never an error.
-- `[ignore] globs` accepts the array form above or the flat form
-  `globs = "docs/**,**/*.generated.ts"`. Globs are matched against the scan-root-relative path.
-- `[rules]` targets the `sniff-patterns` catalog; `[detectors]` targets every detector, and its
-  dotted keys are folded into that detector's own CLI args before it runs.
+- `[rules]` only affects pattern rules. `[detectors]` affects the detectors, and each `<detector>.<arg>` 
+  key becomes a `--arg` flag on that detector.
+- `globs` also accepts one string: `globs = "docs/**,**/*.generated.ts"`. 
+  Paths are matched from the root of the repo you scan.
+- A section or key that sniff does not recognize is a warning, not an error, so a typo never stops a scan.
 
 ### What gets skipped
 
