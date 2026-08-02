@@ -120,7 +120,8 @@ class CodexHooksWiringTest(unittest.TestCase):
         command = self.hooks["SessionStart"][0]["hooks"][0]["command"]
         self.assertIn("prime", command)
 
-        proc = subprocess.run(command, cwd=PLUGIN_ROOT, shell=True, capture_output=True, text=True)
+        expanded = command.replace("${CLAUDE_PLUGIN_ROOT}", PLUGIN_ROOT)
+        proc = subprocess.run(expanded, cwd=PLUGIN_ROOT, shell=True, capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0)
         # A scan would print per-detector "## name" markdown sections; prime never does.
         self.assertNotIn("## ", proc.stdout)

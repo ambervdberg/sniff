@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sniff prime",
+            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/prime.py\"",
             "statusMessage": "Loading sniff context"
           }
         ]

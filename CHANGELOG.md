@@ -11,6 +11,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Fix: lifecycle hooks never ran under Codex, and the Stop hook fired twice under
   Claude Code. Both hosts now load one file, `hooks/hooks.json`, and hook commands
   no longer depend on the working directory they were launched from.
+- The SessionStart hook no longer requires the CLI to be preinstalled: when `sniff`
+  is not on PATH it runs the PyPI package through `uvx`, pinned to the plugin's own
+  version, and otherwise prints a one-line install hint instead of failing.
 - Fix: 8.5 MB of local `.beads` tracker state was published to PyPI. The sdist is
   now the `sniff` CLI and nothing else: 3956 KB to 49 KB.
 - Added a MIT `LICENSE`. The project previously had none, which left it
