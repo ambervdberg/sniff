@@ -92,6 +92,7 @@ for the exact command list.
 | `sniff --only a,b [DIR]` | Run only the named detectors (e.g. `--only sniff-patterns` for pattern rules). |
 | `sniff --skip a,b [DIR]` | Run all detectors except the named ones. |
 | `sniff --json [DIR]` | Scan output as JSON instead of markdown (also works with `--list`). |
+| `sniff --ignore GLOB [DIR]` | Exclude paths matching `GLOB`; repeatable, adds to `.sniff.toml`. |
 | `sniff version` | Print the installed version. |
 | `sniff doctor` | Check prerequisites (Python, ast-grep, manifests, `.sniff.toml`); exits 0/1. |
 | `sniff prime` | Agent-optimized context (version, detectors, prereqs, usage hints); never scans. |
@@ -134,6 +135,24 @@ Details worth knowing:
   `globs = "docs/**,**/*.generated.ts"`. Globs are matched against the scan-root-relative path.
 - `[rules]` targets the `sniff-patterns` catalog; `[detectors]` targets every detector, and its
   dotted keys are folded into that detector's own CLI args before it runs.
+
+### What gets skipped
+
+Three layers stack, in this order:
+
+1. **Vendored and build directories**, always: `node_modules`, `dist`, `build`, `out`,
+   `coverage`, `target`, `vendor`, `.venv`, `.git`, `.next`, `.angular`, `.nx`, `__pycache__`.
+2. **Anything `.gitignore` excludes**, when the scanned directory is a git repo. Your
+   `.git/info/exclude` and global ignore file count too, since sniff asks git rather than
+   parsing the ignore files itself. Outside a git repo this layer is simply absent.
+3. **Your own globs**: `[ignore] globs` in `.sniff.toml`, plus any `--ignore` flags.
+
+`--ignore` is repeatable and *adds to* `.sniff.toml` rather than replacing it, so a one-off
+exclusion cannot silently drop the ones a repo already committed:
+
+```bash
+sniff --ignore "docs/**" --ignore "**/*.generated.ts" .
+```
 
 ### Local rules
 

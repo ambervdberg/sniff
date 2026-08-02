@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- Every detector now skips files your `.gitignore` excludes, when the scanned
+  directory is a git repo. Previously only the pattern and AST detectors did, so
+  `largest-files` would report build output that `sniff-patterns` had skipped.
+  `.git/info/exclude` and your global ignore file count too.
+- New `sniff --ignore GLOB` flag to exclude paths without writing a config file.
+  Repeatable, and it adds to `.sniff.toml`'s `[ignore] globs` rather than replacing
+  them.
+- `sniff-patterns` no longer floods its output with one rule's hits: each rule now
+  lists at most 10 locations, followed by a `+N more` row, while the heading keeps
+  reporting the rule's full count. Pass `--top-locs 0` for the old behaviour of
+  listing every location, or `--top-locs N` to pick your own cap.
+
 ## [0.11.0] - 2026-08-02
 
 - Fix: lifecycle hooks never ran under Codex, and the Stop hook fired twice under
