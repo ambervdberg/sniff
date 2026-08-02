@@ -66,8 +66,16 @@ def _require_ast_grep() -> None:
         sys.exit("error: ast-grep is not installed or not on PATH. See https://ast-grep.github.io")
 
 
-def _in_ignored_dir(path: str) -> bool:
-    return any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", path))
+def _in_ignored_dir(path: str, root: "str | None" = None) -> bool:
+    """True if a path segment at or below `root` is a vendored/build directory.
+
+    Segments above the scan root do not count: a checkout can live under a parent
+    named `build`, `out`, `vendor`, or `.claude` (where Claude Code puts its
+    worktrees), and matching those would drop every finding in the repo. Since an
+    empty result looks exactly like a clean one, that failure reports as "no
+    smells" rather than as an error. Mirrors harness._in_ignored_dir."""
+    scoped = _rel(path, root) if root is not None else path
+    return any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", scoped))
 
 
 def _extra_ignore_patterns(extra_ignores: "list[str] | None" = None) -> list[str]:
@@ -394,7 +402,7 @@ def main(argv: "list[str] | None" = None) -> int:
     extra_ignores = _extra_ignore_patterns(args.extra_ignore)
 
     def _ignored(file: str) -> bool:
-        return _in_ignored_dir(file) or _matches_extra_ignore(file, args.path, extra_ignores)
+        return _in_ignored_dir(file, args.path) or _matches_extra_ignore(file, args.path, extra_ignores)
 
     matches = run_scan(args.path)
     matches = [m for m in matches if not _ignored(m.get("file", ""))]

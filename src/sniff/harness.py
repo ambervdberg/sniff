@@ -272,17 +272,21 @@ def _in_ignored_dir(
     """True if any path segment is an ignored (vendored/build) directory, or the
     path matches an extra-ignore glob (see `_extra_ignore_patterns`).
 
-    The vendored-dir check runs on the raw path (base-independent). The glob check
-    runs on `path` relative to `root` (forward-slashed), so a consumer's
-    `[ignore] globs` matches the same scan-root-relative path that sniff-patterns'
-    format.py matches against; without this, an absolute or scan-arg-prefixed
-    file path would never match a pattern like `generated/**`. Extends the fixed
-    vendored-dir list rather than replacing it, so both apply together."""
-    if any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", path)):
-        return True
-    patterns = _extra_ignore_patterns(extra_ignores)
-    if not patterns:
-        return False
+    Both checks run on `path` relative to `root` (forward-slashed). For the glob
+    check that base makes a consumer's `[ignore] globs` match the same
+    scan-root-relative path that sniff-patterns' format.py matches against;
+    without it, an absolute or scan-arg-prefixed file path would never match a
+    pattern like `generated/**`.
+
+    The vendored-dir check needs the same base for a different reason: a checkout
+    can live anywhere, including under a parent directory named `build`, `out`,
+    `vendor`, or `.claude` (where Claude Code puts its worktrees). Matching
+    segments above the scan root would drop every match in the repo and, because
+    an empty result is indistinguishable from a clean one, report it as no
+    findings rather than as an error.
+
+    Extends the fixed vendored-dir list rather than replacing it, so both apply
+    together."""
     rel = path
     if root is not None:
         try:
@@ -291,6 +295,12 @@ def _in_ignored_dir(
             # Different drive on Windows: relpath raises, keep the original path.
             rel = path
     norm = rel.replace("\\", "/")
+
+    if any(seg in IGNORE_DIRS for seg in norm.split("/")):
+        return True
+    patterns = _extra_ignore_patterns(extra_ignores)
+    if not patterns:
+        return False
     return any(fnmatch.fnmatch(norm, pat) for pat in patterns)
 
 

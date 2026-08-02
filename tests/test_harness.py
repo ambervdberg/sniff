@@ -74,6 +74,32 @@ class InIgnoredDirTest(unittest.TestCase):
         self.assertFalse(h._in_ignored_dir("proj/src/big.ts", "proj"))
 
 
+class VendoredDirScopeTest(unittest.TestCase):
+    """The vendored-dir check only looks at segments at or below the scan root.
+
+    A checkout can live anywhere, including under a directory that happens to be
+    named like a build output ('build/', 'out/', 'vendor/') or under '.claude'
+    (where Claude Code puts its worktrees). Counting those parent segments drops
+    every AST match with no warning, which reads as 'this repo is clean'."""
+
+    def test_ignored_name_above_scan_root_is_not_ignored(self):
+        root = "C:/Users/me/.claude/worktrees/proj"
+        self.assertFalse(h._in_ignored_dir(f"{root}/src/app.ts", root))
+
+    def test_build_named_parent_above_scan_root_is_not_ignored(self):
+        root = "/home/me/build/proj"
+        self.assertFalse(h._in_ignored_dir(f"{root}/src/app.ts", root))
+
+    def test_ignored_dir_below_scan_root_is_still_ignored(self):
+        root = "C:/work/proj"
+        self.assertTrue(h._in_ignored_dir(f"{root}/node_modules/pkg/index.ts", root))
+
+    def test_without_root_the_check_stays_base_independent(self):
+        # run() is not the only caller; format.py-style callers pass no root and
+        # rely on the whole path being searched.
+        self.assertTrue(h._in_ignored_dir("proj/dist/bundle.js"))
+
+
 class FoldNestedTest(unittest.TestCase):
     def test_inner_match_folded_into_outer(self):
         outer = _match("a.ts", 0, 20, 0, 200, "outer")
