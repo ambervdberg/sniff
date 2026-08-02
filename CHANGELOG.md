@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-08-02
+
 - Every detector now skips files your `.gitignore` excludes, when the scanned
   directory is a git repo. Previously only the pattern and AST detectors did, so
   `largest-files` would report build output that `sniff-patterns` had skipped.
