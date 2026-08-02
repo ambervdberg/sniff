@@ -382,6 +382,31 @@ class GitignoreAwarenessTest(unittest.TestCase):
         self.assertIn("tracked.py", names)
         self.assertNotIn("generated.py", names)
 
+    def test_unchecked_out_submodule_does_not_recurse(self):
+        # A submodule recorded in the index but never checked out is just an empty
+        # directory. `git -C` inside it walks UP to the parent repo instead of
+        # failing, and the parent reports that gitlink relative to the current
+        # directory as ".", which joins straight back to the same path. Without a
+        # guard the walk recurses on itself until RecursionError, so every
+        # file-metric detector hangs on any shallow clone (submodules are not
+        # initialized by default).
+        self._write("root.py", "r = 1\n")
+        self._git_init()
+
+        # A gitlink pointing at a commit this clone does not have, plus the empty
+        # placeholder directory git leaves behind: exactly the on-disk state of a
+        # submodule that was never `--init`ed. Recording the index entry directly
+        # avoids building a nested repo only to delete it, which Windows refuses
+        # because git marks its object files read-only.
+        os.makedirs(os.path.join(self.root, "sub"), exist_ok=True)
+        self._git("update-index", "--add", "--cacheinfo",
+                  "160000,6742055402de1aa48f93d12ded7d18f4057f9d1f,sub")
+        h.reset_git_ignore_cache()
+
+        names = {os.path.basename(f) for f in h.iter_source_files(self.root)}
+
+        self.assertIn("root.py", names)
+
     def test_reset_git_ignore_cache_forgets_the_previous_answer(self):
         # A library consumer that scans, writes files, and scans again would
         # otherwise keep filtering against the first scan's file list forever.

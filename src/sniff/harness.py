@@ -168,6 +168,22 @@ def _run_git(root: str, args: "list[str]") -> "str | None":
 
 
 @functools.lru_cache(maxsize=None)
+def _is_repo_root(path: str) -> bool:
+    """True if `path` is the top level of its own git repository.
+
+    `git -C` on a directory that is not a repo does not fail: it walks up until
+    it finds one. A submodule recorded in the index but never checked out is an
+    empty directory, so every query inside it is answered by the parent repo,
+    which reports that gitlink relative to the current directory as "." -- a path
+    that joins straight back to where we started. Comparing the resolved top
+    level against the directory itself is what tells the two cases apart."""
+    out = _run_git(path, ["rev-parse", "--show-toplevel"])
+    if out is None:
+        return False
+    return os.path.normcase(os.path.abspath(out.strip())) == os.path.normcase(os.path.abspath(path))
+
+
+@functools.lru_cache(maxsize=None)
 def _git_submodule_dirs(root: str) -> "tuple[str, ...]":
     """Root-relative paths of the submodules recorded in `root`'s index.
 
@@ -226,7 +242,13 @@ def _git_visible_files(root: str) -> "frozenset[str] | None":
     # submodule code, the very split this whole function exists to close.
     # Submodules nested inside submodules fall out of the recursion for free.
     for submodule in _git_submodule_dirs(root):
-        nested = _git_visible_files(os.path.abspath(os.path.join(root, submodule)))
+        nested_root = os.path.abspath(os.path.join(root, submodule))
+        # An unchecked-out submodule has no repo of its own, so recursing into it
+        # would just re-ask the parent and loop forever (see `_is_repo_root`).
+        # Nothing is lost by skipping: the directory is empty.
+        if not _is_repo_root(nested_root):
+            continue
+        nested = _git_visible_files(nested_root)
         if nested is None:
             continue
         visible |= {f"{submodule}/{path}" for path in nested}

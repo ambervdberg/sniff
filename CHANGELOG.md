@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Fix: detectors reported no findings when the scanned repo sat under a directory
   named `build`, `dist`, `out`, `target`, `vendor`, `venv`, or `.claude`.
+- Fix: scans never finished on a repo with an uninitialized submodule.
 
 ## [0.12.0] - 2026-08-02
 
