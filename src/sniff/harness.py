@@ -13,6 +13,8 @@ Detectors and generated skills import it; they don't duplicate it.
 Stable public API (kept small so generated scripts stay ~20 lines):
 
     detect_languages(root, extra_ignores)          -> set[str]
+    covered_languages(present, supported)          -> list[str]
+    not_applicable(present, supported)             -> str
     run(rule_or_pattern, path, lang, include_tests) -> list[Match]
     fold_nested(matches)                           -> list[Match]
     print_table(matches, columns, sort_key, top, header)
@@ -60,6 +62,11 @@ EXT_LANG = {
     ".c": "c", ".h": "c",
     ".cpp": "cpp", ".cc": "cpp", ".cxx": "cpp", ".hpp": "cpp", ".hh": "cpp",
 }
+
+# Every language the file walk recognizes. Detectors that read files rather than
+# parse them (line counts, string literals) support all of them, so they declare
+# their LANGUAGES as this list instead of repeating it.
+ALL_LANGUAGES = sorted(set(EXT_LANG.values()))
 
 # Directories that never contain hand-written source worth ranking.
 IGNORE_DIRS = {
@@ -356,6 +363,26 @@ def detect_languages(root: str, extra_ignores: "list[str] | None" = None) -> set
             found.add(lang)
 
     return found
+
+
+def covered_languages(present: "Sequence[str]", supported: "Sequence[str]") -> "list[str]":
+    """The languages a detector can actually match out of the ones in the repo.
+
+    Every detector declares a LANGUAGES list: the languages it has rules for.
+    Narrowing the detected languages against that list before scanning is what
+    keeps a header from claiming a detector examined Java when it has no Java
+    rules at all."""
+    return sorted(lang for lang in set(present) if lang in set(supported))
+
+
+def not_applicable(present: "Sequence[str]", supported: "Sequence[str]") -> str:
+    """The one line a detector prints when it covers none of the repo's languages.
+
+    Says what the detector does cover, so the reader can tell "nothing to report"
+    apart from "this tool cannot see your code"."""
+    found = ", ".join(sorted(set(present))) or "none"
+    covers = ", ".join(sorted(set(supported))) or "no languages"
+    return f"Not applicable: this detector covers {covers}; the files here are {found}."
 
 
 def iter_source_files(

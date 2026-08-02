@@ -26,6 +26,11 @@ NAME = "large-inline-templates"
 TITLE = "Large Angular inline templates"
 DEFAULT_ARGS: "list[str]" = []
 
+# Angular components live in TypeScript, so those are the only files worth
+# opening. A repo without them is told so instead of getting a "none found" line
+# that reads like a clean bill of health.
+LANGUAGES = list(nm.TEMPLATE_LANGS)
+
 
 def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(description="Rank Angular components by inline-template line count.")
@@ -37,6 +42,14 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument("--extra-ignore", action="append", default=[],
                         help="glob to exclude, relative to PATH (repeatable)")
     args = parser.parse_args(argv)
+
+    present = sorted(h.detect_languages(args.path, args.extra_ignore))
+    if not present:
+        sys.exit(f"No supported source files found under {args.path!r}.")
+
+    if not h.covered_languages(present, LANGUAGES):
+        print(h.not_applicable(present, LANGUAGES))
+        return 0
 
     scored = nm.inline_template_lines(args.path, include_tests=args.include_tests,
                                        extra_ignores=args.extra_ignore)

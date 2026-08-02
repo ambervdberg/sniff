@@ -257,6 +257,35 @@ def print_list_rules(rules: list[tuple[str, str, str, str, str]]) -> None:
         print()
 
 
+def render_catalog_table(rules: list[tuple[str, str, str, str, str]]) -> str:
+    """One flat markdown table of the rule catalog, worst severity first.
+
+    The CLI's --list-rules view groups by language and names each rule's origin,
+    which is what an agent picking a rule id needs. A reader of the docs wants the
+    opposite: the whole catalog at a glance, so this stays one table and shows the
+    language as a column."""
+    lines = ["| RULE | LANGUAGE | SEVERITY | MESSAGE |", "| --- | --- | --- | --- |"]
+
+    for rule_id, severity, message, _origin, language in sorted(
+            rules, key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[4], r[0])):
+        # Escape pipes so the markdown table stays valid.
+        safe_msg = _unquoted(message).replace("|", "\\|")
+        lines.append(f"| {rule_id} | {language} | {severity} | {safe_msg} |")
+
+    return "\n".join(lines)
+
+
+def _unquoted(message: str) -> str:
+    """Drop the quotes a YAML `message:` scalar carries, if it has a matching pair.
+
+    The rule files quote their messages; a docs table reading `"Bare except: ..."`
+    with the quotes still on looks like the quotes are part of the message."""
+    text = message.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+        return text[1:-1]
+    return text
+
+
 def _yaml_single_quoted(path: str) -> str:
     """Format an absolute path as a single-quoted YAML scalar.
 

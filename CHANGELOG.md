@@ -9,6 +9,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Fix: detectors reported no findings when the scanned repo sat under a directory
   named `build`, `dist`, `out`, `target`, `vendor`, `venv`, or `.claude`.
 - Fix: scans never finished on a repo with an uninitialized submodule.
+- Fix: `large-classes` now finds Python classes.
+- Fix: `most-imports` now counts Python imports.
+- Detectors that cannot read the languages in a repo are skipped instead of reporting no findings.
+- Result headers name only the languages the detector actually read.
+- `sniff --list` and `sniff prime` show which languages each detector covers.
 
 ## [0.12.0] - 2026-08-02
 

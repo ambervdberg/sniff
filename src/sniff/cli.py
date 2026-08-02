@@ -36,7 +36,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, replace
 
-from sniff import config, contribute, discovery, patterns, rules_testing
+from sniff import config, contribute, discovery, harness, patterns, rules_testing
 
 
 # Flags seen hallucinated in eval runs (gpt-5.4-nano, gpt-5.4-mini, sonnet-4-6).
@@ -109,6 +109,23 @@ def select_with_config(
     detector from the run, and it still participates in --skip's unknown-name
     warning (any typo in .sniff.toml's skip list surfaces the same as a CLI typo)."""
     return select(detectors, only, skip | cfg.skip_detectors)
+
+
+def _readable_here(
+    selected: list[discovery.Detector], present: "set[str]", only: set[str]
+) -> list[discovery.Detector]:
+    """Keep only the detectors that can read the languages this repo contains.
+
+    A detector with no rules for any language present has nothing to report, and
+    a "none found" line from it reads like a clean bill of health rather than the
+    blind spot it is. Two exceptions keep the rule from hiding things: a detector
+    named in `--only` was asked for by name, so it runs and explains itself, and a
+    repo with no supported source files at all keeps everything, so the detectors
+    produce their own "nothing to scan" message."""
+    if not present:
+        return selected
+
+    return [d for d in selected if d.name in only or d.covers(present)]
 
 
 def _override_args(args: list[str], overrides: dict[str, str]) -> list[str]:
@@ -391,7 +408,9 @@ def run_prime() -> None:
 
     lines.append(f"DETECTORS ({len(facts.detectors)})")
     for d in facts.detectors:
-        lines.append(f"  {d.name}: {d.title}")
+        lines.append(f"  {d.name}: {d.title} [{discovery.language_cell(d)}]")
+    lines.append("")
+    lines.append("  [languages] is what that detector can read; sniff skips the rest.")
     lines.append("")
 
     lines.append("COMMON COMMANDS")
@@ -680,7 +699,8 @@ def main(argv: "list[str] | None" = None) -> int:
     if args.list:
         if args.json:
             print(json.dumps([
-                {"name": d.name, "title": d.title, "script": d.script, "args": d.args}
+                {"name": d.name, "title": d.title, "script": d.script, "args": d.args,
+                 "languages": d.languages}
                 for d in detectors
             ], indent=2))
         else:
@@ -715,7 +735,8 @@ def main(argv: "list[str] | None" = None) -> int:
     # SNIFF_EXTRA_IGNORE export for external detectors) picks it up for free.
     cfg.extra_ignores = [*cfg.extra_ignores, *args.ignore]
 
-    selected, unknown = select_with_config(detectors, _split_csv(args.only), _split_csv(args.skip), cfg)
+    only = _split_csv(args.only)
+    selected, unknown = select_with_config(detectors, only, _split_csv(args.skip), cfg)
     for name in unknown:
         import difflib
         known = [d.name for d in detectors]
@@ -733,6 +754,19 @@ def main(argv: "list[str] | None" = None) -> int:
             print(json.dumps({"path": args.path, "detectors": []}, indent=2))
         else:
             print("No detectors selected after --only/--skip.")
+        return 0
+
+    present = harness.detect_languages(args.path, cfg.extra_ignores)
+    selected = _readable_here(selected, present, only)
+
+    if not selected:
+        found = ", ".join(sorted(present)) or "no supported source files"
+        message = (f"No detector covers {found}. "
+                   f"Run `sniff --list` to see what each detector reads.")
+        if args.json:
+            print(json.dumps({"path": args.path, "detectors": []}, indent=2))
+        else:
+            print(message)
         return 0
 
     selected = [apply_config_to_detector(d, cfg) for d in selected]

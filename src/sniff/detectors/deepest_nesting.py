@@ -27,6 +27,10 @@ NAME = "deepest-nesting"
 TITLE = "Deepest nested blocks"
 DEFAULT_ARGS: "list[str]" = []
 
+# Depth needs control-flow node kinds, so the engine's nesting map decides what
+# this detector can read. Every other language is reported as out of scope.
+LANGUAGES = list(nm.SUPPORTED_LANGS)
+
 
 def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(description="Rank functions by control-flow nesting depth (S134).")
@@ -40,9 +44,14 @@ def main(argv: "list[str] | None" = None) -> int:
                         help="glob to exclude, relative to PATH (repeatable)")
     args = parser.parse_args(argv)
 
-    langs = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
-    if not langs:
+    present = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
+    if not present:
         sys.exit(f"No supported source files found under {args.path!r}.")
+
+    langs = h.covered_languages(present, LANGUAGES)
+    if not langs:
+        print(h.not_applicable(present, LANGUAGES))
+        return 0
 
     scored = nm.nesting_depth(args.path, langs=langs, include_tests=args.include_tests,
                                extra_ignores=args.extra_ignore)
@@ -51,8 +60,7 @@ def main(argv: "list[str] | None" = None) -> int:
     scored = [m for m in scored if m.metrics.get("depth", 0) >= args.min_depth]
 
     if not scored:
-        scorable = ", ".join(l for l in langs if l in nm.NESTING_KINDS) or "none"
-        print(f"No functions at nesting depth >= {args.min_depth} (scorable languages: {scorable}).")
+        print(f"No functions at nesting depth >= {args.min_depth} (scanned: {', '.join(langs)}).")
         return 0
 
     header = (

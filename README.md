@@ -226,6 +226,59 @@ Skills the plugin surface adds on top of that detector list:
 `src/sniff/` contains the shared engine (harness.py for AST-grep integration,
 node_metric.py for scoring).
 
+## Language support
+
+TypeScript, TSX, JavaScript and Python are covered by every detector that can
+apply to them. Other languages are covered where the table says so. A detector
+that cannot read your files says so instead of reporting zero findings, and a
+scan skips it entirely unless you name it in `--only`.
+
+<!-- language-matrix:start -->
+| DETECTOR | typescript | tsx | javascript | python | ALSO COVERS |
+| --- | --- | --- | --- | --- | --- |
+| cognitive-complexity | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust |
+| cyclomatic-complexity | yes | yes | yes | yes | c, cpp, csharp, go, java, ruby |
+| deepest-nesting | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust |
+| large-classes | yes | yes | yes | yes | - |
+| large-inline-templates | yes | yes | no | no | - |
+| largest-files | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
+| largest-methods | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
+| most-imports | yes | yes | yes | yes | - |
+| most-parameters | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust |
+| no-duplicate-string | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
+| sniff-patterns | yes | no | no | yes | - |
+<!-- language-matrix:end -->
+
+`large-inline-templates` is Angular-only by design. `sniff-patterns` covers
+whatever its rules declare, including any you add under `.sniff/rules/`, so this
+row grows with the catalog. Run `sniff --list` for the same coverage per
+detector, including detectors your repo adds.
+
+## Pattern rules
+
+The catalog `sniff-patterns` runs, worst severity first. `sniff --list-patterns`
+prints the same rules grouped by language, plus any your repo adds under
+`.sniff/rules/`.
+
+<!-- pattern-catalog:start -->
+| RULE | LANGUAGE | SEVERITY | MESSAGE |
+| --- | --- | --- | --- |
+| no-empty-catch | typescript | error | Empty catch block swallows errors; add error handling or use a comment explaining why. |
+| py-bare-except | python | warning | Bare except: swallows all exceptions, including KeyboardInterrupt and SystemExit; catch Exception or a specific type instead. |
+| py-mutable-default-arg | python | warning | Mutable default argument is shared across all calls; use None and initialize inside the function body instead. |
+| py-nested-conditional-expr | python | warning | Nested conditional expression; extract to if/elif/else or a helper function for readability. |
+| no-any-cast | typescript | warning | 'as any' defeats type safety; use a precise type or 'unknown'. |
+| no-boolean-param | typescript | warning | Boolean parameter enables unclear call sites; use a more descriptive type, enum, or extracted method. |
+| no-console-log | typescript | warning | Remove console.log/debug/info in production; use a logging library. |
+| no-explicit-any | typescript | warning | Explicit 'any' defeats type safety; use a precise type or 'unknown'. |
+| no-multiline-single-comment | typescript | warning | Block comment spans multiple lines with only one content line; use single-line syntax instead. |
+| no-nested-ternary | typescript | warning | Nested ternary; extract to if/else or a helper for readability (sonarqube typescript:S3358). |
+| no-non-null-assertion | typescript | warning | Non-null assertion operator `!` bypasses type safety; use proper null checks instead. |
+| prefer-at-over-length-index | typescript | warning | Use `.at(-N)` instead of `arr[arr.length - N]` (sonarqube typescript:S7755). |
+| prefer-optional-chain | typescript | warning | Use optional chaining `?.` instead of `&&` guard for property access. |
+| py-print-statement | python | info | Bare print() call; use a logging library instead of print for anything beyond throwaway debugging. |
+<!-- pattern-catalog:end -->
+
 ## Engines
 
 A smell needs an engine. `sniff-create` picks the right one when you make a new check; see
