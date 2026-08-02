@@ -120,5 +120,5 @@ Before opening a PR:
 - [ ] If this is a version bump, run `python scripts/bump_version.py <version>` (not for feature PRs).
       Never hand-edit a version: the script is the only thing that keeps `pyproject.toml`,
       both `plugin.json` files, and the `marketplace.json` entries in lockstep, and
-      `sniff doctor` fails the build if they drift apart.
+      `tests/test_version_consistency.py` fails the build if they drift apart.
 - [ ] CI passes (GitHub Actions will run the checks)

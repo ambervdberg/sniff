@@ -34,7 +34,7 @@ import re
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 
 from sniff import config, contribute, discovery, patterns, rules_testing
 
@@ -278,46 +278,6 @@ def _pyproject_version() -> str | None:
     return match.group(1) if match else None
 
 
-def _plugin_version() -> str | None:
-    """Read version from .claude-plugin/plugin.json, or None if not present."""
-    path = os.path.join(_REPO_ROOT, ".claude-plugin", "plugin.json")
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-    except (OSError, json.JSONDecodeError):
-        return None
-    return data.get("version")
-
-
-def _read_json(*parts: str) -> dict | None:
-    """Load a JSON file relative to the repo root, or None if missing/unparseable."""
-    try:
-        with open(os.path.join(_REPO_ROOT, *parts), "r", encoding="utf-8") as fh:
-            return json.load(fh)
-    except (OSError, json.JSONDecodeError):
-        return None
-
-
-def _satellite_versions() -> dict[str, str]:
-    """Every *other* place in the checkout that declares a version, keyed by a
-    human-readable label. These must all match .claude-plugin/plugin.json.
-
-    The marketplace entry version is ignored at install time (plugin.json wins),
-    but Claude Code warns on mismatch, so silent drift is worth failing on."""
-    versions: dict[str, str] = {}
-
-    codex = _read_json(".codex-plugin", "plugin.json")
-    if codex and "version" in codex:
-        versions[".codex-plugin/plugin.json"] = codex["version"]
-
-    marketplace = _read_json(".claude-plugin", "marketplace.json")
-    for entry in (marketplace or {}).get("plugins", []):
-        if "version" in entry:
-            versions[f"marketplace.json[{entry.get('name', '?')}]"] = entry["version"]
-
-    return versions
-
-
 def _installed_package_version() -> str | None:
     """Version reported by importlib.metadata for the installed distribution
     (`sniff-smells`, or the legacy `sniff` name), or None."""
@@ -348,9 +308,7 @@ class EnvironmentFacts:
     errors: list[str]
     has_ast_grep: bool
     pkg_version: str | None
-    plugin_version: str | None
     installed_version: str | None
-    satellite_versions: dict[str, str] = field(default_factory=dict)
 
 
 def _gather_environment_facts() -> EnvironmentFacts:
@@ -360,9 +318,7 @@ def _gather_environment_facts() -> EnvironmentFacts:
         errors=errors,
         has_ast_grep=shutil.which("ast-grep") is not None,
         pkg_version=_pyproject_version(),
-        plugin_version=_plugin_version(),
         installed_version=_installed_package_version(),
-        satellite_versions=_satellite_versions(),
     )
 
 
@@ -400,29 +356,6 @@ def run_doctor() -> int:
         lines.append(f"FAIL duplicate detector name(s): {', '.join(dupes)}")
     else:
         lines.append("PASS no duplicate detector names")
-
-    if facts.pkg_version is None or facts.plugin_version is None:
-        lines.append("SKIP version consistency (not a source checkout)")
-    elif facts.pkg_version == facts.plugin_version:
-        lines.append(f"PASS package and plugin versions match ({facts.pkg_version})")
-    else:
-        ok = False
-        lines.append(f"FAIL version drift: pyproject.toml={facts.pkg_version} plugin.json={facts.plugin_version}")
-
-    if facts.plugin_version is None or not facts.satellite_versions:
-        lines.append("SKIP satellite manifest versions (not a source checkout)")
-    else:
-        drifted = {
-            label: version
-            for label, version in facts.satellite_versions.items()
-            if version != facts.plugin_version
-        }
-        if drifted:
-            ok = False
-            for label, version in sorted(drifted.items()):
-                lines.append(f"FAIL version drift: {label}={version} plugin.json={facts.plugin_version}")
-        else:
-            lines.append(f"PASS {len(facts.satellite_versions)} satellite manifest version(s) match plugin.json")
 
     local_rules_dir = os.path.join(".sniff", "rules")
     if os.path.isdir(local_rules_dir):
@@ -476,11 +409,6 @@ def run_prime() -> None:
         caveats.append("ast-grep is not on PATH; every detector except sniff-patterns will fail to run.")
     if facts.errors:
         caveats.append(f"{len(facts.errors)} detector manifest error(s); run `sniff doctor` for details.")
-    if facts.pkg_version and facts.plugin_version and facts.pkg_version != facts.plugin_version:
-        caveats.append(
-            f"version drift: pyproject.toml={facts.pkg_version} vs plugin.json={facts.plugin_version}; "
-            "installed CLI may be stale."
-        )
     if facts.installed_version and facts.pkg_version and facts.installed_version != facts.pkg_version:
         caveats.append(
             f"stale install: pip-installed sniff is {facts.installed_version}, source checkout is {facts.pkg_version}; "

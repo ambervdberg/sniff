@@ -72,7 +72,7 @@ for the exact command list.
 | `sniff --skip a,b [DIR]` | Run all detectors except the named ones. |
 | `sniff --json [DIR]` | Scan output as JSON instead of markdown (also works with `--list`). |
 | `sniff version` | Print the installed version. |
-| `sniff doctor` | Check prerequisites (Python, ast-grep, manifests, version drift, `.sniff.toml`); exits 0/1. |
+| `sniff doctor` | Check prerequisites (Python, ast-grep, manifests, `.sniff.toml`); exits 0/1. |
 | `sniff prime` | Agent-optimized context (version, detectors, prereqs, usage hints); never scans. |
 | `sniff baseline write [DIR]` | Save per-detector finding counts to `.sniff/baseline.json`. |
 | `sniff diff [DIR]` | Compare a fresh scan to the saved baseline; exits 1 if any detector regressed. |

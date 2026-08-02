@@ -11,8 +11,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   entry was silently ignored and Claude Code warned on every marketplace validation.
   The marketplace also gained the missing top-level `description`.
 - `scripts/bump_version.py` now rewrites the marketplace plugin entries too, and
-  `sniff doctor` fails on any manifest whose version disagrees with `plugin.json`,
+  `tests/test_version_consistency.py` fails CI if any manifest version disagrees,
   so this drift cannot come back unnoticed.
+- `sniff doctor` and `sniff prime` no longer report version drift between
+  `pyproject.toml` and `plugin.json`. That now lives in the test suite with the rest of the
+  version checks.
 
 ## [0.10.0] - 2026-07-30
 
