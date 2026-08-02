@@ -286,7 +286,7 @@ The catalog `sniff-patterns` runs, worst severity first within each language.
 | warning | prefer-optional-chain | Use optional chaining `?.` instead of `&&` guard for property access. |
 <!-- pattern-catalog:end -->
 
-### Add your own rule
+### Add a rule
 
 **With the plugin installed, ask your agent:** *"use sniff-create to add a rule that
 flags X"*. The `sniff-create` skill picks the engine, writes the pattern, and checks
@@ -294,11 +294,9 @@ it against your actual code before saving anything, so you never guess at syntax
 
 **By hand**, if you would rather write it yourself:
 
-1. **Work out the pattern.** Paste the code you want flagged into the
-   [ast-grep playground](https://astgrep.com/playground.html), pick your
-   language, and adjust until it matches. `$NAME` captures one node, `$$$NAME` a
-   list. Patterns match parsed code, not text, so a rule cannot match a comment.
-2. **Save it** as `.sniff/rules/<id>.yml` in the repo you scan. No install step:
+1. **Work out the pattern.** You can checkout [astgrep.com/guide/](https://astgrep.com/guide/introduction) for help.
+   You can test it here: [ast-grep playground](https://astgrep.com/playground.html).
+2. **Save it** as `.sniff/rules/<id>.yml` in the repo you scan.
 
    ```yaml
    # .sniff/rules/no-alert.yml
@@ -316,7 +314,7 @@ it against your actual code before saving anything, so you never guess at syntax
 
 An id that collides with a catalog rule is ignored with a warning.
 
-Want the rule in the shared catalog? Add examples at `.sniff/rule-tests/<id>.yml`
+Want to contribute the rule to the catalog? Add examples at `.sniff/rule-tests/<id>.yml`
 first, then `sniff contribute <rule-id>` opens the PR:
 
 ```yaml
@@ -397,18 +395,10 @@ The detector lives in `skills/sniff-create/scripts/detect_costly_search.py`.
 
 ### Caveats
 
-It is a **heuristic**, not a judgement of intent. The hook sees the turn's tool
-calls and the prompt text, never your reasoning, so:
+It sees one turn's tool calls and the prompt text, nothing else. So it misses some
+searches and fires on some unrelated ones.
 
-- Expect the occasional **miss** (a real repeated search the prompt did not phrase
-  structurally) and the occasional **false positive** (lots of reads for an
-  unrelated reason). Both are cheap: a missed nudge costs nothing, a stray one is a
-  single ignorable line.
-- It only inspects the **most recent turn**; a search spread across several turns
-  does not accumulate.
-- Raise `SNIFF_MIN_CALLS` if a project trips it too often; lower it to catch
-  searches sooner. Turn it off per session with `SNIFF_CREATE_NUDGE=0` when it is
-  noise for the task at hand.
+Too chatty? Raise `SNIFF_MIN_CALLS`, or set `SNIFF_CREATE_NUDGE=0` to turn it off.
 
 ## Tests
 
