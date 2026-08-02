@@ -288,25 +288,46 @@ The catalog `sniff-patterns` runs, worst severity first within each language.
 
 ### Add your own rule
 
-Drop a `.yml` file in `.sniff/rules/` in the repo you scan. No install step: the
-next `sniff` run picks it up and reports its findings alongside the catalog's.
+**With the plugin installed, ask your agent:** *"use sniff-create to add a rule that
+flags X"*. The `sniff-create` skill picks the engine, writes the pattern, and checks
+it against your actual code before saving anything, so you never guess at syntax.
+
+**By hand**, if you would rather write it yourself:
+
+1. **Work out the pattern.** Paste the code you want flagged into the
+   [ast-grep playground](https://astgrep.com/playground.html), pick your
+   language, and adjust until it matches. `$NAME` captures one node, `$$$NAME` a
+   list. Patterns match parsed code, not text, so a rule cannot match a comment.
+2. **Save it** as `.sniff/rules/<id>.yml` in the repo you scan. No install step:
+
+   ```yaml
+   # .sniff/rules/no-alert.yml
+   id: no-alert
+   language: typescript      # one language per rule
+   severity: warning         # error | warning | info
+   message: "alert() blocks the page; use a dialog component instead."
+   rule:
+     pattern: alert($MSG)
+   ```
+
+3. **Run it.** `sniff --only sniff-patterns .` reports its findings alongside the
+   catalog's. If nothing shows up, `sniff --list-patterns` tells you whether the rule
+   loaded at all: yours appears tagged `local`.
+
+An id that collides with a catalog rule is ignored with a warning.
+
+Want the rule in the shared catalog? Add examples at `.sniff/rule-tests/<id>.yml`
+first, then `sniff contribute <rule-id>` opens the PR:
 
 ```yaml
-# .sniff/rules/no-alert.yml
 id: no-alert
-language: typescript          # one ast-grep language per rule
-severity: warning             # error | warning | info
-message: "alert() blocks the page; use a dialog component instead."
-rule:
-  pattern: alert($MSG)        # $NAME captures one node, $$$NAME captures a list
+valid:
+  - |
+    showDialog("boom");
+invalid:
+  - |
+    alert("boom");
 ```
-
-`pattern` matches code, not text: it only sees what the parser produces, so a rule
-cannot match a comment.
-
-`sniff --list-patterns` shows it tagged `local`, so you can tell it apart from the
-catalog. An id that collides with a catalog rule is ignored with a warning.
-`sniff contribute <rule-id>` opens a PR to add yours here.
 
 ## Engines
 
