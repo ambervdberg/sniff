@@ -62,6 +62,9 @@ def main(argv: "list[str] | None" = None) -> int:
 
     updated = rendered_readme(current)
     if updated == current:
+        # Say so out loud: silence on success is indistinguishable from a script
+        # that did not run.
+        print("README.md is already up to date")
         return 0
 
     if check_only:
