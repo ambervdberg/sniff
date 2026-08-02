@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # setup-uv installs the interpreter too, so no separate setup-python step.
-      - uses: astral-sh/setup-uv@v9
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "3.14"
           enable-cache: true
