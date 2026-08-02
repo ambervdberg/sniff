@@ -2,7 +2,7 @@
 name: deepest-nesting
 description: >-
   Find the most deeply nested functions/methods in a codebase, ranked by
-  control-flow nesting depth (SonarSource S134), using ast-grep structural
+  control-flow nesting depth, using ast-grep structural
   matching. Use whenever the user wants to know which functions are too deeply
   nested, asks "what's the most nested / deepest function", hunts for arrow-code
   or pyramid-of-doom refactor candidates, wants a nesting-depth hotspot list, or
@@ -29,9 +29,8 @@ it that way, never pipe raw `ast-grep --json` output into your own context.
 
 Depth is the deepest stack of control-flow blocks inside a function: an `if`
 holding a `for` holding a `while` is depth 3. Sibling blocks at the same level do
-NOT add up (two sequential `if`s are still depth 1). This is the structural
-nesting behind SonarSource rule **S134**. It is computed from the AST node
-ranges, not from indentation or braces in text.
+NOT add up (two sequential `if`s are still depth 1). Depth is computed from the
+AST node ranges, not from indentation or braces in text.
 
 ## Usage
 
@@ -61,8 +60,8 @@ refactor one.
   longest or the most complex, present it as a refactor *candidate*. Cyclomatic
   and cognitive complexity are separate metrics (their own skills).
 - **`else if` counts as deeper.** Physical nesting is measured, so a long
-  `if/else if` chain reads deeper than Sonar's cognitive model would score it.
-  Treat the ranking as a hotspot finder, not an exact S134 value.
+  `if/else if` chain reads deeper than a cognitive-complexity model would score
+  it. Treat the ranking as a hotspot finder, not an exact value.
 - **`--min-depth` defaults to 1**, hiding flat functions. Raise it to focus on
   the worst, or pass `--min-depth 0` to list everything.
 - **Tests excluded by default** (`*.spec.*`, `*.test.*`); add `--include-tests`.

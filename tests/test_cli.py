@@ -35,9 +35,15 @@ class SniffCliHelpTest(unittest.TestCase):
     def test_list_shows_run_command_for_each_detector(self):
         """Detector list includes copyable run commands for routing."""
         out = self._run("--list")
-        self.assertIn("| DETECTOR | TITLE | RUN |", out)
+        self.assertIn("| DETECTOR | TITLE | LANGUAGES | RUN |", out)
         self.assertIn("| sniff-patterns |", out)
         self.assertIn("`sniff --only sniff-patterns [DIR]`", out)
+
+    def test_list_names_the_languages_each_detector_covers(self):
+        """Every detector row states its coverage, so a wrong language is visible."""
+        out = self._run("--list")
+        self.assertIn("| large-classes | Largest classes | javascript, python, tsx, typescript |", out)
+        self.assertIn("| large-inline-templates | Large Angular inline templates | tsx, typescript |", out)
 
 
 class SniffHallucinatedFlagHintTest(unittest.TestCase):

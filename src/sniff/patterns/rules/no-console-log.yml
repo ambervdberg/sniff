@@ -4,6 +4,8 @@ id: no-console-log
 language: typescript
 severity: warning
 message: "Remove console.log/debug/info in production; use a logging library."
+metadata:
+  languages: [tsx, javascript]
 rule:
   any:
     - pattern: console.log($$$)

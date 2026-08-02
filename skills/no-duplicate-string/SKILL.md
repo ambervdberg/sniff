@@ -1,7 +1,7 @@
 ---
 name: no-duplicate-string
 description: >-
-  Find string literals that appear in 3+ files across the codebase (SonarQube S1192).
+  Find string literals that appear in 3+ files across the codebase.
   Use when the user wants to identify hardcoded strings that should be extracted into
   a shared constant or config, hunts for strings duplicated across multiple modules,
   or asks to find magic strings that repeat. Returns a small ranked table showing the

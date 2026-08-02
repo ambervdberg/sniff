@@ -2,7 +2,7 @@
 """Rank functions/methods by cognitive complexity (how hard they are to read).
 
 A node-metric skill: it leans on the shared node_metric engine to score each
-function by SonarSource-style cognitive complexity (every control structure
+function by cognitive complexity (every control structure
 costs more the deeper it sits), then prints a small COGNITIVE / NAME / LOCATION
 table. High scores flag the functions that are hardest to follow, the prime
 "flatten and extract" refactor targets. The calling agent only ever sees the
@@ -27,6 +27,10 @@ NAME = "cognitive-complexity"
 TITLE = "High cognitive complexity methods"
 DEFAULT_ARGS: "list[str]" = []
 
+# Scoring needs control-flow node kinds, so the engine's nesting map decides what
+# this detector can read. Every other language is reported as out of scope.
+LANGUAGES = list(nm.SUPPORTED_LANGS)
+
 
 def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(description="Rank functions by cognitive complexity.")
@@ -40,17 +44,21 @@ def main(argv: "list[str] | None" = None) -> int:
                         help="glob to exclude, relative to PATH (repeatable)")
     args = parser.parse_args(argv)
 
-    langs = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
-    if not langs:
+    present = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
+    if not present:
         sys.exit(f"No supported source files found under {args.path!r}.")
+
+    langs = h.covered_languages(present, LANGUAGES)
+    if not langs:
+        print(h.not_applicable(present, LANGUAGES))
+        return 0
 
     scored = nm.cognitive(args.path, langs=langs, include_tests=args.include_tests,
                            extra_ignores=args.extra_ignore)
     scored = [m for m in scored if m.metrics.get("cognitive", 0) >= args.minimum]
 
     if not scored:
-        scorable = ", ".join(l for l in langs if l in nm.NESTING_KINDS) or "none"
-        print(f"No functions at cognitive >= {args.minimum} (scorable languages: {scorable}).")
+        print(f"No functions at cognitive >= {args.minimum} (scanned: {', '.join(langs)}).")
         return 0
 
     header = (

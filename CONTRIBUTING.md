@@ -73,6 +73,24 @@ Contribution backend depends on config:
 
 Guards: the rule must exist locally, have a fixture file, and not collide with a rule id already in the catalog.
 
+## Regenerating the docs
+
+Two README tables are generated from the code, not written by hand: the language
+support matrix (which languages each detector reads) and the pattern rule catalog.
+Run this after adding a rule, changing a rule's `metadata: languages:`, or changing
+a detector's `LANGUAGES`:
+
+```bash
+uv run python scripts/update_docs.py
+```
+
+It rewrites only the text between the `<!-- language-matrix:start -->` and
+`<!-- pattern-catalog:start -->` markers. Add `--check` to see whether the README is
+stale without changing it.
+
+Tests enforce this, so a forgotten run shows up as a failing test rather than a README
+that claims support sniff does not have.
+
 ## Conventions
 
 Name rule ids in kebab-case. Prefix with `no-` to forbid a pattern (e.g., `no-console-log`, `no-explicit-any`), or `prefer-` to recommend an alternative (e.g., `prefer-const-over-let`).
@@ -114,6 +132,7 @@ config file (see the Configuration section of the README).
 Before opening a PR:
 
 - [ ] `uv run sniff test-rules` passes
+- [ ] `uv run python scripts/update_docs.py` run, if a rule or a detector's languages changed
 - [ ] `uv run python -m pytest tests -q` passes
 - [ ] Add a note as a new entry at the top of `CHANGELOG.md`
 - [ ] If this is a version bump, run `python scripts/bump_version.py <version>` (not for feature PRs).

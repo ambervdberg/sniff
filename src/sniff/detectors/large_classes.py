@@ -19,7 +19,17 @@ from sniff import harness as h
 
 # What counts as a match. Either a {language: [node kinds]} map or an ast-grep
 # pattern string; the harness accepts both. (Filled in by the create.)
-RULE = {'typescript': ['class_declaration'], 'tsx': ['class_declaration'], 'javascript': ['class_declaration']}
+# Python spells its class node `class_definition`, not `class_declaration`.
+RULE = {
+    'typescript': ['class_declaration'],
+    'tsx': ['class_declaration'],
+    'javascript': ['class_declaration'],
+    'python': ['class_definition'],
+}
+
+# The languages this detector has node kinds for; every other language is
+# reported as out of scope rather than silently scanned and found empty.
+LANGUAGES = sorted(RULE)
 
 # Plural noun for the header, e.g. "classes", "functions", "switch statements".
 NOUN = "classes"
@@ -39,9 +49,14 @@ def main(argv: "list[str] | None" = None) -> int:
                         help="glob to exclude, relative to PATH (repeatable)")
     args = parser.parse_args(argv)
 
-    langs = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
-    if not langs:
+    present = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
+    if not present:
         sys.exit(f"No supported source files found under {args.path!r}.")
+
+    langs = h.covered_languages(present, LANGUAGES)
+    if not langs:
+        print(h.not_applicable(present, LANGUAGES))
+        return 0
 
     matches = h.run(RULE, args.path, lang=langs, include_tests=args.include_tests,
                      extra_ignores=args.extra_ignore)

@@ -13,6 +13,8 @@ Detectors and generated skills import it; they don't duplicate it.
 Stable public API (kept small so generated scripts stay ~20 lines):
 
     detect_languages(root, extra_ignores)          -> set[str]
+    covered_languages(present, supported)          -> list[str]
+    not_applicable(present, supported)             -> str
     run(rule_or_pattern, path, lang, include_tests) -> list[Match]
     fold_nested(matches)                           -> list[Match]
     print_table(matches, columns, sort_key, top, header)
@@ -60,6 +62,11 @@ EXT_LANG = {
     ".c": "c", ".h": "c",
     ".cpp": "cpp", ".cc": "cpp", ".cxx": "cpp", ".hpp": "cpp", ".hh": "cpp",
 }
+
+# Every language the file walk recognizes. Detectors that read files rather than
+# parse them (line counts, string literals) support all of them, so they declare
+# their LANGUAGES as this list instead of repeating it.
+ALL_LANGUAGES = sorted(set(EXT_LANG.values()))
 
 # Directories that never contain hand-written source worth ranking.
 IGNORE_DIRS = {
@@ -168,6 +175,33 @@ def _run_git(root: str, args: "list[str]") -> "str | None":
 
 
 @functools.lru_cache(maxsize=None)
+def _is_repo_root(path: str) -> bool:
+    """True if `path` is the top level of its own git repository.
+
+    `git -C` on a directory that is not a repo does not fail: it walks up until
+    it finds one. A submodule recorded in the index but never checked out is an
+    empty directory, so every query inside it is answered by the parent repo,
+    which reports that gitlink relative to the current directory as "." -- a path
+    that joins straight back to where we started. Comparing the resolved top
+    level against the directory itself is what tells the two cases apart."""
+    out = _run_git(path, ["rev-parse", "--show-toplevel"])
+    if out is None:
+        return False
+    return _same_dir(out.strip(), path)
+
+
+def _same_dir(left: str, right: str) -> bool:
+    """True if two path strings name the same directory.
+
+    `realpath`, not `abspath`: on Windows the same directory has two spellings,
+    and git always answers with the long one. A caller working under a path that
+    contains an 8.3 alias (`C:\\Users\\RUNNER~1\\...`, which is what `%TEMP%`
+    expands to for a long user name) would otherwise compare unequal to itself.
+    It also collapses symlinks, which does the same job on POSIX."""
+    return os.path.normcase(os.path.realpath(left)) == os.path.normcase(os.path.realpath(right))
+
+
+@functools.lru_cache(maxsize=None)
 def _git_submodule_dirs(root: str) -> "tuple[str, ...]":
     """Root-relative paths of the submodules recorded in `root`'s index.
 
@@ -226,7 +260,13 @@ def _git_visible_files(root: str) -> "frozenset[str] | None":
     # submodule code, the very split this whole function exists to close.
     # Submodules nested inside submodules fall out of the recursion for free.
     for submodule in _git_submodule_dirs(root):
-        nested = _git_visible_files(os.path.abspath(os.path.join(root, submodule)))
+        nested_root = os.path.abspath(os.path.join(root, submodule))
+        # An unchecked-out submodule has no repo of its own, so recursing into it
+        # would just re-ask the parent and loop forever (see `_is_repo_root`).
+        # Nothing is lost by skipping: the directory is empty.
+        if not _is_repo_root(nested_root):
+            continue
+        nested = _git_visible_files(nested_root)
         if nested is None:
             continue
         visible |= {f"{submodule}/{path}" for path in nested}
@@ -272,17 +312,21 @@ def _in_ignored_dir(
     """True if any path segment is an ignored (vendored/build) directory, or the
     path matches an extra-ignore glob (see `_extra_ignore_patterns`).
 
-    The vendored-dir check runs on the raw path (base-independent). The glob check
-    runs on `path` relative to `root` (forward-slashed), so a consumer's
-    `[ignore] globs` matches the same scan-root-relative path that sniff-patterns'
-    format.py matches against; without this, an absolute or scan-arg-prefixed
-    file path would never match a pattern like `generated/**`. Extends the fixed
-    vendored-dir list rather than replacing it, so both apply together."""
-    if any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", path)):
-        return True
-    patterns = _extra_ignore_patterns(extra_ignores)
-    if not patterns:
-        return False
+    Both checks run on `path` relative to `root` (forward-slashed). For the glob
+    check that base makes a consumer's `[ignore] globs` match the same
+    scan-root-relative path that sniff-patterns' format.py matches against;
+    without it, an absolute or scan-arg-prefixed file path would never match a
+    pattern like `generated/**`.
+
+    The vendored-dir check needs the same base for a different reason: a checkout
+    can live anywhere, including under a parent directory named `build`, `out`,
+    `vendor`, or `.claude` (where Claude Code puts its worktrees). Matching
+    segments above the scan root would drop every match in the repo and, because
+    an empty result is indistinguishable from a clean one, report it as no
+    findings rather than as an error.
+
+    Extends the fixed vendored-dir list rather than replacing it, so both apply
+    together."""
     rel = path
     if root is not None:
         try:
@@ -291,6 +335,12 @@ def _in_ignored_dir(
             # Different drive on Windows: relpath raises, keep the original path.
             rel = path
     norm = rel.replace("\\", "/")
+
+    if any(seg in IGNORE_DIRS for seg in norm.split("/")):
+        return True
+    patterns = _extra_ignore_patterns(extra_ignores)
+    if not patterns:
+        return False
     return any(fnmatch.fnmatch(norm, pat) for pat in patterns)
 
 
@@ -324,6 +374,26 @@ def detect_languages(root: str, extra_ignores: "list[str] | None" = None) -> set
             found.add(lang)
 
     return found
+
+
+def covered_languages(present: "Sequence[str]", supported: "Sequence[str]") -> "list[str]":
+    """The languages a detector can actually match out of the ones in the repo.
+
+    Every detector declares a LANGUAGES list: the languages it has rules for.
+    Narrowing the detected languages against that list before scanning is what
+    keeps a header from claiming a detector examined Java when it has no Java
+    rules at all."""
+    return sorted(lang for lang in set(present) if lang in set(supported))
+
+
+def not_applicable(present: "Sequence[str]", supported: "Sequence[str]") -> str:
+    """The one line a detector prints when it covers none of the repo's languages.
+
+    Says what the detector does cover, so the reader can tell "nothing to report"
+    apart from "this tool cannot see your code"."""
+    found = ", ".join(sorted(set(present))) or "none"
+    covers = ", ".join(sorted(set(supported))) or "no languages"
+    return f"Not applicable: this detector covers {covers}; the files here are {found}."
 
 
 def iter_source_files(

@@ -46,6 +46,10 @@ LANG_KINDS = {
     "cpp": ["function_definition"],
 }
 
+# The languages this detector has node kinds for; every other language is
+# reported as out of scope rather than silently scanned and found empty.
+LANGUAGES = sorted(LANG_KINDS)
+
 
 def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(description="Rank the largest methods/functions by line count.")
@@ -57,9 +61,14 @@ def main(argv: "list[str] | None" = None) -> int:
                         help="glob to exclude, relative to PATH (repeatable)")
     args = parser.parse_args(argv)
 
-    langs = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
-    if not langs:
+    present = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
+    if not present:
         sys.exit(f"No supported source files found under {args.path!r}.")
+
+    langs = h.covered_languages(present, LANGUAGES)
+    if not langs:
+        print(h.not_applicable(present, LANGUAGES))
+        return 0
 
     matches = h.run(LANG_KINDS, args.path, lang=langs, include_tests=args.include_tests,
                      extra_ignores=args.extra_ignore)

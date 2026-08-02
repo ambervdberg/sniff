@@ -4,5 +4,7 @@ id: no-empty-catch
 language: typescript
 severity: error
 message: "Empty catch block swallows errors; add error handling or use a comment explaining why."
+metadata:
+  languages: [tsx, javascript]
 rule:
   pattern: try { $$$ } catch($_) {}

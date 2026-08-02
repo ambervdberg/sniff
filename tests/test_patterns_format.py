@@ -190,5 +190,24 @@ def test_list_rules_groups_by_language(capsys):
     assert "### typescript" in out and "### python" in out
 
 
+def test_vendored_dir_check_ignores_parents_above_scan_root():
+    """A checkout under a 'build'/'.claude'-named parent is still real source.
+
+    Counting parent segments drops every finding in the repo, and an empty
+    result is indistinguishable from a clean one, so the scan reports no smells
+    instead of an error."""
+    root = "C:/Users/me/.claude/worktrees/proj"
+    assert not format_mod._in_ignored_dir(f"{root}/src/app.ts", root)
+
+
+def test_vendored_dir_check_still_matches_below_scan_root():
+    root = "C:/work/proj"
+    assert format_mod._in_ignored_dir(f"{root}/node_modules/pkg/index.ts", root)
+
+
+def test_vendored_dir_check_without_root_stays_base_independent():
+    assert format_mod._in_ignored_dir("proj/dist/bundle.js")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

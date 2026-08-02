@@ -21,3 +21,6 @@ evals/results/
 evals/smoke/results/
 
 *.local.*
+
+# Copies left behind by mutation-testing a guard (break it, confirm red, restore)
+*.bak

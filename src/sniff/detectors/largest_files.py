@@ -21,6 +21,10 @@ NAME = "largest-files"
 TITLE = "Largest files"
 DEFAULT_ARGS: "list[str]" = []
 
+# Counting lines needs no parser, so every language the file walk recognizes is
+# covered.
+LANGUAGES = list(h.ALL_LANGUAGES)
+
 
 @dataclass
 class FileStat:

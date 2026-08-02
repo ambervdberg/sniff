@@ -15,5 +15,15 @@ TITLE = "Pattern rule findings"
 DEFAULT_ARGS: "list[str]" = []
 
 
+def languages(scan_path: "str | None" = None) -> "list[str]":
+    """The languages this detector covers: whatever its rules declare.
+
+    Every other detector declares a static `LANGUAGES` list, but the pattern
+    catalog grows: a consumer repo can drop its own rule into `.sniff/rules/`.
+    Reading the catalog instead of hardcoding it means adding a rule for a new
+    language is enough to make sniff scan that language."""
+    return sorted({lang for langs in fmt.rule_languages(scan_path).values() for lang in langs})
+
+
 def main(argv: "list[str] | None" = None) -> int:
     return fmt.main(argv)

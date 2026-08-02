@@ -39,7 +39,7 @@ act on one.
 - Ranked by physical **line span**, not a complexity metric. A long match is a
   *candidate* worth looking at, not a verdict.
 - Nested matches are folded into their parent so the same code is not counted twice.
-- Languages covered: typescript, tsx, javascript. If one you expected shows nothing, pass `--lang`
-  explicitly and sanity-check.
+- Languages covered: typescript, tsx, javascript, python. Another language is reported
+  as out of scope rather than as zero classes; `sniff --list` shows every detector's coverage.
 - Names are best-effort from the definition's first line; the `LOCATION` column is
   authoritative.

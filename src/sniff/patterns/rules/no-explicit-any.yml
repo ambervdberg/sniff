@@ -4,6 +4,8 @@ id: no-explicit-any
 language: typescript
 severity: warning
 message: "Explicit 'any' defeats type safety; use a precise type or 'unknown'."
+metadata:
+  languages: [tsx]
 rule:
   kind: predefined_type
   regex: ^any$

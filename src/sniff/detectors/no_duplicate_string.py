@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Find string literals duplicated across 3+ files (SonarQube S1192).
+"""Find string literals duplicated across 3+ files.
 
-Extracts string literals from TypeScript/JavaScript files and identifies strings
+Extracts string literals from every supported source file and identifies strings
 that appear in multiple distinct files. Useful for spotting constants that should
 be centralized or extracted into a shared module. Uses the shared harness
 helpers for the file walk (same ignore list and test handling as AST detectors)
@@ -28,8 +28,12 @@ from collections import defaultdict
 from sniff import harness as h
 
 NAME = "no-duplicate-string"
-TITLE = "Duplicated string literals (S1192)"
+TITLE = "Duplicated string literals"
 DEFAULT_ARGS: "list[str]" = []
+
+# Literals are found by regex, not by a parser, so every language the file walk
+# recognizes is covered.
+LANGUAGES = list(h.ALL_LANGUAGES)
 
 
 # Regex to extract string literals: "..." or '...' (non-empty, single-line only).
@@ -114,7 +118,7 @@ class DuplicateString:
 
 def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Find string literals duplicated across 3+ files (SonarQube S1192)."
+        description="Find string literals duplicated across 3+ files."
     )
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
     parser.add_argument(

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rank functions/methods by cyclomatic complexity (SonarSource S1541).
+"""Rank functions/methods by cyclomatic complexity.
 
 A node-metric skill: it leans on the shared node_metric engine to score each
 function by its number of independent paths (1 + decision points), then prints a
@@ -26,9 +26,14 @@ NAME = "cyclomatic-complexity"
 TITLE = "High cyclomatic complexity methods"
 DEFAULT_ARGS: "list[str]" = []
 
+# Counting decision points needs per-language node kinds, so the engine's
+# decision map decides what this detector can read. Every other language is
+# reported as out of scope.
+LANGUAGES = list(nm.CYCLOMATIC_LANGS)
+
 
 def main(argv: "list[str] | None" = None) -> int:
-    parser = argparse.ArgumentParser(description="Rank functions by cyclomatic complexity (S1541).")
+    parser = argparse.ArgumentParser(description="Rank functions by cyclomatic complexity.")
     parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
     parser.add_argument("--top", type=int, default=10, help="how many to show (default: 10)")
     parser.add_argument("--lang", action="append", help="force a language (repeatable); skips auto-detect")
@@ -39,17 +44,21 @@ def main(argv: "list[str] | None" = None) -> int:
                         help="glob to exclude, relative to PATH (repeatable)")
     args = parser.parse_args(argv)
 
-    langs = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
-    if not langs:
+    present = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
+    if not present:
         sys.exit(f"No supported source files found under {args.path!r}.")
+
+    langs = h.covered_languages(present, LANGUAGES)
+    if not langs:
+        print(h.not_applicable(present, LANGUAGES))
+        return 0
 
     scored = nm.cyclomatic(args.path, langs=langs, include_tests=args.include_tests,
                             extra_ignores=args.extra_ignore)
     scored = [m for m in scored if m.metrics.get("cyclomatic", 0) >= args.minimum]
 
     if not scored:
-        scorable = ", ".join(l for l in langs if l in nm.DECISION_KINDS) or "none"
-        print(f"No functions at cyclomatic >= {args.minimum} (scorable languages: {scorable}).")
+        print(f"No functions at cyclomatic >= {args.minimum} (scanned: {', '.join(langs)}).")
         return 0
 
     header = (

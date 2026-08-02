@@ -3,5 +3,7 @@ id: no-non-null-assertion
 language: typescript
 severity: warning
 message: "Non-null assertion operator `!` bypasses type safety; use proper null checks instead."
+metadata:
+  languages: [tsx]
 rule:
   kind: non_null_expression

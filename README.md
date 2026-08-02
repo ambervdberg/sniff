@@ -88,7 +88,7 @@ for the exact command list.
 | `sniff [DIR]` | Scan `DIR` (default: `.`) with all detectors. |
 | `sniff --all [DIR]` | Same as above (explicit alias). |
 | `sniff --list` | List all available detectors. |
-| `sniff --list-patterns` | List all pattern rules (RULE / SEVERITY / ORIGIN / MESSAGE). |
+| `sniff --list-patterns` | List all pattern rules (RULE / SEVERITY / ORIGIN / ALSO RUNS ON / MESSAGE). |
 | `sniff --only a,b [DIR]` | Run only the named detectors (e.g. `--only sniff-patterns` for pattern rules). |
 | `sniff --skip a,b [DIR]` | Run all detectors except the named ones. |
 | `sniff --json [DIR]` | Scan output as JSON instead of markdown (also works with `--list`). |
@@ -113,7 +113,7 @@ Drop a `.sniff.toml` in the root of the repo being scanned to turn rules off, re
 severities, skip detectors, retune thresholds, and ignore paths. `sniff doctor` validates it.
 
 ```toml
-[rules]
+[rules]                           # targets the sniff-patterns catalog only. Key is a rule id:
 no-console-log = false            # turn a pattern rule off
 no-explicit-any = "error"         # re-grade it (error | warning | info | hint)
 
@@ -128,20 +128,19 @@ globs = ["docs/**", "**/*.generated.ts"]
 
 Details worth knowing:
 
-- The parser is a hand-written TOML subset (stdlib only): `[section]` headers plus
-  flat `key = value` lines, with quoted strings, ints, or `true`/`false` as values. Unknown
-  sections and keys produce a warning, never an error.
-- `[ignore] globs` accepts the array form above or the flat form
-  `globs = "docs/**,**/*.generated.ts"`. Globs are matched against the scan-root-relative path.
-- `[rules]` targets the `sniff-patterns` catalog; `[detectors]` targets every detector, and its
-  dotted keys are folded into that detector's own CLI args before it runs.
+- `[rules]` only affects pattern rules. `[detectors]` affects the detectors, and each `<detector>.<arg>`
+  key becomes a `--arg` flag on that detector.
+- `globs` also accepts one string: `globs = "docs/**,**/*.generated.ts"`.
+  Paths are matched from the root of the repo you scan.
+- A section or key that sniff does not recognize is a warning, not an error, so a typo never stops a scan.
 
 ### What gets skipped
 
 Three layers stack, in this order:
 
 1. **Vendored and build directories**, always: `node_modules`, `dist`, `build`, `out`,
-   `coverage`, `target`, `vendor`, `.venv`, `.git`, `.next`, `.angular`, `.nx`, `__pycache__`.
+   `coverage`, `target`, `vendor`, `.venv`, `venv`, `.git`, `.nx`, `.angular`, `.astro`,
+   `.next`, `.svelte-kit`, `.nuxt`, `.turbo`, `__pycache__`, `.claude`.
 2. **Anything `.gitignore` excludes**, when the scanned directory is a git repo. Your
    `.git/info/exclude` and global ignore file count too, since sniff asks git rather than
    parsing the ignore files itself. Outside a git repo this layer is simply absent.
@@ -156,24 +155,8 @@ sniff --ignore "docs/**" --ignore "**/*.generated.ts" .
 
 ### Local rules
 
-A repo can carry its own pattern rules in `.sniff/rules/*.yml` without touching this catalog.
-They are discovered alongside the core rules and run in the same `ast-grep scan` pass, so core
-and local findings arrive together. `sniff --list-patterns` tags each row `core` or `local` in
-the ORIGIN column. A local rule whose id collides with a core rule id is ignored with a warning.
-
-Add fixtures next to it at `.sniff/rule-tests/<rule-id>.yml`, then promote a rule that has
-proven itself:
-
-```bash
-sniff contribute <rule-id> --dry-run    # show which backend would be used
-sniff contribute <rule-id>
-```
-
-Two backends. If `SNIFF_REPO` (or `repo = "..."` in `~/.sniff/config.toml`) points at a local
-sniff checkout, the rule and its fixtures are copied there on a `rule/<rule-id>` branch and the
-fixture tests run, leaving the commit and PR to you. Otherwise `sniff contribute` falls back to
-the `gh` CLI: fork, branch, commit, push, and open a PR against `ambervdberg/sniff`. Guards run
-first, so a missing rule, missing fixtures, or a core-id collision fails before anything moves.
+A repo can carry its own pattern rules in `.sniff/rules/*.yml` without touching this
+catalog. See [Add a rule](#add-a-rule).
 
 ### External detectors
 
@@ -207,8 +190,8 @@ installed. Each also ships as a thin SKILL.md wrapper so an agent can trigger it
 | `largest-methods` | Rank the longest methods/functions by line count. |
 | `large-classes` | Rank the longest classes by line count. |
 | `largest-files` | Rank the largest source files by non-blank line count (no AST). |
-| `deepest-nesting` | Rank functions by control-flow nesting depth (S134). |
-| `cyclomatic-complexity` | Rank functions by cyclomatic complexity (S1541). |
+| `deepest-nesting` | Rank functions by control-flow nesting depth. |
+| `cyclomatic-complexity` | Rank functions by cyclomatic complexity. |
 | `cognitive-complexity` | Rank functions by cognitive complexity (nesting-weighted read difficulty). |
 | `most-parameters` | Rank functions by parameter count (long-parameter-list smell). |
 | `most-imports` | Rank files by import count (high-coupling smell). |
@@ -225,6 +208,117 @@ Skills the plugin surface adds on top of that detector list:
 
 `src/sniff/` contains the shared engine (harness.py for AST-grep integration,
 node_metric.py for scoring).
+
+## Language support
+
+TypeScript, TSX, JavaScript and Python are covered by every detector that can
+apply to them. Other languages are covered where the table says so. A detector
+that cannot read your files says so instead of reporting zero findings, and a
+scan skips it entirely unless you name it in `--only`.
+
+<!-- language-matrix:start -->
+| DETECTOR | typescript | tsx | javascript | python | ALSO COVERS |
+| --- | --- | --- | --- | --- | --- |
+| cognitive-complexity | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust |
+| cyclomatic-complexity | yes | yes | yes | yes | c, cpp, csharp, go, java, ruby |
+| deepest-nesting | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust |
+| large-classes | yes | yes | yes | yes | - |
+| large-inline-templates | yes | yes | no | no | - |
+| largest-files | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
+| largest-methods | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
+| most-imports | yes | yes | yes | yes | - |
+| most-parameters | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust |
+| no-duplicate-string | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
+| sniff-patterns | yes | yes | yes | yes | - |
+<!-- language-matrix:end -->
+
+`large-inline-templates` is Angular-only by design. `sniff-patterns` covers
+whatever its rules declare, including any you add under `.sniff/rules/`, so this
+row grows with the catalog. Run `sniff --list` for the same coverage per
+detector, including detectors your repo adds.
+
+## Pattern rules
+
+The catalog `sniff-patterns` runs, worst severity first within each language.
+`sniff --list-patterns` prints the same rules, plus any your repo adds under
+`.sniff/rules/`.
+
+<!-- pattern-catalog:start -->
+### python
+
+| SEVERITY | RULE | ALSO RUNS ON | MESSAGE |
+| --- | --- | --- | --- |
+| warning | py-bare-except | - | Bare except: swallows all exceptions, including KeyboardInterrupt and SystemExit; catch Exception or a specific type instead. |
+| warning | py-mutable-default-arg | - | Mutable default argument is shared across all calls; use None and initialize inside the function body instead. |
+| warning | py-nested-conditional-expr | - | Nested conditional expression; extract to if/elif/else or a helper function for readability. |
+| info | py-print-statement | - | Bare print() call; use a logging library instead of print for anything beyond throwaway debugging. |
+
+### typescript
+
+| SEVERITY | RULE | ALSO RUNS ON | MESSAGE |
+| --- | --- | --- | --- |
+| error | no-empty-catch | tsx, javascript | Empty catch block swallows errors; add error handling or use a comment explaining why. |
+| warning | no-any-cast | tsx | 'as any' defeats type safety; use a precise type or 'unknown'. |
+| warning | no-boolean-param | tsx | Boolean parameter enables unclear call sites; use a more descriptive type, enum, or extracted method. |
+| warning | no-console-log | tsx, javascript | Remove console.log/debug/info in production; use a logging library. |
+| warning | no-explicit-any | tsx | Explicit 'any' defeats type safety; use a precise type or 'unknown'. |
+| warning | no-multiline-single-comment | tsx, javascript | Block comment spans multiple lines with only one content line; use single-line syntax instead. |
+| warning | no-nested-ternary | tsx, javascript | Nested ternary; extract to if/else or a helper for readability. |
+| warning | no-non-null-assertion | tsx | Non-null assertion operator `!` bypasses type safety; use proper null checks instead. |
+| warning | prefer-at-over-length-index | tsx, javascript | Use `.at(-N)` instead of `arr[arr.length - N]`. |
+| warning | prefer-optional-chain | tsx, javascript | Use optional chaining `?.` instead of `&&` guard for property access. |
+<!-- pattern-catalog:end -->
+
+### Add a rule
+
+**With the plugin installed, ask your agent:** *"use sniff-create to add a rule that
+flags X"*. The `sniff-create` skill picks the engine, writes the pattern, and checks
+it against your actual code before saving anything, so you never guess at syntax.
+
+**By hand**, if you would rather write it yourself:
+
+1. **Work out the pattern.** You can checkout [astgrep.com/guide/](https://astgrep.com/guide/introduction) for help.
+   You can test it here: [ast-grep playground](https://astgrep.com/playground.html).
+2. **Save it** as `.sniff/rules/<id>.yml` in the repo you scan.
+
+   ```yaml
+   # .sniff/rules/no-alert.yml
+   id: no-alert
+   language: typescript      # one language per rule
+   severity: warning         # error | warning | info
+   message: "alert() blocks the page; use a dialog component instead."
+   rule:
+     pattern: alert($MSG)
+   ```
+
+3. **Run it.** `sniff --only sniff-patterns .` reports its findings alongside the
+   catalog's. If nothing shows up, `sniff --list-patterns` tells you whether the rule
+   loaded at all: yours appears tagged `local`.
+
+Local rules run in the same `ast-grep scan` pass as the catalog, so both sets of
+findings arrive together. An id that collides with a catalog rule is ignored with a
+warning.
+
+Want to contribute the rule to the catalog? Add examples at `.sniff/rule-tests/<id>.yml`
+first:
+
+```yaml
+id: no-alert
+valid:
+  - |
+    showDialog("boom");
+invalid:
+  - |
+    alert("boom");
+```
+
+Then `sniff contribute <rule-id>` moves it upstream, `--dry-run` first if you want to
+see which backend it would use. Point `SNIFF_REPO` (or `repo = "..."` in
+`~/.sniff/config.toml`) at a local sniff checkout and the rule and its fixtures are
+copied there on a `rule/<rule-id>` branch with the fixture tests run, leaving the commit
+and PR to you. Otherwise it uses the `gh` CLI: fork, branch, commit, push, and open a PR
+against `ambervdberg/sniff`. Guards run first, so a missing rule, missing fixtures, or a
+colliding id fails before anything moves.
 
 ## Engines
 
@@ -294,18 +388,10 @@ The detector lives in `skills/sniff-create/scripts/detect_costly_search.py`.
 
 ### Caveats
 
-It is a **heuristic**, not a judgement of intent. The hook sees the turn's tool
-calls and the prompt text, never your reasoning, so:
+It sees one turn's tool calls and the prompt text, nothing else. So it misses some
+searches and fires on some unrelated ones.
 
-- Expect the occasional **miss** (a real repeated search the prompt did not phrase
-  structurally) and the occasional **false positive** (lots of reads for an
-  unrelated reason). Both are cheap: a missed nudge costs nothing, a stray one is a
-  single ignorable line.
-- It only inspects the **most recent turn**; a search spread across several turns
-  does not accumulate.
-- Raise `SNIFF_MIN_CALLS` if a project trips it too often; lower it to catch
-  searches sooner. Turn it off per session with `SNIFF_CREATE_NUDGE=0` when it is
-  noise for the task at hand.
+Too chatty? Raise `SNIFF_MIN_CALLS`, or set `SNIFF_CREATE_NUDGE=0` to turn it off.
 
 ## Tests
 
@@ -316,11 +402,11 @@ uv run python -m pytest tests -q
 
 ## Release
 
-`python scripts/bump_version.py <new-version>` rewrites the version in four places together:
-`pyproject.toml`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, and every plugin
-entry in `.claude-plugin/marketplace.json`. `tests/test_version_consistency.py` fails the
-build if any of the four drift apart. After bumping, update `CHANGELOG.md`, commit, and tag
-`v<new-version>`.
+`python scripts/bump_version.py <new-version>` rewrites the version in five places together:
+`pyproject.toml`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, every plugin
+entry in `.claude-plugin/marketplace.json`, and `uv.lock` (which it refreshes by running
+`uv lock` itself). `tests/test_version_consistency.py` fails the build if any of the five
+drift apart. After bumping, update `CHANGELOG.md`, commit, and tag `v<new-version>`.
 
 What gets published is an explicit allowlist in `[tool.hatch.build.targets.sdist]`, not
 whatever happens to sit in the repo. Hatchling's default sweeps in every file it can see,

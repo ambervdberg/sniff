@@ -25,6 +25,11 @@ NAME = "most-parameters"
 TITLE = "Methods with most parameters"
 DEFAULT_ARGS: "list[str]" = []
 
+# Counting parameters needs per-language parameter-list node kinds, so the
+# engine's map decides what this detector can read. Every other language is
+# reported as out of scope.
+LANGUAGES = list(nm.PARAM_LANGS)
+
 
 def main(argv: "list[str] | None" = None) -> int:
     parser = argparse.ArgumentParser(description="Rank functions by parameter count.")
@@ -38,17 +43,21 @@ def main(argv: "list[str] | None" = None) -> int:
                         help="glob to exclude, relative to PATH (repeatable)")
     args = parser.parse_args(argv)
 
-    langs = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
-    if not langs:
+    present = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
+    if not present:
         sys.exit(f"No supported source files found under {args.path!r}.")
+
+    langs = h.covered_languages(present, LANGUAGES)
+    if not langs:
+        print(h.not_applicable(present, LANGUAGES))
+        return 0
 
     scored = nm.params(args.path, langs=langs, include_tests=args.include_tests,
                         extra_ignores=args.extra_ignore)
     scored = [m for m in scored if m.metrics.get("params", 0) >= args.minimum]
 
     if not scored:
-        scorable = ", ".join(l for l in langs if l in nm.PARAM_LIST_KINDS) or "none"
-        print(f"No functions with >= {args.minimum} params (scorable languages: {scorable}).")
+        print(f"No functions with >= {args.minimum} params (scanned: {', '.join(langs)}).")
         return 0
 
     header = (

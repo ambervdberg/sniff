@@ -21,6 +21,18 @@ NAME = "most-imports"
 TITLE = "Files by import count"
 DEFAULT_ARGS: "list[str]" = []
 
+# The node kinds that count as "an import" per language. Python spells a plain
+# `import x` and a `from x import y` as two different kinds, so both are listed.
+# Every language absent here is reported as out of scope.
+LANG_KINDS = {
+    "typescript": ["import_statement"],
+    "tsx": ["import_statement"],
+    "javascript": ["import_statement"],
+    "python": ["import_statement", "import_from_statement"],
+}
+
+LANGUAGES = sorted(LANG_KINDS)
+
 
 @dataclass
 class FileStat:
@@ -37,12 +49,18 @@ def main(argv: "list[str] | None" = None) -> int:
                         help="glob to exclude, relative to PATH (repeatable)")
     args = parser.parse_args(argv)
 
-    # Supported languages for import counting: TypeScript, JavaScript variants.
-    langs = ["typescript", "tsx", "javascript"]
+    present = sorted(h.detect_languages(args.path, args.extra_ignore))
+    if not present:
+        sys.exit(f"No supported source files found under {args.path!r}.")
 
-    # Scan for all import_statement nodes.
+    langs = h.covered_languages(present, LANGUAGES)
+    if not langs:
+        print(h.not_applicable(present, LANGUAGES))
+        return 0
+
+    # Scan for every import node kind these languages use.
     matches = h.run(
-        {"typescript": ["import_statement"], "tsx": ["import_statement"], "javascript": ["import_statement"]},
+        LANG_KINDS,
         args.path,
         lang=langs,
         include_tests=args.include_tests,
@@ -63,7 +81,7 @@ def main(argv: "list[str] | None" = None) -> int:
 
     header = (
         f"Files by import count: {min(args.top, len(stats))} of {len(stats)} files "
-        f"(TypeScript/JavaScript; tests {'included' if args.include_tests else 'excluded'}):"
+        f"({', '.join(langs)}; tests {'included' if args.include_tests else 'excluded'}):"
     )
 
     h.print_table(

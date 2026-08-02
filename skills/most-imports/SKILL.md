@@ -36,7 +36,7 @@ with the most imports), but the full table comes first and in full.
   imports is not automatically wrong if they are all typed utility imports from
   a single package. Use this as a starting point for refactoring, not an
   absolute rule.
-- **TypeScript/JavaScript only.** Other languages are not yet supported; add
-  them if needed.
+- **TypeScript, JavaScript and Python only.** Another language is reported as out of
+  scope rather than as zero imports; `sniff --list` shows every detector's coverage.
 - Counts **top-level import statements** only. Re-exports and dynamic imports
   (e.g. `await import(...)`) are structured differently and not counted.

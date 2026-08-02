@@ -4,6 +4,8 @@ id: no-boolean-param
 language: typescript
 severity: warning
 message: "Boolean parameter enables unclear call sites; use a more descriptive type, enum, or extracted method."
+metadata:
+  languages: [tsx]
 rule:
   pattern:
     context: "function _f($PARAM: boolean) {}"

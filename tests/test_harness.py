@@ -25,6 +25,18 @@ HAS_AST_GREP = shutil.which("ast-grep") is not None
 HAS_GIT = shutil.which("git") is not None
 
 
+def _short_path(path: str) -> str:
+    """The 8.3 spelling of `path` on Windows, or `path` unchanged elsewhere."""
+    if sys.platform != "win32":
+        return path
+
+    import ctypes
+
+    buffer = ctypes.create_unicode_buffer(len(path) + 260)
+    written = ctypes.windll.kernel32.GetShortPathNameW(path, buffer, len(buffer))
+    return buffer.value if written else path
+
+
 def _match(file, start, end, b_start, b_end, name="(anon)"):
     """Construct a Match without touching disk."""
     return h.Match(file=file, start_line=start, end_line=end,
@@ -72,6 +84,32 @@ class InIgnoredDirTest(unittest.TestCase):
 
     def test_glob_does_not_match_outside_ignored_dir(self):
         self.assertFalse(h._in_ignored_dir("proj/src/big.ts", "proj"))
+
+
+class VendoredDirScopeTest(unittest.TestCase):
+    """The vendored-dir check only looks at segments at or below the scan root.
+
+    A checkout can live anywhere, including under a directory that happens to be
+    named like a build output ('build/', 'out/', 'vendor/') or under '.claude'
+    (where Claude Code puts its worktrees). Counting those parent segments drops
+    every AST match with no warning, which reads as 'this repo is clean'."""
+
+    def test_ignored_name_above_scan_root_is_not_ignored(self):
+        root = "C:/Users/me/.claude/worktrees/proj"
+        self.assertFalse(h._in_ignored_dir(f"{root}/src/app.ts", root))
+
+    def test_build_named_parent_above_scan_root_is_not_ignored(self):
+        root = "/home/me/build/proj"
+        self.assertFalse(h._in_ignored_dir(f"{root}/src/app.ts", root))
+
+    def test_ignored_dir_below_scan_root_is_still_ignored(self):
+        root = "C:/work/proj"
+        self.assertTrue(h._in_ignored_dir(f"{root}/node_modules/pkg/index.ts", root))
+
+    def test_without_root_the_check_stays_base_independent(self):
+        # run() is not the only caller; format.py-style callers pass no root and
+        # rely on the whole path being searched.
+        self.assertTrue(h._in_ignored_dir("proj/dist/bundle.js"))
 
 
 class FoldNestedTest(unittest.TestCase):
@@ -355,6 +393,46 @@ class GitignoreAwarenessTest(unittest.TestCase):
 
         self.assertIn("tracked.py", names)
         self.assertNotIn("generated.py", names)
+
+    def test_unchecked_out_submodule_does_not_recurse(self):
+        # A submodule recorded in the index but never checked out is just an empty
+        # directory. `git -C` inside it walks UP to the parent repo instead of
+        # failing, and the parent reports that gitlink relative to the current
+        # directory as ".", which joins straight back to the same path. Without a
+        # guard the walk recurses on itself until RecursionError, so every
+        # file-metric detector hangs on any shallow clone (submodules are not
+        # initialized by default).
+        self._write("root.py", "r = 1\n")
+        self._git_init()
+
+        # A gitlink pointing at a commit this clone does not have, plus the empty
+        # placeholder directory git leaves behind: exactly the on-disk state of a
+        # submodule that was never `--init`ed. Recording the index entry directly
+        # avoids building a nested repo only to delete it, which Windows refuses
+        # because git marks its object files read-only.
+        os.makedirs(os.path.join(self.root, "sub"), exist_ok=True)
+        self._git("update-index", "--add", "--cacheinfo",
+                  "160000,6742055402de1aa48f93d12ded7d18f4057f9d1f,sub")
+        h.reset_git_ignore_cache()
+
+        names = {os.path.basename(f) for f in h.iter_source_files(self.root)}
+
+        self.assertIn("root.py", names)
+
+    @unittest.skipUnless(sys.platform == "win32", "8.3 aliases are a Windows filesystem feature")
+    def test_repo_root_recognized_through_an_8_3_short_path(self):
+        # Windows gives the same directory two spellings, and git always answers
+        # with the long one. Compared as plain strings they differ, so a scan
+        # started from the short spelling decided its own submodules were not
+        # checked out and skipped every file in them. `%TEMP%` expands to the
+        # short form whenever the user name is long, which is why this only ever
+        # failed on CI: the runner user is `runneradmin`.
+        self._git_init()
+        short = _short_path(self.root)
+        if os.path.normcase(short) == os.path.normcase(self.root):
+            self.skipTest("this filesystem hands out no 8.3 alias for the temp dir")
+
+        self.assertTrue(h._is_repo_root(short), f"{short} is the same repo as {self.root}")
 
     def test_reset_git_ignore_cache_forgets_the_previous_answer(self):
         # A library consumer that scans, writes files, and scans again would
