@@ -7,6 +7,9 @@ on, so it lives here rather than in `sniff doctor`. Bump versions with
 The marketplace entry version is the easiest one to forget: plugin.json wins at
 install time, so a stale entry is silently ignored and only shows up as a Claude
 Code marketplace validation warning.
+
+uv.lock counts too: CI runs `uv sync --locked`, which refuses to resolve when the
+lock records a different version for sniff-smells than pyproject.toml declares.
 """
 
 import json
@@ -19,6 +22,26 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def _read_json(*parts):
     with open(os.path.join(REPO_ROOT, *parts), "r", encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def _locked_version(package):
+    """Version uv.lock records for `package`, or None if it declares no such package.
+
+    Found by scanning the [[package]] blocks rather than by line offset: uv is free to
+    reorder keys, and a block also holds sub-tables like [package.optional-dependencies]
+    whose keys must not be mistaken for the package's own."""
+    with open(os.path.join(REPO_ROOT, "uv.lock"), "r", encoding="utf-8") as fh:
+        blocks = fh.read().split("[[package]]")
+
+    for block in blocks[1:]:
+        # Stop at the first sub-table header so only the block's own keys are read.
+        own_keys = re.split(r"(?m)^\[", block)[0]
+        name = re.search(r'(?m)^name\s*=\s*"([^"]+)"', own_keys)
+        if name and name.group(1) == package:
+            version = re.search(r'(?m)^version\s*=\s*"([^"]+)"', own_keys)
+            return version.group(1) if version else None
+
+    return None
 
 
 def declared_versions():
@@ -34,6 +57,8 @@ def declared_versions():
     for entry in _read_json(".claude-plugin", "marketplace.json").get("plugins", []):
         versions[f"marketplace.json[{entry.get('name', '?')}]"] = entry.get("version")
 
+    versions["uv.lock[sniff-smells]"] = _locked_version("sniff-smells")
+
     return versions
 
 
@@ -45,5 +70,13 @@ def test_all_declared_versions_agree():
 def test_every_manifest_declares_a_version():
     """A missing version is drift too: it would make the mismatch test pass on None."""
     versions = declared_versions()
-    assert len(versions) == 4, versions
+    assert len(versions) == 5, versions
     assert all(v is not None for v in versions.values()), versions
+
+
+def test_uv_lock_matches_pyproject():
+    """Called out on its own because its failure mode is the confusing one: the lock
+    drifts silently until CI's `uv sync --locked` refuses to resolve. Fix with
+    `uv lock`, which `scripts/bump_version.py` now runs for you."""
+    versions = declared_versions()
+    assert versions["uv.lock[sniff-smells]"] == versions["pyproject.toml"], versions
