@@ -1,12 +1,16 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ambervdberg/sniff/main/assets/sniff-logo.png" alt="sniff logo" width="220">
+</p>
+
 # sniff
 
 Token-cheap **code-smell CLI for AI agents**. Point `sniff` at a repo, get back a small
 ranked table or findings list, never raw source or AST dumped into the conversation.
 
 The CLI is **agent-agnostic** (Claude Code, Codex, Gemini, ...) and installs with
-`uv tool install sniff-smells`. The bundled `SKILL.md` wrappers and the `.claude-plugin/`
-marketplace packaging are integrations layered on top: they teach an agent when to reach for
-`sniff`, but each one shells out to the same CLI.
+`uv tool install sniff-smells`. The bundled `SKILL.md` wrappers and the plugin manifests
+(`.claude-plugin/` for Claude Code, `.codex-plugin/` for Codex) are integrations layered on
+top: they teach an agent when to reach for `sniff`, but each one shells out to the same CLI.
 
 The goal: a self-serve, private alternative to a SonarCloud-style scan, assembled from small
 detectors you can grow one at a time. Each smell is its own detector or catalog rule, so an
