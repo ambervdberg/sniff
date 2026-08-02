@@ -244,7 +244,7 @@ scan skips it entirely unless you name it in `--only`.
 | most-imports | yes | yes | yes | yes | - |
 | most-parameters | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust |
 | no-duplicate-string | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
-| sniff-patterns | yes | no | no | yes | - |
+| sniff-patterns | yes | yes | yes | yes | - |
 <!-- language-matrix:end -->
 
 `large-inline-templates` is Angular-only by design. `sniff-patterns` covers
@@ -261,27 +261,27 @@ The catalog `sniff-patterns` runs, worst severity first within each language.
 <!-- pattern-catalog:start -->
 ### python
 
-| SEVERITY | RULE | MESSAGE |
-| --- | --- | --- |
-| warning | py-bare-except | Bare except: swallows all exceptions, including KeyboardInterrupt and SystemExit; catch Exception or a specific type instead. |
-| warning | py-mutable-default-arg | Mutable default argument is shared across all calls; use None and initialize inside the function body instead. |
-| warning | py-nested-conditional-expr | Nested conditional expression; extract to if/elif/else or a helper function for readability. |
-| info | py-print-statement | Bare print() call; use a logging library instead of print for anything beyond throwaway debugging. |
+| SEVERITY | RULE | ALSO RUNS ON | MESSAGE |
+| --- | --- | --- | --- |
+| warning | py-bare-except | - | Bare except: swallows all exceptions, including KeyboardInterrupt and SystemExit; catch Exception or a specific type instead. |
+| warning | py-mutable-default-arg | - | Mutable default argument is shared across all calls; use None and initialize inside the function body instead. |
+| warning | py-nested-conditional-expr | - | Nested conditional expression; extract to if/elif/else or a helper function for readability. |
+| info | py-print-statement | - | Bare print() call; use a logging library instead of print for anything beyond throwaway debugging. |
 
 ### typescript
 
-| SEVERITY | RULE | MESSAGE |
-| --- | --- | --- |
-| error | no-empty-catch | Empty catch block swallows errors; add error handling or use a comment explaining why. |
-| warning | no-any-cast | 'as any' defeats type safety; use a precise type or 'unknown'. |
-| warning | no-boolean-param | Boolean parameter enables unclear call sites; use a more descriptive type, enum, or extracted method. |
-| warning | no-console-log | Remove console.log/debug/info in production; use a logging library. |
-| warning | no-explicit-any | Explicit 'any' defeats type safety; use a precise type or 'unknown'. |
-| warning | no-multiline-single-comment | Block comment spans multiple lines with only one content line; use single-line syntax instead. |
-| warning | no-nested-ternary | Nested ternary; extract to if/else or a helper for readability. |
-| warning | no-non-null-assertion | Non-null assertion operator `!` bypasses type safety; use proper null checks instead. |
-| warning | prefer-at-over-length-index | Use `.at(-N)` instead of `arr[arr.length - N]`. |
-| warning | prefer-optional-chain | Use optional chaining `?.` instead of `&&` guard for property access. |
+| SEVERITY | RULE | ALSO RUNS ON | MESSAGE |
+| --- | --- | --- | --- |
+| error | no-empty-catch | tsx, javascript | Empty catch block swallows errors; add error handling or use a comment explaining why. |
+| warning | no-any-cast | tsx | 'as any' defeats type safety; use a precise type or 'unknown'. |
+| warning | no-boolean-param | tsx | Boolean parameter enables unclear call sites; use a more descriptive type, enum, or extracted method. |
+| warning | no-console-log | tsx, javascript | Remove console.log/debug/info in production; use a logging library. |
+| warning | no-explicit-any | tsx | Explicit 'any' defeats type safety; use a precise type or 'unknown'. |
+| warning | no-multiline-single-comment | tsx, javascript | Block comment spans multiple lines with only one content line; use single-line syntax instead. |
+| warning | no-nested-ternary | tsx, javascript | Nested ternary; extract to if/else or a helper for readability. |
+| warning | no-non-null-assertion | tsx | Non-null assertion operator `!` bypasses type safety; use proper null checks instead. |
+| warning | prefer-at-over-length-index | tsx, javascript | Use `.at(-N)` instead of `arr[arr.length - N]`. |
+| warning | prefer-optional-chain | tsx, javascript | Use optional chaining `?.` instead of `&&` guard for property access. |
 <!-- pattern-catalog:end -->
 
 ### Add a rule

@@ -5,5 +5,7 @@ id: prefer-at-over-length-index
 language: typescript
 severity: warning
 message: "Use `.at(-N)` instead of `arr[arr.length - N]`."
+metadata:
+  languages: [tsx, javascript]
 rule:
   pattern: "$ARR[$ARR.length - $N]"

@@ -3,5 +3,7 @@ id: prefer-optional-chain
 language: typescript
 severity: warning
 message: "Use optional chaining `?.` instead of `&&` guard for property access."
+metadata:
+  languages: [tsx, javascript]
 rule:
   pattern: "$OBJ && $OBJ.$PROP"

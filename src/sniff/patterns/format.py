@@ -29,6 +29,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from typing import Iterator
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SGCONFIG = os.path.join(HERE, "sgconfig.yml")
@@ -123,6 +124,35 @@ def local_rules_dir(scan_path: str) -> str:
     return os.path.join(scan_path, ".sniff", "rules")
 
 
+# A rule file declares one `language:`, because that is all ast-grep accepts. Rules
+# whose syntax exists in more than one language name the others in ast-grep's
+# `metadata:` block, which ast-grep itself ignores:
+#
+#     metadata:
+#       languages: [tsx, javascript]
+#
+# The rule file therefore stays the single source of truth for both what it matches
+# and where it runs, and the scan expands it into one copy per language.
+def _read_extra_languages(path: str) -> list[str]:
+    """The languages listed under `metadata: languages:` in one rule yml.
+
+    Hand-parsed like the rest of the rule metadata (the package stays
+    dependency-free), so it reads the one nested key it needs and ignores the
+    rest of the block."""
+    in_metadata = False
+
+    with open(path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            if not line.startswith((" ", "\t")):
+                in_metadata = line.startswith("metadata:")
+                continue
+            if in_metadata and line.strip().startswith("languages:"):
+                listed = line.split(":", 1)[1].strip().strip("[]")
+                return [lang.strip().strip("'\"") for lang in listed.split(",") if lang.strip()]
+
+    return []
+
+
 def _read_rule_meta(path: str) -> tuple[str, str, str, str]:
     """(id, severity, message, language) from one rule yml, hand-parsed (no PyYAML dependency).
 
@@ -152,32 +182,64 @@ def catalog_rules(scan_path: str | None = None) -> list[tuple[str, str, str, str
     rules: list[tuple[str, str, str, str, str]] = []
     core_ids: set[str] = set()
 
-    if os.path.isdir(RULES_DIR):
-        for name in sorted(os.listdir(RULES_DIR)):
-            if not name.endswith((".yml", ".yaml")):
-                continue
-            rule_id, severity, message, language = _read_rule_meta(os.path.join(RULES_DIR, name))
+    for path, origin in _iter_rule_files(scan_path):
+        rule_id, severity, message, language = _read_rule_meta(path)
+
+        if origin == "core":
             if rule_id:
                 rules.append((rule_id, severity, message, "core", language))
                 core_ids.add(rule_id)
+            continue
 
-    if scan_path is not None:
-        local_dir = local_rules_dir(scan_path)
-        if os.path.isdir(local_dir):
-            for name in sorted(os.listdir(local_dir)):
-                if not name.endswith((".yml", ".yaml")):
-                    continue
-                rule_id, severity, message, language = _read_rule_meta(os.path.join(local_dir, name))
-                if not rule_id:
-                    print(f"warning: local rule {name} has no id:, skipped", file=sys.stderr)
-                    continue
-                if rule_id in core_ids:
-                    print(f"warning: local rule {rule_id} shadows a core rule, local copy ignored",
-                          file=sys.stderr)
-                    continue
-                rules.append((rule_id, severity, message, "local", language))
+        if not rule_id:
+            print(f"warning: local rule {os.path.basename(path)} has no id:, skipped", file=sys.stderr)
+            continue
+        if rule_id in core_ids:
+            print(f"warning: local rule {rule_id} shadows a core rule, local copy ignored",
+                  file=sys.stderr)
+            continue
+        rules.append((rule_id, severity, message, "local", language))
 
     return rules
+
+
+def _iter_rule_files(scan_path: "str | None" = None) -> "Iterator[tuple[str, str]]":
+    """(path, origin) for every rule yml that would run on `scan_path`, core first.
+
+    Core before local so a local rule can be spotted as shadowing one."""
+    if os.path.isdir(RULES_DIR):
+        for name in sorted(os.listdir(RULES_DIR)):
+            if name.endswith((".yml", ".yaml")):
+                yield os.path.join(RULES_DIR, name), "core"
+
+    if scan_path is None:
+        return
+
+    local_dir = local_rules_dir(scan_path)
+    if os.path.isdir(local_dir):
+        for name in sorted(os.listdir(local_dir)):
+            if name.endswith((".yml", ".yaml")):
+                yield os.path.join(local_dir, name), "local"
+
+
+def rule_languages(scan_path: "str | None" = None) -> "dict[str, list[str]]":
+    """Every language each rule runs on, its declared one first.
+
+    Separate from `catalog_rules` so the row shape callers unpack stays put."""
+    languages: dict[str, list[str]] = {}
+    core_ids: set[str] = set()
+
+    for path, origin in _iter_rule_files(scan_path):
+        rule_id, _severity, _message, language = _read_rule_meta(path)
+        if not rule_id or (origin == "local" and rule_id in core_ids):
+            continue
+        if origin == "core":
+            core_ids.add(rule_id)
+
+        extra = [lang for lang in _read_extra_languages(path) if lang != language]
+        languages[rule_id] = [language, *extra] if language else extra
+
+    return languages
 
 
 def print_rule_table(rows: list[tuple[str, str, int, list[str]]]) -> None:
@@ -234,7 +296,8 @@ def print_rules_ran(ran: list[tuple[str, str, str, str, str]], cap: int = 30) ->
         print(f"\nRan {len(ids)} rules ({', '.join(ids[:cap])}, +{len(ids) - cap} more)")
 
 
-def print_list_rules(rules: list[tuple[str, str, str, str, str]]) -> None:
+def print_list_rules(rules: list[tuple[str, str, str, str, str]],
+                     scan_path: "str | None" = None) -> None:
     """Print a catalog table grouped by language, one ### heading + RULE/SEVERITY/
     ORIGIN/MESSAGE table per language.
 
@@ -243,17 +306,19 @@ def print_list_rules(rules: list[tuple[str, str, str, str, str]]) -> None:
     rule comes from the shared catalog or a consumer-local .sniff/rules override.
     Grouping by language keeps a multi-language catalog (e.g. typescript + python)
     scannable instead of one long mixed table."""
+    also = rule_languages(scan_path)
     languages = sorted({language for *_rest, language in rules})
     for language in languages:
         print(f"### {language}\n")
-        print("| RULE | SEVERITY | ORIGIN | MESSAGE |")
-        print("| --- | --- | --- | --- |")
+        print("| RULE | SEVERITY | ORIGIN | ALSO RUNS ON | MESSAGE |")
+        print("| --- | --- | --- | --- | --- |")
         group = [r for r in rules if r[4] == language]
         for rule_id, severity, message, origin, _language in sorted(
                 group, key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[0])):
+            extra = ", ".join(lang for lang in also.get(rule_id, []) if lang != language) or "-"
             # Escape pipes so the markdown table stays valid.
             safe_msg = message.replace("|", "\\|")
-            print(f"| {rule_id} | {severity} | {origin} | {safe_msg} |")
+            print(f"| {rule_id} | {severity} | {origin} | {extra} | {safe_msg} |")
         print()
 
 
@@ -265,19 +330,21 @@ def render_catalog_table(rules: list[tuple[str, str, str, str, str]]) -> str:
     Severity leads each table so the ordering inside a block is visible instead of
     having to be inferred. The CLI's --list-rules view has the same shape and adds
     an ORIGIN column, which only matters once a repo has local rules."""
+    also = rule_languages()
     lines: list[str] = []
 
     for language in sorted({language for *_rest, language in rules}):
         lines.append(f"### {language}\n")
-        lines.append("| SEVERITY | RULE | MESSAGE |")
-        lines.append("| --- | --- | --- |")
+        lines.append("| SEVERITY | RULE | ALSO RUNS ON | MESSAGE |")
+        lines.append("| --- | --- | --- | --- |")
 
         group = [r for r in rules if r[4] == language]
         for rule_id, severity, message, _origin, _language in sorted(
                 group, key=lambda r: (SEVERITY_ORDER.get(r[1], 9), r[0])):
+            extra = ", ".join(lang for lang in also.get(rule_id, []) if lang != language) or "-"
             # Escape pipes so the markdown table stays valid.
             safe_msg = _unquoted(message).replace("|", "\\|")
-            lines.append(f"| {severity} | {rule_id} | {safe_msg} |")
+            lines.append(f"| {severity} | {rule_id} | {extra} | {safe_msg} |")
 
         lines.append("")
 
@@ -306,20 +373,71 @@ def _yaml_single_quoted(path: str) -> str:
     return path.replace("\\", "/").replace("'", "''")
 
 
+# Separates a rule id from the language a generated copy runs on. Only ever seen
+# inside the temp expansion dir; `run_scan` maps the id back before any finding is
+# formatted, so neither the user nor `.sniff.toml` ever meets a suffixed id.
+_LANG_COPY_SEPARATOR = "--lang-"
+
+
+def _write_language_copies(rules_dir: str, out_dir: str) -> dict[str, str]:
+    """Copy each multi-language rule in `rules_dir` once per extra language.
+
+    ast-grep rejects two rules sharing an id, so every copy needs its own; the
+    returned map translates those generated ids back to the real one."""
+    generated: dict[str, str] = {}
+
+    for name in sorted(os.listdir(rules_dir)):
+        if not name.endswith((".yml", ".yaml")):
+            continue
+
+        path = os.path.join(rules_dir, name)
+        rule_id, _severity, _message, language = _read_rule_meta(path)
+        if not rule_id:
+            continue
+
+        for extra in _read_extra_languages(path):
+            if extra == language:
+                continue
+
+            copy_id = f"{rule_id}{_LANG_COPY_SEPARATOR}{extra}"
+            with open(path, "r", encoding="utf-8") as fh:
+                body = fh.read()
+            body = body.replace(f"id: {rule_id}", f"id: {copy_id}", 1)
+            body = body.replace(f"language: {language}", f"language: {extra}", 1)
+
+            with open(os.path.join(out_dir, f"{copy_id}.yml"), "w", encoding="utf-8") as fh:
+                fh.write(body)
+            generated[copy_id] = rule_id
+
+    return generated
+
+
 def run_scan(path: str) -> list[dict]:
     """Run the whole catalog over `path`, return ast-grep's raw match list.
 
-    When `path` has a .sniff/rules/ dir, a temp sgconfig is built whose ruleDirs
-    covers both the core catalog and the local dir, so one ast-grep pass reports
-    core + local findings together."""
-    config = SGCONFIG
-    tmp = None
+    Rules that declare extra languages are expanded into per-language copies in a
+    temp dir first, and a temp sgconfig points ast-grep at the core catalog, that
+    expansion, and `path`'s own .sniff/rules/ when it has one. One pass, so core,
+    local and per-language findings arrive together."""
+    rule_dirs = [os.path.abspath(RULES_DIR)]
     local_dir = local_rules_dir(path)
     if os.path.isdir(local_dir):
+        rule_dirs.append(os.path.abspath(local_dir))
+
+    expansion = tempfile.mkdtemp(prefix="sniff-rules-")
+    generated: dict[str, str] = {}
+    for rules_dir in list(rule_dirs):
+        generated.update(_write_language_copies(rules_dir, expansion))
+    if generated:
+        rule_dirs.append(expansion)
+
+    config = SGCONFIG
+    tmp = None
+    if rule_dirs != [os.path.abspath(RULES_DIR)]:
         tmp = tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False, encoding="utf-8")
         tmp.write("ruleDirs:\n")
-        tmp.write(f"  - '{_yaml_single_quoted(os.path.abspath(RULES_DIR))}'\n")
-        tmp.write(f"  - '{_yaml_single_quoted(os.path.abspath(local_dir))}'\n")
+        for rules_dir in rule_dirs:
+            tmp.write(f"  - '{_yaml_single_quoted(rules_dir)}'\n")
         tmp.close()
         config = tmp.name
 
@@ -331,6 +449,7 @@ def run_scan(path: str) -> list[dict]:
     finally:
         if tmp:
             os.unlink(tmp.name)
+        shutil.rmtree(expansion, ignore_errors=True)
 
     if not proc.stdout.strip():
         # No matches, or a config error: surface stderr so a broken rule is visible.
@@ -338,9 +457,16 @@ def run_scan(path: str) -> list[dict]:
             sys.stderr.write(proc.stderr)
         return []
     try:
-        return json.loads(proc.stdout)
+        matches = json.loads(proc.stdout)
     except json.JSONDecodeError:
         sys.exit("error: could not parse ast-grep scan output.")
+
+    for match in matches:
+        rule_id = match.get("ruleId", "")
+        if rule_id in generated:
+            match["ruleId"] = generated[rule_id]
+
+    return matches
 
 
 def scan_multiline_single_comments(path: str) -> list[dict]:
@@ -427,7 +553,7 @@ def main(argv: "list[str] | None" = None) -> int:
         if not rules:
             print(f"No rules in the catalog ({RULES_DIR}). Add one with sniff-create.")
         else:
-            print_list_rules(rules)
+            print_list_rules(rules, args.path)
         return 0
 
     _require_ast_grep()

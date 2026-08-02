@@ -108,6 +108,48 @@ def test_json_scan_also_omits_skipped_detectors(tmp_path):
     assert "largest-files" in names
 
 
+def _write_multi_language_sources(tmp_path):
+    """The same smell in .ts, .tsx and .js, plus one that only .tsx can hold."""
+    (tmp_path / "main.ts").write_text('console.log("ts");\n', encoding="utf-8")
+    (tmp_path / "App.tsx").write_text(
+        'const x: any = 1;\nconsole.log("tsx");\n', encoding="utf-8")
+    (tmp_path / "plain.js").write_text('console.log("js");\n', encoding="utf-8")
+    h.reset_git_ignore_cache()
+
+
+def test_pattern_rules_run_on_tsx_and_javascript(tmp_path):
+    """A rule declaring extra languages must fire in all of them, not just .ts."""
+    _write_multi_language_sources(tmp_path)
+
+    out = _run_cli("--only", "sniff-patterns", str(tmp_path))
+
+    assert "main.ts:1" in out, out
+    assert "App.tsx:2" in out, out
+    assert "plain.js:1" in out, out
+
+
+def test_expanded_rule_ids_never_reach_the_output(tmp_path):
+    """Each language needs its own rule id internally; the user sees one id."""
+    _write_multi_language_sources(tmp_path)
+
+    out = _run_cli("--only", "sniff-patterns", str(tmp_path))
+
+    assert "--lang-" not in out, out
+    assert "no-console-log" in out
+
+
+def test_typescript_only_rule_does_not_run_on_javascript(tmp_path):
+    """`: any` is not JavaScript syntax, so that rule stays off .js files."""
+    (tmp_path / "typed.tsx").write_text("const x: any = 1;\n", encoding="utf-8")
+    (tmp_path / "plain.js").write_text("const y = 1;\n", encoding="utf-8")
+    h.reset_git_ignore_cache()
+
+    out = _run_cli("--only", "sniff-patterns", str(tmp_path))
+
+    assert "typed.tsx" in out, out
+    assert "plain.js" not in out, out
+
+
 def test_sniff_patterns_language_list_grows_with_local_rules(tmp_path):
     """Coverage is read from the catalog, so a repo's own rule counts."""
     rules = tmp_path / ".sniff" / "rules"

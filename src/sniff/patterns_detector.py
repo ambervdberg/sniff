@@ -22,7 +22,7 @@ def languages(scan_path: "str | None" = None) -> "list[str]":
     catalog grows: a consumer repo can drop its own rule into `.sniff/rules/`.
     Reading the catalog instead of hardcoding it means adding a rule for a new
     language is enough to make sniff scan that language."""
-    return sorted({language for *_rest, language in fmt.catalog_rules(scan_path) if language})
+    return sorted({lang for langs in fmt.rule_languages(scan_path).values() for lang in langs})
 
 
 def main(argv: "list[str] | None" = None) -> int:

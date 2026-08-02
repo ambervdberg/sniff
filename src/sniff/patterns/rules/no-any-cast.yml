@@ -4,5 +4,7 @@ id: no-any-cast
 language: typescript
 severity: warning
 message: "'as any' defeats type safety; use a precise type or 'unknown'."
+metadata:
+  languages: [tsx]
 rule:
   pattern: $_ as any

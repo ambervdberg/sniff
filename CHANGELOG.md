@@ -11,6 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Fix: scans never finished on a repo with an uninitialized submodule.
 - Fix: Python repos were scanned only partly; `large-classes` reported zero and detectors
   that cannot read Python still printed a no-findings line.
+- Pattern rules now run on `.tsx` and `.js`, not only `.ts`.
 
 ## [0.12.0] - 2026-08-02
 

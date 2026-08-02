@@ -6,7 +6,11 @@ id: no-multiline-single-comment
 language: typescript
 severity: warning
 message: "Block comment spans multiple lines with only one content line; use single-line syntax instead."
+metadata:
+  languages: [tsx, javascript]
 rule:
-  # Placeholder rule (matched via Python fallback in format.py)
-  kind: predefined_type
-  regex: "^never_match_placeholder$"
+  # Placeholder rule (matched via Python fallback in format.py). It must stay a
+  # plain identifier pattern: a node kind that only exists in TypeScript makes
+  # ast-grep reject the rule outright once it is copied to another language,
+  # which aborts the whole scan.
+  pattern: never_match_placeholder_sniff

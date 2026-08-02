@@ -5,5 +5,7 @@ id: no-nested-ternary
 language: typescript
 severity: warning
 message: "Nested ternary; extract to if/else or a helper for readability."
+metadata:
+  languages: [tsx, javascript]
 rule:
   pattern: "$A ? $B : $C ? $D : $E"
