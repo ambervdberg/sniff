@@ -1,0 +1,8 @@
+# sniff's own scan config. See README for the full key list.
+
+[rules]
+# sniff is a CLI: print() is how it returns its results, not a stray debug
+# statement. The rule is right for an application and wrong here, and that is a
+# property of this repo rather than of the rule, so it is switched off locally
+# instead of being narrowed in the shared catalog.
+py-print-statement = false

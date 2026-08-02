@@ -12,6 +12,7 @@ from __future__ import annotations
 import io
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import textwrap
@@ -21,6 +22,7 @@ from contextlib import redirect_stdout
 from sniff import harness as h
 
 HAS_AST_GREP = shutil.which("ast-grep") is not None
+HAS_GIT = shutil.which("git") is not None
 
 
 def _match(file, start, end, b_start, b_end, name="(anon)"):
@@ -207,6 +209,172 @@ class FileMetricTest(unittest.TestCase):
     def test_count_code_lines_skips_blanks(self):
         path = next(f for f in h.iter_source_files(self.root) if f.endswith("app.ts"))
         self.assertEqual(h.count_code_lines(path), 2)
+
+
+@unittest.skipUnless(HAS_GIT, "git not on PATH")
+class GitignoreAwarenessTest(unittest.TestCase):
+    """The os.walk-based walkers skip gitignored files, so they agree with the
+    AST detectors (ast-grep filters through .gitignore natively).
+
+    The other half of the contract matters just as much: when git cannot answer
+    (no repo here, or no git at all) nothing may be hidden, otherwise every
+    non-git project would suddenly scan as empty."""
+
+    def setUp(self):
+        # git answers are lru_cached on the root path; clearing keeps these tests
+        # independent of each other and of whatever ran before them.
+        h.reset_git_ignore_cache()
+        self.root = tempfile.mkdtemp()
+
+    def tearDown(self):
+        h.reset_git_ignore_cache()
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def _write(self, rel, body):
+        path = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(body)
+
+    def _git(self, *args, cwd=None):
+        """Run one git command, failing the test on a non-zero exit.
+
+        Identity is forced inline because a CI runner has no global user.name and
+        `git commit` would otherwise abort."""
+        subprocess.run(
+            ["git", "-c", "user.email=t@example.com", "-c", "user.name=test", *args],
+            cwd=cwd or self.root, capture_output=True, text=True, check=True,
+        )
+
+    def _git_init(self):
+        subprocess.run(["git", "init", self.root], capture_output=True, text=True, check=True)
+
+    def _add_submodule(self, name):
+        """Commit a nested repo under `name` and record it in the outer index.
+
+        Plain `git add` on a directory that is itself a repo writes the mode
+        160000 gitlink, which is all `_git_submodule_dirs` reads. That avoids
+        `git submodule add`, which clones over the file:// protocol and is
+        refused by default on current git."""
+        sub = os.path.join(self.root, name)
+        os.makedirs(sub, exist_ok=True)
+        subprocess.run(["git", "init", sub], capture_output=True, text=True, check=True)
+        self._write(f"{name}/tracked.py", "a = 1\n")
+        self._git("add", "-A", cwd=sub)
+        self._git("commit", "-m", "init", cwd=sub)
+        self._git("add", name)
+
+    def test_iter_source_files_skips_gitignored_file(self):
+        self._write(".gitignore", "skipme/\n")
+        self._write("keep/a.py", "x = 1\n")
+        self._write("skipme/b.py", "y = 2\n")
+        self._git_init()
+
+        files = h.iter_source_files(self.root)
+
+        names = {os.path.basename(f) for f in files}
+        self.assertIn("a.py", names)
+        self.assertNotIn("b.py", names)
+
+    def test_iter_source_files_keeps_everything_when_not_a_git_repo(self):
+        # Same tree, no `git init`: git fails, _git_visible_files returns None,
+        # and the walker must fall back to showing every source file.
+        self._write(".gitignore", "skipme/\n")
+        self._write("keep/a.py", "x = 1\n")
+        self._write("skipme/b.py", "y = 2\n")
+
+        self.assertIsNone(h._git_visible_files(os.path.abspath(self.root)),
+                          "precondition: this tree is not a git repo")
+
+        names = {os.path.basename(f) for f in h.iter_source_files(self.root)}
+        self.assertIn("a.py", names)
+        self.assertIn("b.py", names)
+
+    def test_detect_languages_skips_gitignored_file(self):
+        self._write(".gitignore", "skipme/\n")
+        self._write("keep/a.ts", "const a = 1;\n")
+        self._write("skipme/b.py", "y = 2\n")
+        self._git_init()
+
+        langs = h.detect_languages(self.root)
+
+        self.assertIn("typescript", langs)
+        self.assertNotIn("python", langs)
+
+    def test_detect_languages_honors_extra_ignores(self):
+        # This decides which detectors run at all, so it has to exclude the same
+        # paths the scan itself will: otherwise an excluded language is still
+        # detected and its detectors scan a set they were told to skip.
+        self._write("keep/a.ts", "const a = 1;\n")
+        self._write("generated/b.py", "y = 2\n")
+        self._git_init()
+
+        langs = h.detect_languages(self.root, ["generated/**"])
+
+        self.assertIn("typescript", langs)
+        self.assertNotIn("python", langs)
+
+    def test_submodule_tracked_file_stays_visible(self):
+        # `git ls-files` stops at the gitlink, so the submodule has to be asked
+        # separately. Without that every file under it reads as ignored, while
+        # ast-grep keeps scanning them -- exactly the disagreement this filter
+        # exists to remove, only inverted.
+        self._write("root.py", "r = 1\n")
+        self._git_init()
+        self._add_submodule("sub")
+
+        names = {os.path.basename(f) for f in h.iter_source_files(self.root)}
+
+        self.assertIn("root.py", names)
+        self.assertIn("tracked.py", names)
+
+    def test_submodule_untracked_file_stays_visible(self):
+        # An unignored file that is merely not committed yet is still real source,
+        # and ast-grep reports it. `ls-files --recurse-submodules` cannot see it
+        # (it rejects --others), which is why each submodule gets its own query.
+        self._git_init()
+        self._add_submodule("sub")
+        self._write("sub/untracked.py", "b = 2\n")
+
+        names = {os.path.basename(f) for f in h.iter_source_files(self.root)}
+
+        self.assertIn("untracked.py", names)
+
+    def test_submodule_gitignored_file_stays_hidden(self):
+        # The submodule's own .gitignore still governs its contents; recursing
+        # must not degrade into "everything under a submodule is visible".
+        self._git_init()
+        self._add_submodule("sub")
+        # "artifacts" is deliberately not in IGNORE_DIRS: a name from that fixed
+        # list would be pruned by the walker anyway and the test would pass even
+        # with the gitignore filter gone.
+        self._write("sub/.gitignore", "artifacts/\n")
+        self._write("sub/artifacts/generated.py", "c = 3\n")
+
+        names = {os.path.basename(f) for f in h.iter_source_files(self.root)}
+
+        self.assertIn("tracked.py", names)
+        self.assertNotIn("generated.py", names)
+
+    def test_reset_git_ignore_cache_forgets_the_previous_answer(self):
+        # A library consumer that scans, writes files, and scans again would
+        # otherwise keep filtering against the first scan's file list forever.
+        self._write("first.py", "a = 1\n")
+        self._git_init()
+        first = {os.path.basename(f) for f in h.iter_source_files(self.root)}
+        self._write("added_later.py", "d = 4\n")
+
+        # The first scan is what fills the cache, and the second deliberately
+        # still reflects it: caching within a run is the point, so `reset` is the
+        # only thing that can make the new file appear.
+        self.assertEqual({"first.py"}, first, "precondition: only the seed file exists")
+        self.assertEqual({"first.py"}, {os.path.basename(f) for f in h.iter_source_files(self.root)},
+                         "precondition: the cached answer survives a second scan")
+
+        h.reset_git_ignore_cache()
+
+        names = {os.path.basename(f) for f in h.iter_source_files(self.root)}
+        self.assertIn("added_later.py", names)
 
 
 if __name__ == "__main__":

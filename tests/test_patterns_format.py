@@ -107,6 +107,50 @@ def test_severity_override_rewrites_reported_severity(tmp_path):
     assert "### no-console-log (warning):" not in out
 
 
+@unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
+def test_locations_are_capped_by_default_but_count_is_complete(tmp_path):
+    """A noisy rule reports its true total while listing only DEFAULT_TOP_LOCS rows.
+
+    Guards the whole point of the cap: one info-severity rule must never be able
+    to flood the caller's context with hundreds of location rows."""
+    hits = format_mod.DEFAULT_TOP_LOCS + 5
+    (tmp_path / "a.ts").write_text("console.log('x')\n" * hits, encoding="utf-8")
+
+    out = run_format([str(tmp_path), "--rule", "no-console-log"])
+
+    assert f"### no-console-log (warning): {hits}" in out
+    assert out.count("| a.ts:") == format_mod.DEFAULT_TOP_LOCS
+    assert "| +5 more (raise --top-locs to list them) |" in out
+
+
+@unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
+def test_top_locs_zero_lists_every_location(tmp_path):
+    """`--top-locs 0` is the escape hatch: no cap, and so no "+N more" row."""
+    hits = format_mod.DEFAULT_TOP_LOCS + 5
+    (tmp_path / "a.ts").write_text("console.log('x')\n" * hits, encoding="utf-8")
+
+    out = run_format([str(tmp_path), "--rule", "no-console-log", "--top-locs", "0"])
+
+    assert out.count("| a.ts:") == hits
+    assert "more (raise --top-locs" not in out
+
+
+@unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
+def test_rules_are_ordered_worst_severity_first(tmp_path):
+    """Errors sort above warnings, warnings above info, whatever the hit counts.
+
+    The cap makes ordering matter: whoever reads only the top of the output must
+    see the severe rules there, not an info rule that happened to match more."""
+    (tmp_path / "a.ts").write_text(
+        # no-empty-catch is an error rule, no-console-log a warning; give the
+        # warning more hits so a count-first sort would wrongly put it on top.
+        "try { f() } catch (e) {}\n" + "console.log('x')\n" * 3, encoding="utf-8")
+
+    out = run_format([str(tmp_path)])
+
+    assert out.index("### no-empty-catch (error)") < out.index("### no-console-log (warning)")
+
+
 def test_local_rules_are_discovered(tmp_path):
     rules = tmp_path / ".sniff" / "rules"
     rules.mkdir(parents=True)

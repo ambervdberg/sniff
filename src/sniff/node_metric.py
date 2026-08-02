@@ -224,7 +224,7 @@ def inline_template_lines(
     set and `name` taken from the component selector. Components with no inline
     template (e.g. `templateUrl`) are dropped."""
     if langs is None:
-        langs = sorted(h.detect_languages(path))
+        langs = sorted(h.detect_languages(path, extra_ignores))
 
     langs = [l for l in langs if l in TEMPLATE_LANGS]
     if not langs:
@@ -266,7 +266,7 @@ def params(
     the enclosing function. Languages without a PARAM_LIST_KINDS entry are
     skipped."""
     if langs is None:
-        langs = sorted(h.detect_languages(path))
+        langs = sorted(h.detect_languages(path, extra_ignores))
 
     langs = [l for l in langs if l in PARAM_LIST_KINDS]
     if not langs:
@@ -364,7 +364,7 @@ def _functions_and_nesting(
     Returns the folded functions and the file -> nesting-nodes index. Returns
     ([], {}) when no scorable language is present."""
     if langs is None:
-        langs = sorted(h.detect_languages(path))
+        langs = sorted(h.detect_languages(path, extra_ignores))
 
     langs = [l for l in langs if l in NESTING_KINDS]
     if not langs:
@@ -440,7 +440,7 @@ def cyclomatic(
     function Matches with `metrics['cyclomatic']` set. Languages without a
     DECISION_KINDS entry are skipped."""
     if langs is None:
-        langs = sorted(h.detect_languages(path))
+        langs = sorted(h.detect_languages(path, extra_ignores))
 
     langs = [l for l in langs if l in DECISION_KINDS]
     if not langs:

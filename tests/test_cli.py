@@ -271,6 +271,68 @@ class ConfigIgnoreGlobsTest(unittest.TestCase):
             self.assertNotIn("gen/x.ts", proc.stdout)
 
 
+class SniffIgnoreFlagTest(unittest.TestCase):
+    """The top-level `--ignore GLOB` flag excludes files from a scan.
+
+    It is repeatable, and it ADDS to the scanned repo's `.sniff.toml [ignore]
+    globs` rather than replacing them: a one-off exclusion on the command line
+    must not silently discard the exclusions that repo already committed."""
+
+    def _scan(self, root: str, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [*RUN, "--only", "largest-files", *args, root],
+            capture_output=True, text=True, env=SUBPROCESS_ENV,
+        )
+
+    def _tree(self, root: str, files: "dict[str, str]") -> None:
+        for rel, text in files.items():
+            path = os.path.join(root, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(text)
+
+    def test_ignore_excludes_matching_file(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._tree(root, {"src/app.py": "x = 1\n", "docs/sample.py": "y = 2\n"})
+
+            proc = self._scan(root, "--ignore", "docs/**")
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("src/app.py", proc.stdout)
+            self.assertNotIn("docs/sample.py", proc.stdout)
+
+    def test_ignore_is_repeatable(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._tree(root, {
+                "src/app.py": "x = 1\n",
+                "docs/sample.py": "y = 2\n",
+                "gen/built.py": "z = 3\n",
+            })
+
+            proc = self._scan(root, "--ignore", "docs/**", "--ignore", "gen/**")
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("src/app.py", proc.stdout)
+            self.assertNotIn("docs/sample.py", proc.stdout)
+            self.assertNotIn("gen/built.py", proc.stdout)
+
+    def test_ignore_adds_to_sniff_toml_globs_instead_of_replacing_them(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._tree(root, {
+                ".sniff.toml": '[ignore]\nglobs = "docs/**"\n',
+                "src/app.py": "x = 1\n",
+                "docs/sample.py": "y = 2\n",
+                "gen/built.py": "z = 3\n",
+            })
+
+            proc = self._scan(root, "--ignore", "gen/**")
+
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("src/app.py", proc.stdout)
+            self.assertNotIn("gen/built.py", proc.stdout)      # from --ignore
+            self.assertNotIn("docs/sample.py", proc.stdout)    # from .sniff.toml, still applied
+
+
 class DetectorFlagPassthroughTest(unittest.TestCase):
     """Unknown trailing flags reach a single --only detector, and only then."""
 
