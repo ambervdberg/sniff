@@ -348,9 +348,11 @@ def run_doctor() -> int:
     ok = True
     lines: list[str] = []
 
-    py_ok = sys.version_info >= (3, 9)
+    # Must match `requires-python` in pyproject.toml: reporting a lower floor here would
+    # PASS an interpreter that pip already refused to install sniff on.
+    py_ok = sys.version_info >= (3, 10)
     py_str = ".".join(str(part) for part in sys.version_info[:3])
-    lines.append(f"{'PASS' if py_ok else 'FAIL'} python {py_str} (>=3.9 required)")
+    lines.append(f"{'PASS' if py_ok else 'FAIL'} python {py_str} (>=3.10 required)")
     ok &= py_ok
 
     lines.append(
@@ -426,7 +428,10 @@ def run_prime() -> None:
 
     caveats: list[str] = []
     if not facts.has_ast_grep:
-        caveats.append("ast-grep is not on PATH; every detector except sniff-patterns will fail to run.")
+        caveats.append(
+            "ast-grep is not on PATH; only largest-files and no-duplicate-string will run. "
+            "Every other detector, sniff-patterns included, parses with it and will fail."
+        )
     if facts.errors:
         caveats.append(f"{len(facts.errors)} detector manifest error(s); run `sniff doctor` for details.")
     if facts.installed_version and facts.pkg_version and facts.installed_version != facts.pkg_version:
@@ -675,7 +680,8 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument("--skip", help="comma-separated detector names to skip")
     parser.add_argument("--all", action="store_true", help="run all detectors (default behaviour; alias for no flags)")
     parser.add_argument("--list", action="store_true", help="list discovered detectors and exit")
-    parser.add_argument("--list-patterns", action="store_true", help="list pattern rules catalog (RULE / SEVERITY / MESSAGE) and exit")
+    parser.add_argument("--list-patterns", action="store_true",
+                        help="list pattern rules catalog (RULE / SEVERITY / ORIGIN / ALSO RUNS ON / MESSAGE) and exit")
     parser.add_argument("--json", action="store_true", help="emit JSON instead of markdown (works with scan and --list)")
     parser.add_argument("--ignore", action="append", default=[], metavar="GLOB",
                         help="glob to exclude, relative to DIR (repeatable); adds to .sniff.toml [ignore] globs")
