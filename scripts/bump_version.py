@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Bump the version in pyproject.toml, .claude-plugin/plugin.json,
-.codex-plugin/plugin.json, and every plugin entry in .claude-plugin/marketplace.json
-in lockstep, so `sniff doctor`'s drift check stays green, then refresh uv.lock so the
-version it records for sniff-smells matches (CI runs `uv sync --locked`, which fails
-on a stale lock).
+.codex-plugin/plugin.json, every plugin entry in .claude-plugin/marketplace.json, and
+the GitHub Action pin the README tells users to copy, in lockstep, so `sniff doctor`'s
+drift check stays green, then refresh uv.lock so the version it records for
+sniff-smells matches (CI runs `uv sync --locked`, which fails on a stale lock).
 
 Usage: python scripts/bump_version.py <new-version>"""
 
@@ -16,6 +16,10 @@ import subprocess
 import sys
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+
+# The README's CI-mode snippet pins the composite action by release tag. Users copy it
+# verbatim, so a stale pin here ships a wrong command to every reader.
+ACTION_PIN_RE = re.compile(r"(ambervdberg/sniff@v)\d+\.\d+\.\d+")
 
 
 def _write_json(path: str, data: dict) -> None:
@@ -55,6 +59,14 @@ def bump(root: str, version: str) -> list[str]:
         entry["version"] = version
     _write_json(marketplace_path, marketplace)
     touched.append(marketplace_path)
+
+    readme_path = os.path.join(root, "README.md")
+    with open(readme_path, "r", encoding="utf-8") as fh:
+        readme = fh.read()
+    readme = ACTION_PIN_RE.sub(rf"\g<1>{version}", readme)
+    with open(readme_path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(readme)
+    touched.append(readme_path)
 
     return touched
 
