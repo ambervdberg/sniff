@@ -664,6 +664,51 @@ def fold_nested(matches: list[Match]) -> list[Match]:
 Column = tuple[str, Callable[[Match], object]]
 
 
+def _sink_row_file(row: object) -> str:
+    """Which file a printed row belongs to.
+
+    Every row type but one names its file directly. duplicate-code's clone is a
+    group of copies rather than a single site, so its file is the set of files it
+    spans: an identity that survives edits elsewhere in those files."""
+    file = getattr(row, "file", None)
+    if file:
+        return str(file)
+
+    occurrences = getattr(row, "occurrences", None) or []
+    return "+".join(sorted({o.file for o in occurrences if getattr(o, "file", None)}))
+
+
+def _sink_row_name(row: object) -> str:
+    """What a printed row is called, for fingerprinting.
+
+    A Match carries the resolved definition name. no-duplicate-string's row has
+    no name at all, because the duplicated literal is what identifies it."""
+    for attr in ("name", "string"):
+        value = getattr(row, attr, None)
+        if value:
+            return str(value)
+    return "(anon)"
+
+
+def _sink_entry(row: object) -> dict:
+    """One findings-sink record for a printed row.
+
+    print_table is handed Matches by the AST detectors and a detector-local
+    dataclass by the rest (FileStat, Clone, DuplicateString, DebtFile), so
+    nothing beyond the row's own columns is guaranteed and every field is read
+    defensively. `lines` and `count` are recorded because that is where the
+    line-count and per-file-count detectors keep their ranking value; the AST
+    detectors keep theirs in `metrics`."""
+    return {
+        "file": _sink_row_file(row),
+        "line": int(getattr(row, "line", 0) or 0),
+        "name": _sink_row_name(row),
+        "lines": int(getattr(row, "lines", 0) or 0),
+        "count": int(getattr(row, "count", 0) or 0),
+        "metrics": dict(getattr(row, "metrics", None) or {}),
+    }
+
+
 def print_table(
     matches: Sequence[Match],
     columns: Sequence[Column],
@@ -677,10 +722,7 @@ def print_table(
     matches or AST JSON alongside it. Numeric columns are right-aligned; the
     first column is sized to its content, the rest to their widest cell."""
     if FINDINGS_SINK is not None:
-        FINDINGS_SINK.extend(
-            {"file": m.file, "line": m.line, "name": m.name, "metrics": dict(m.metrics)}
-            for m in matches
-        )
+        FINDINGS_SINK.extend(_sink_entry(m) for m in matches)
     rows = list(matches)
     if sort_key is not None:
         rows.sort(key=sort_key, reverse=True)

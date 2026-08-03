@@ -55,6 +55,32 @@ class FindingsSinkTest(unittest.TestCase):
         self.assertEqual(entry["file"], "a.py")
         self.assertEqual(entry["line"], 10)  # 0-based start_line 9 -> 1-based 10
         self.assertEqual(entry["metrics"], {"params": 8})
+        self.assertEqual(entry["lines"], 12)  # start_line 9 .. end_line 20
+
+    def test_sink_records_rows_that_are_not_matches(self):
+        """Half the detectors print their own row dataclass, not a Match.
+
+        largest-files hands print_table a FileStat, duplicate-code a Clone, and
+        so on. None of those carry a line, a name, or a metrics dict, so the
+        sink has to read every field defensively or a gated scan crashes."""
+        from dataclasses import dataclass
+
+        @dataclass
+        class FileStat:
+            file: str
+            lines: int
+
+        harness.FINDINGS_SINK = []
+        with redirect_stdout(io.StringIO()):
+            harness.print_table(
+                [FileStat(file="big.py", lines=500)],
+                columns=[("LINES", lambda s: s.lines), ("FILE", lambda s: s.file)],
+            )
+
+        self.assertEqual(harness.FINDINGS_SINK, [{
+            "file": "big.py", "line": 0, "name": "(anon)",
+            "lines": 500, "count": 0, "metrics": {},
+        }])
 
 
 class PatternsSinkTest(unittest.TestCase):

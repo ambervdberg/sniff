@@ -1,0 +1,162 @@
+"""Tests for the gate fingerprint/threshold logic."""
+
+import os
+import tempfile
+import unittest
+from unittest import mock
+
+from sniff import gate, harness
+
+
+def finding(file="src/a.py", name="fn", **metrics):
+    return {"file": file, "line": 3, "name": name, "metrics": dict(metrics)}
+
+
+def fake_detector(name, builtin=True):
+    """A stand-in for discovery.Detector: only `.name` and `.module` are read."""
+    detector = mock.Mock()
+    detector.name = name
+    detector.module = object() if builtin else None
+    return detector
+
+
+def ok_result(name):
+    return {"detector": name, "title": "t", "exit_code": 0, "output": "", "error": None}
+
+
+class FingerprintTest(unittest.TestCase):
+    def test_node_metric_below_gate_threshold_is_dropped(self):
+        fps = gate.fingerprint_findings(
+            "cyclomatic-complexity", [finding(cyclomatic=3)])
+        self.assertEqual(fps, {})
+
+    def test_node_metric_at_threshold_is_kept_with_value(self):
+        fps = gate.fingerprint_findings(
+            "cyclomatic-complexity", [finding(cyclomatic=10)])
+        self.assertEqual(fps, {"src/a.py|fn": 10})
+
+    def test_file_metric_fingerprint_is_file_only(self):
+        fps = gate.fingerprint_findings(
+            "largest-files", [finding(file="big.py", name="(anon)", lines=999)])
+        self.assertEqual(fps, {"big.py": 999})
+
+    def test_patterns_fingerprint_counts_per_rule_and_file(self):
+        rows = [
+            finding(file="a.py", name="py-print-statement",
+                    rule="py-print-statement", severity="warning"),
+            finding(file="a.py", name="py-print-statement",
+                    rule="py-print-statement", severity="warning"),
+        ]
+        fps = gate.fingerprint_findings("sniff-patterns", rows)
+        self.assertEqual(fps, {"py-print-statement|a.py": 2})
+
+    def test_unknown_detector_counts_every_finding(self):
+        # New detectors added later must be gated, not silently ignored.
+        fps = gate.fingerprint_findings("brand-new-detector", [finding()])
+        self.assertEqual(fps, {"src/a.py|fn": 1})
+
+    def test_metric_outside_metrics_dict_is_read_from_the_entry(self):
+        # largest-files/largest-methods/most-imports keep their ranking value in
+        # a top-level sink field, not in `metrics` (see gate module docstring).
+        entry = {"file": "big.py", "line": 1, "name": "(anon)",
+                 "metrics": {}, "lines": 500}
+        fps = gate.fingerprint_findings("largest-files", [entry])
+        self.assertEqual(fps, {"big.py": 500})
+
+    def test_most_imports_reads_its_count_field(self):
+        entry = {"file": "hub.py", "line": 1, "name": "(anon)",
+                 "metrics": {}, "count": 25}
+        fps = gate.fingerprint_findings("most-imports", [entry])
+        self.assertEqual(fps, {"hub.py": 25})
+
+    def test_worst_value_wins_for_a_repeated_fingerprint(self):
+        rows = [finding(cyclomatic=12), finding(cyclomatic=20)]
+        fps = gate.fingerprint_findings("cyclomatic-complexity", rows)
+        self.assertEqual(fps, {"src/a.py|fn": 20})
+
+
+class ScanFailClosedTest(unittest.TestCase):
+    def tearDown(self):
+        harness.FINDINGS_SINK = None
+
+    def test_detector_error_raises(self):
+        bad = {"detector": "largest-methods", "title": "t",
+               "exit_code": 1, "output": "", "error": "ast-grep exploded"}
+        det = fake_detector("largest-methods")
+        with mock.patch("sniff.gate._run_one", return_value=bad):
+            with self.assertRaises(gate.DetectorFailure) as ctx:
+                gate.scan_fingerprints([det], ".")
+        self.assertIn("largest-methods", str(ctx.exception))
+        self.assertIn("ast-grep exploded", str(ctx.exception))
+
+    def test_nonzero_exit_without_stderr_reports_the_code(self):
+        bad = {"detector": "most-imports", "title": "t",
+               "exit_code": 2, "output": "", "error": None}
+        det = fake_detector("most-imports")
+        with mock.patch("sniff.gate._run_one", return_value=bad):
+            with self.assertRaises(gate.DetectorFailure) as ctx:
+                gate.scan_fingerprints([det], ".")
+        self.assertIn("exit code 2", str(ctx.exception))
+
+    def test_external_detectors_are_skipped(self):
+        det = fake_detector("shell-detector", builtin=False)
+        with mock.patch("sniff.gate._run_one") as run:
+            self.assertEqual(gate.scan_fingerprints([det], "."), {})
+        run.assert_not_called()
+
+    def test_findings_are_collected_per_detector(self):
+        det = fake_detector("most-parameters")
+
+        def run(_detector, _path):
+            harness.FINDINGS_SINK.append(finding(name="wide", params=9))
+            return ok_result("most-parameters")
+
+        with mock.patch("sniff.gate._run_one", side_effect=run):
+            results = gate.scan_fingerprints([det], ".")
+        self.assertEqual(results, {"most-parameters": {"src/a.py|wide": 9}})
+
+    def test_sink_is_uninstalled_after_a_successful_scan(self):
+        det = fake_detector("most-parameters")
+        with mock.patch("sniff.gate._run_one",
+                        return_value=ok_result("most-parameters")):
+            gate.scan_fingerprints([det], ".")
+        self.assertIsNone(harness.FINDINGS_SINK)
+
+    def test_sink_is_uninstalled_after_a_detector_crashes(self):
+        # A leaked sink would keep growing through every later print_table call.
+        det = fake_detector("most-parameters")
+        with mock.patch("sniff.gate._run_one", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                gate.scan_fingerprints([det], ".")
+        self.assertIsNone(harness.FINDINGS_SINK)
+
+
+class ScanRealDetectorsTest(unittest.TestCase):
+    """Every built-in detector must survive a gated scan.
+
+    Five detectors hand `print_table` their own row dataclass rather than a
+    `Match` (largest-files, most-imports, duplicate-code, no-duplicate-string,
+    self-admitted-debt); the sink has to record those too, or the gate raises
+    DetectorFailure on a perfectly healthy repo."""
+
+    def tearDown(self):
+        harness.FINDINGS_SINK = None
+        harness.reset_git_ignore_cache()
+
+    def test_scan_over_a_real_tree_names_every_builtin_detector(self):
+        from sniff import discovery
+
+        detectors = discovery.discover()[0]
+        builtins = [d for d in detectors if d.module is not None]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, "app.py"), "w", encoding="utf-8") as fh:
+                fh.write("import os\n\n\ndef main():\n    print(os)  # TODO: fix\n")
+
+            results = gate.scan_fingerprints(builtins, tmp)
+
+        self.assertEqual(sorted(results), sorted(d.name for d in builtins))
+
+
+if __name__ == "__main__":
+    unittest.main()
