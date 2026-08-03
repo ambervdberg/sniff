@@ -34,6 +34,7 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.request
 from dataclasses import dataclass, replace
 
 from sniff import config, contribute, discovery, harness, patterns, rules_testing
@@ -316,6 +317,75 @@ def get_version() -> str:
     return _installed_package_version() or _pyproject_version() or "unknown"
 
 
+# The published package is the only thing a user can upgrade to, so the release
+# check asks PyPI directly. `prime` runs at session start, so the call is bounded
+# by a short timeout and every failure is silent: a slow or offline network must
+# cost a bounded wait, never a stalled session or an error the user has to read.
+_PYPI_RELEASE_URL = "https://pypi.org/pypi/sniff-smells/json"
+_PYPI_TIMEOUT_SECONDS = 1.5
+
+# Escape hatch for offline machines, sandboxed CI, and the test suite, which must
+# never depend on network reachability.
+_SKIP_CHECK_ENV_VAR = "SNIFF_NO_VERSION_CHECK"
+
+
+def _version_key(version: str) -> tuple[int, ...] | None:
+    """Leading numeric release segments of `version`, for ordering.
+
+    Compares as ints, not strings, so 0.9.0 sorts below 0.13.0. Returns None when
+    the string has no numeric prefix at all, which keeps an unparseable version
+    'unknown' instead of silently comparing as 0."""
+    match = re.match(r"(\d+(?:\.\d+)*)", version.strip())
+    if not match:
+        return None
+    return tuple(int(part) for part in match.group(1).split("."))
+
+
+def _latest_released_version() -> str | None:
+    """Newest sniff-smells version on PyPI, or None if it can't be determined."""
+    if os.environ.get(_SKIP_CHECK_ENV_VAR):
+        return None
+    # PyPI serves this endpoint through a CDN that can keep answering with the
+    # previous release for a while after an upload. Revalidating costs nothing at
+    # one call per session and is the difference between warning right after a
+    # release and staying silent through it.
+    request = urllib.request.Request(_PYPI_RELEASE_URL, headers={"Cache-Control": "no-cache"})
+    try:
+        with urllib.request.urlopen(request, timeout=_PYPI_TIMEOUT_SECONDS) as response:
+            payload = json.load(response)
+        latest = payload["info"]["version"]
+    except Exception:
+        # Deliberately broad: unreachable host, TLS failure, timeout, HTTP error,
+        # malformed JSON and missing keys are all the same non-event here. An
+        # optional courtesy check must never be able to break `sniff prime`.
+        return None
+    return latest if isinstance(latest, str) else None
+
+
+def _upgrade_available_caveat(installed: str | None) -> str | None:
+    """Caveat naming a newer published release, or None when the installed version
+    is current, unknown, or PyPI could not be reached."""
+    if not installed:
+        return None
+
+    installed_key = _version_key(installed)
+    if installed_key is None:
+        return None
+
+    latest = _latest_released_version()
+    if latest is None:
+        return None
+
+    latest_key = _version_key(latest)
+    if latest_key is None or latest_key <= installed_key:
+        return None
+
+    return (
+        f"sniff {latest} is available (installed: {installed}); "
+        "upgrade with `uv tool upgrade sniff-smells`"
+    )
+
+
 @dataclass
 class EnvironmentFacts:
     """Everything `doctor` and `prime` both need to know about the environment,
@@ -324,7 +394,6 @@ class EnvironmentFacts:
     detectors: list[discovery.Detector]
     errors: list[str]
     has_ast_grep: bool
-    pkg_version: str | None
     installed_version: str | None
 
 
@@ -334,7 +403,6 @@ def _gather_environment_facts() -> EnvironmentFacts:
         detectors=detectors,
         errors=errors,
         has_ast_grep=shutil.which("ast-grep") is not None,
-        pkg_version=_pyproject_version(),
         installed_version=_installed_package_version(),
     )
 
@@ -400,8 +468,7 @@ def run_prime() -> None:
     """Print agent-optimized context: version, detectors, prereqs, usage hints,
     caveats. Never runs a scan, so it stays cheap to call at session start."""
     facts = _gather_environment_facts()
-    version = facts.installed_version or facts.pkg_version or "unknown"
-    lines: list[str] = [f"sniff {version}", ""]
+    lines: list[str] = [f"sniff {get_version()}", ""]
 
     lines.append("PREREQUISITES")
     lines.append(f"  python {'.'.join(str(p) for p in sys.version_info[:3])}")
@@ -434,11 +501,9 @@ def run_prime() -> None:
         )
     if facts.errors:
         caveats.append(f"{len(facts.errors)} detector manifest error(s); run `sniff doctor` for details.")
-    if facts.installed_version and facts.pkg_version and facts.installed_version != facts.pkg_version:
-        caveats.append(
-            f"stale install: pip-installed sniff is {facts.installed_version}, source checkout is {facts.pkg_version}; "
-            "upgrade with `uv tool upgrade sniff-smells`"
-        )
+    upgrade_caveat = _upgrade_available_caveat(facts.installed_version)
+    if upgrade_caveat:
+        caveats.append(upgrade_caveat)
 
     lines.append("CAVEATS")
     if caveats:
