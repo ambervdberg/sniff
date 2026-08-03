@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Load .sniff.toml from a scan dir. Hand-parsed TOML subset (stdlib-only,
-Python 3.9): [section] headers and flat `key = value` lines; values are quoted
-strings, ints, or true/false. Unknown keys warn, never raise."""
+"""Load .sniff.toml for a scan dir. Hand-parsed TOML subset (stdlib-only):
+[section] headers and flat `key = value` lines; values are quoted strings, ints,
+or true/false. Unknown keys warn, never raise."""
 
 from __future__ import annotations
 
@@ -46,9 +46,48 @@ def _string_list(raw: str) -> "list[str]":
     return [part for part in parts if part]
 
 
+def _repo_root(scan_dir: str) -> "str | None":
+    """Nearest ancestor of `scan_dir` holding a `.git` entry, or None outside a repo.
+
+    Checked with `os.path.exists`, not `isdir`: a worktree's `.git` is a file."""
+    current = scan_dir
+    while True:
+        if os.path.exists(os.path.join(current, ".git")):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+
+def config_path(scan_dir: str) -> "str | None":
+    """Path of the `.sniff.toml` that governs `scan_dir`, nearest first, or None.
+
+    Scanning a subdirectory must still honour the config its repo committed at the
+    root, so the search walks up. It stops at the repository root, and does not walk
+    at all outside a repo: climbing past that point would let a stray file in a home
+    directory silently rewrite an unrelated scan."""
+    scan_dir = os.path.abspath(scan_dir)
+    root = _repo_root(scan_dir)
+
+    current = scan_dir
+    while True:
+        candidate = os.path.join(current, ".sniff.toml")
+        if os.path.isfile(candidate):
+            return candidate
+        if root is None or current == root:
+            return None
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+
 def load(scan_dir: str) -> Config:
     cfg = Config()
-    path = os.path.join(scan_dir, ".sniff.toml")
+    path = config_path(scan_dir)
+    if path is None:
+        return cfg
     try:
         with open(path, "r", encoding="utf-8") as fh:
             lines = fh.readlines()
