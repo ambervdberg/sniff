@@ -610,9 +610,16 @@ def main(argv: "list[str] | None" = None) -> int:
         entry["count"] += 1
         # top_locs == 0 means list every location so the agent can act on all of
         # them; a positive value caps the list.
+        line = m["range"]["start"]["line"] + 1
         if args.top_locs <= 0 or len(entry["locs"]) < args.top_locs:
-            line = m["range"]["start"]["line"] + 1
             entry["locs"].append(f"{_rel(m['file'], args.path)}:{line}")
+        if h.FINDINGS_SINK is not None:
+            h.FINDINGS_SINK.append({
+                "file": _rel(m["file"], args.path),
+                "line": line,
+                "name": rule_id,
+                "metrics": {"rule": rule_id, "severity": sev},
+            })
 
     # Rules that actually ran this invocation = whole catalog minus any --rule /
     # --severity filter. Reported so the result names how many and which rules ran,

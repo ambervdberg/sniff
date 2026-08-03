@@ -1,6 +1,11 @@
 """Tests for the harness findings sink used by baseline/diff."""
 
 import io
+import json
+import os
+import subprocess
+import sys
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 
@@ -50,3 +55,31 @@ class FindingsSinkTest(unittest.TestCase):
         self.assertEqual(entry["file"], "a.py")
         self.assertEqual(entry["line"], 10)  # 0-based start_line 9 -> 1-based 10
         self.assertEqual(entry["metrics"], {"params": 8})
+
+
+class PatternsSinkTest(unittest.TestCase):
+    """Run the real sniff-patterns detector in-process over a tiny fixture
+    and assert its findings reach harness.FINDINGS_SINK."""
+
+    def tearDown(self):
+        harness.FINDINGS_SINK = None
+
+    def test_pattern_findings_reach_sink(self):
+        from sniff import patterns_detector
+
+        with tempfile.TemporaryDirectory() as tmp:
+            # py-print-statement is a stock rule; a bare print() trips it.
+            with open(os.path.join(tmp, "app.py"), "w", encoding="utf-8") as fh:
+                fh.write("print('hi')\n")
+
+            harness.FINDINGS_SINK = []
+            with redirect_stdout(io.StringIO()):
+                patterns_detector.main([tmp])
+
+            rules = {f["metrics"]["rule"] for f in harness.FINDINGS_SINK}
+            self.assertIn("py-print-statement", rules)
+            hit = next(f for f in harness.FINDINGS_SINK
+                       if f["metrics"]["rule"] == "py-print-statement")
+            self.assertEqual(hit["file"], "app.py")
+            self.assertEqual(hit["line"], 1)
+            self.assertEqual(hit["name"], "py-print-statement")
