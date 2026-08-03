@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [0.13.0] - 2026-08-03
 
 - Two new Python rules: `py-broad-except` and `py-import-outside-toplevel`.
 - Pattern rules now skip test files too, like every other detector.
