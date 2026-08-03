@@ -177,6 +177,16 @@ class DuplicateCodeTest(unittest.TestCase):
         self.assertTrue(clones[0].capped)
         self.assertLessEqual(clones[0].copies, dc.MAX_GROUP_MEMBERS + 1)
 
+    def test_degenerate_thresholds_are_refused(self):
+        # A zero-token window used to index past the end of the corpus and dump a
+        # traceback on the user mid-scan.
+        self._write("a.py", HANDLER)
+
+        for flag in ("--min-tokens", "--min-lines"):
+            with self.subTest(flag=flag), self.assertRaises(SystemExit) as raised:
+                dc.main([self.root, flag, "0"])
+            self.assertIn("must be at least", str(raised.exception))
+
     def test_clones_stay_inside_one_file(self):
         # Files sit end to end in one token array; a clone must not span the seam.
         first = self._write("a.py", HANDLER)

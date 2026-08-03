@@ -52,6 +52,10 @@ NEEDS_AST_GREP = False
 DEFAULT_MIN_TOKENS = 30
 DEFAULT_MIN_LINES = 5
 
+# Below this the window carries no structure worth comparing, and a zero-width
+# window walks off the end of the corpus.
+MIN_ALLOWED_TOKENS = 2
+
 # Guards against ranking boilerplate above real duplication. A block whose lines
 # are mostly imports, or that says almost nothing (a repeated data table of the
 # same three tokens), is duplication a reader already expects.
@@ -503,6 +507,13 @@ def main(argv: "list[str] | None" = None) -> int:
         help="glob to exclude, relative to PATH (repeatable)"
     )
     args = parser.parse_args(argv)
+
+    # A zero-token window has no shape to compare and indexes past the end of the
+    # corpus, so it is refused here rather than crashing halfway through a scan.
+    if args.min_tokens < MIN_ALLOWED_TOKENS:
+        sys.exit(f"error: --min-tokens must be at least {MIN_ALLOWED_TOKENS}.")
+    if args.min_lines < 1:
+        sys.exit("error: --min-lines must be at least 1.")
 
     files = h.iter_source_files(args.path, include_tests=args.include_tests,
                                 extra_ignores=args.extra_ignore)
