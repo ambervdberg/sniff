@@ -25,6 +25,40 @@ Always go through `uv run`. It puts this repo's `sniff` on PATH, so tests that
 shell out to the CLI exercise your working tree rather than whatever global
 `uv tool install sniff-smells` build happens to be installed.
 
+## Repo layout
+
+```
+.claude-plugin/   plugin.json (skills) + marketplace.json
+.codex-plugin/    plugin.json (native Codex plugin manifest)
+.github/workflows/  CI (test matrix, ubuntu + windows) and release (PyPI trusted publishing)
+action.yml        composite GitHub Action; powers the README's CI mode section
+hooks/hooks.json  lifecycle hooks (SessionStart -> sniff prime, Stop -> costly-search nudge);
+                  single source for BOTH hosts, since Claude Code and Codex each
+                  auto-discover this exact path
+assets/           plugin logo + composer icon (the 1024px master is untracked, in docs/)
+evals/            LLM eval harness: cases.jsonl, runner.py (simulated), scorer.py, smoke/ (real-agent)
+LICENSE           MIT
+src/sniff/        installable package (dist sniff-smells, command sniff)
+  cli.py            entry point, argument parsing, subcommands
+  config.py         .sniff.toml config loading
+  discovery.py      built-in + external (.sniff/detectors/) detector discovery
+  contribute.py     `sniff contribute` upstreaming flow
+  harness.py        shared ast-grep integration
+  node_metric.py    per-node scoring (complexity, nesting, ...)
+  rules_testing.py  `sniff test-rules` fixture runner
+  detectors/         one module per built-in metric detector (10)
+  patterns_detector.py  the sniff-patterns rule-catalog detector (11th, at package root)
+  patterns/          rule catalog: rules/, rule-tests/, sgconfig.yml
+skills/           thin SKILL.md wrappers around the sniff CLI, one per detector
+  largest-methods/  large-classes/  largest-files/  deepest-nesting/
+  cyclomatic-complexity/  cognitive-complexity/  most-parameters/  most-imports/
+  no-duplicate-string/  large-inline-templates/  sniff/  sniff-patterns/
+  sniff-create/     scripts/ + templates/, the skill/rule generator
+tests/            pytest suite
+scripts/          bump_version.py and other maintenance scripts
+docs/             design spec
+```
+
 ## Adding a pattern rule
 
 Rules live in `src/sniff/patterns/rules/` as YAML files, with fixtures alongside in
@@ -140,3 +174,19 @@ Before opening a PR:
       both `plugin.json` files, and the `marketplace.json` entries in lockstep, and
       `tests/test_version_consistency.py` fails the build if they drift apart.
 - [ ] CI passes (GitHub Actions will run the checks)
+
+## Release
+
+`python scripts/bump_version.py <new-version>` rewrites the version in five places together:
+`pyproject.toml`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, every plugin
+entry in `.claude-plugin/marketplace.json`, and `uv.lock` (which it refreshes by running
+`uv lock` itself). `tests/test_version_consistency.py` fails the build if any of the five
+drift apart. After bumping, update `CHANGELOG.md`, commit, and tag `v<new-version>`.
+
+What gets published is an explicit allowlist in `[tool.hatch.build.targets.sdist]`, not
+whatever happens to sit in the repo. Hatchling's default sweeps in every file it can see,
+including ones git ignores through a nested `.gitignore`, which is how 8.5 MB of `.beads`
+tracker state ended up in a release. Patterns need a leading `/` to anchor them to the
+project root, or they match at any depth. The plugin surface (`skills/`, `hooks/`, the two
+`plugin.json` manifests) deliberately stays out: plugin users install from the git
+marketplace, and the PyPI package is only the `sniff` CLI.
