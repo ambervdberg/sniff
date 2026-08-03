@@ -157,6 +157,68 @@ class ScanRealDetectorsTest(unittest.TestCase):
 
         self.assertEqual(sorted(results), sorted(d.name for d in builtins))
 
+    def test_every_threshold_key_resolves_on_real_findings(self):
+        """A threshold naming a key no detector writes drops every finding.
+
+        `_value_of` falls back to 1 for a missing key, which is below every
+        floor, so a renamed metric would turn a detector off rather than fail:
+        exactly the silent pass this module exists to prevent. This scans a
+        file built to trip each floor and checks the violations come back."""
+        from sniff import discovery
+
+        gated = set(gate.GATE_THRESHOLDS)
+        # large-inline-templates only fires on an Angular @Component decorator,
+        # which a Python fixture cannot carry.
+        gated.discard("large-inline-templates")
+
+        detectors = [d for d in discovery.discover()[0] if d.name in gated]
+        self.assertEqual(len(detectors), len(gated))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, "big_module.py"), "w", encoding="utf-8") as fh:
+                fh.write(_over_every_threshold())
+
+            results = gate.scan_fingerprints(detectors, tmp)
+
+        empty = sorted(name for name, fps in results.items() if not fps)
+        self.assertEqual(empty, [], "detectors whose gate metric never resolved")
+
+
+def _over_every_threshold() -> str:
+    """A Python module that violates every gate threshold a Python file can.
+
+    One 100-line, 5-parameter, deeply nested function with a dozen branches
+    (methods, parameters, nesting, both complexities) plus 25 imports and a
+    400-line class, all in a file long enough to trip largest-files."""
+    imports = "\n".join(f"import mod{i}" for i in range(25))
+
+    flags = "".join(f"    flag_{i} = a\n" for i in range(12))
+    branches = "\n".join(
+        f"    if flag_{i} == {i}:\n        total += {i}" for i in range(12))
+    nested = (
+        "    for i in range(10):\n"
+        "        if a:\n"
+        "            while b:\n"
+        "                if c:\n"
+        "                    for j in range(3):\n"
+        "                        if d:\n"
+        "                            total += j\n"
+    )
+    filler = "\n".join(f"    total += {i}" for i in range(60))
+    function = (
+        "def wide(a, b, c, d, e):\n    total = 0\n"
+        f"{flags}{branches}\n{nested}{filler}\n    return total\n"
+    )
+
+    methods = "\n".join(
+        f"    def method_{i}(self):\n"
+        + "".join(f"        x{j} = {j}\n" for j in range(8))
+        + "        return x0\n"
+        for i in range(40)
+    )
+
+    return f"{imports}\n\n\n{function}\n\nclass Big:\n{methods}\n"
+
 
 if __name__ == "__main__":
     unittest.main()
