@@ -244,6 +244,55 @@ class FileMetricTest(unittest.TestCase):
         self.assertIn("app.ts", names)
         self.assertNotIn("app.test.ts", names)
 
+    def test_iter_excludes_test_files_of_every_supported_ecosystem(self):
+        """A header that says "tests excluded" has to be true beyond JavaScript.
+
+        Matching only `*.test.ts` is how scrapy's test classes were ranked as
+        production code while the header claimed they were filtered out."""
+        self._write("pkg/test_client.py", "def test_x():\n    pass\n")
+        self._write("pkg/client_test.py", "def test_x():\n    pass\n")
+        self._write("pkg/conftest.py", "import pytest\n")
+        self._write("pkg/server_test.go", "package pkg\n")
+        self._write("pkg/client.py", "x = 1\n")
+
+        names = {os.path.basename(f) for f in h.iter_source_files(self.root, include_tests=False)}
+
+        self.assertIn("client.py", names, "production source must survive")
+        for test_file in ("test_client.py", "client_test.py", "conftest.py", "server_test.go"):
+            self.assertNotIn(test_file, names)
+
+    def test_iter_excludes_helpers_living_in_a_test_directory(self):
+        """Test helpers rarely carry a test-shaped filename. scrapy's
+        tests/utils/bases/http_response.py holds a 399-line class that no naming
+        convention would catch, so the directory itself has to count."""
+        self._write("tests/utils/bases/http_response.py", "class TestResponseBase:\n    pass\n")
+        self._write("src/lib/response.py", "class Response:\n    pass\n")
+
+        names = {os.path.basename(f) for f in h.iter_source_files(self.root, include_tests=False)}
+
+        self.assertIn("response.py", names)
+        self.assertNotIn("http_response.py", names)
+
+    def test_include_tests_still_brings_them_all_back(self):
+        """The exclusion is a default, not a wall: --include-tests must undo it."""
+        self._write("pkg/test_client.py", "def test_x():\n    pass\n")
+        self._write("tests/helper.py", "def helper():\n    pass\n")
+
+        names = {os.path.basename(f) for f in h.iter_source_files(self.root, include_tests=True)}
+
+        self.assertIn("test_client.py", names)
+        self.assertIn("helper.py", names)
+
+    def test_a_source_file_merely_containing_test_in_its_name_is_kept(self):
+        """`latest_test_results.py` is not a test, and `contest.py` is not conftest."""
+        self._write("pkg/contest.py", "x = 1\n")
+        self._write("pkg/attestation.py", "y = 2\n")
+
+        names = {os.path.basename(f) for f in h.iter_source_files(self.root, include_tests=False)}
+
+        self.assertIn("contest.py", names)
+        self.assertIn("attestation.py", names)
+
     def test_count_code_lines_skips_blanks(self):
         path = next(f for f in h.iter_source_files(self.root) if f.endswith("app.ts"))
         self.assertEqual(h.count_code_lines(path), 2)
