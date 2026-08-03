@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.14.0] - 2026-08-03
+
+- `sniff prime` now warns when a newer release is on PyPI. Set `SNIFF_NO_VERSION_CHECK=1` to skip the check.
+
 ## [0.13.0] - 2026-08-03
 
 - Two new Python rules: `py-broad-except` and `py-import-outside-toplevel`.

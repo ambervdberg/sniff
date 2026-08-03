@@ -9,13 +9,16 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 from sniff import cli as run_module
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "..", "src")
 RUN = [sys.executable, "-m", "sniff.cli"]
-SUBPROCESS_ENV = {**os.environ, "PYTHONPATH": SRC}
+# The release check in `prime` talks to PyPI. Disabled for every subprocess here so
+# the suite never depends on network reachability; the check has its own unit tests.
+SUBPROCESS_ENV = {**os.environ, "PYTHONPATH": SRC, "SNIFF_NO_VERSION_CHECK": "1"}
 
 
 class SniffCliHelpTest(unittest.TestCase):
@@ -159,6 +162,69 @@ class SniffPrimeCommandTest(unittest.TestCase):
         self.assertIn("CAVEATS", proc.stdout)
         # No scan output (per-detector "## name" markdown sections) should appear.
         self.assertNotIn("## sniff-patterns", proc.stdout)
+
+
+class SniffUpgradeCaveatTest(unittest.TestCase):
+    """`prime` warns when PyPI has a newer release than the installed one."""
+
+    def _caveat(self, installed: str, latest: str | None) -> str | None:
+        """Resolve the upgrade caveat with the PyPI lookup stubbed to `latest`."""
+        with unittest.mock.patch.object(run_module, "_latest_released_version", return_value=latest):
+            return run_module._upgrade_available_caveat(installed)
+
+    def test_newer_release_names_version_and_upgrade_command(self):
+        caveat = self._caveat("0.12.1", "0.13.0")
+        self.assertIsNotNone(caveat)
+        self.assertIn("sniff 0.13.0 is available", caveat)
+        self.assertIn("installed: 0.12.1", caveat)
+        self.assertIn("uv tool upgrade sniff-smells", caveat)
+
+    def test_same_version_is_not_a_caveat(self):
+        self.assertIsNone(self._caveat("0.13.0", "0.13.0"))
+
+    def test_older_release_is_not_a_caveat(self):
+        """A local build ahead of PyPI must not be told to downgrade."""
+        self.assertIsNone(self._caveat("0.14.0", "0.13.0"))
+
+    def test_unreachable_pypi_is_silent(self):
+        self.assertIsNone(self._caveat("0.12.1", None))
+
+    def test_unknown_installed_version_is_silent(self):
+        self.assertIsNone(self._caveat("unknown", "0.13.0"))
+        self.assertIsNone(self._caveat("", "0.13.0"))
+
+    def test_segments_compare_numerically_not_lexically(self):
+        """0.9.0 is older than 0.13.0, which string comparison gets backwards."""
+        self.assertIsNotNone(self._caveat("0.9.0", "0.13.0"))
+        self.assertIsNone(self._caveat("0.13.0", "0.9.0"))
+
+    def test_env_var_disables_the_network_call(self):
+        """The opt-out short-circuits before any request, for offline and CI use."""
+        with unittest.mock.patch.dict(os.environ, {"SNIFF_NO_VERSION_CHECK": "1"}), \
+                unittest.mock.patch.object(run_module.urllib.request, "urlopen") as urlopen:
+            self.assertIsNone(run_module._latest_released_version())
+        urlopen.assert_not_called()
+
+    def test_request_bypasses_the_cdn_cache(self):
+        """PyPI's CDN can serve the previous release for a while after an upload,
+        so a cached answer would keep prime silent through exactly the release it
+        exists to announce."""
+        with unittest.mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SNIFF_NO_VERSION_CHECK", None)
+            with unittest.mock.patch.object(
+                run_module.urllib.request, "urlopen", side_effect=OSError("offline")
+            ) as urlopen:
+                run_module._latest_released_version()
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.get_header("Cache-control"), "no-cache")
+
+    def test_network_failure_returns_none_instead_of_raising(self):
+        with unittest.mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SNIFF_NO_VERSION_CHECK", None)
+            with unittest.mock.patch.object(
+                run_module.urllib.request, "urlopen", side_effect=OSError("offline")
+            ):
+                self.assertIsNone(run_module._latest_released_version())
 
 
 class SniffBaselineDiffTest(unittest.TestCase):
