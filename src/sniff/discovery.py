@@ -190,7 +190,7 @@ def render_list(detectors: list[Detector]) -> str:
     lines.append("\n`all` means every language sniff recognizes; `unknown` means the "
                  "detector does not declare its coverage.")
 
-    if any(d.name == "sniff-patterns" for d in detectors):
+    if any(d.name == PATTERNS_DETECTOR for d in detectors):
         lines.append("Tip: `sniff --list-patterns` lists the individual pattern rules.")
 
     return "\n".join(lines)
@@ -201,19 +201,29 @@ def render_list(detectors: list[Detector]) -> str:
 # commitment stays readable at a glance.
 FIRST_CLASS_LANGUAGES = ["typescript", "tsx", "javascript", "python"]
 
+# The one detector whose language coverage is data, not code.
+PATTERNS_DETECTOR = "sniff-patterns"
+
 
 def render_language_matrix(detectors: list[Detector]) -> str:
     """A per-detector language support table.
 
     Generated from what each detector declares, never hand-maintained: a matrix
     that can drift is worse than no matrix, because a wrong 'yes' turns "this
-    detector cannot read your files" into what looks like a clean scan."""
+    detector cannot read your files" into what looks like a clean scan.
+
+    `sniff-patterns` is left out. Every other row is a fixed capability of the
+    detector, while its coverage is whatever its rules happen to declare, so a
+    row of yes/no reads as a promise the catalog does not make. The pattern rule
+    catalog below the matrix says which languages its rules actually cover."""
     lines = [
         "| DETECTOR | " + " | ".join(FIRST_CLASS_LANGUAGES) + " | ALSO COVERS |",
         "| --- |" + " --- |" * (len(FIRST_CLASS_LANGUAGES) + 1),
     ]
 
     for d in detectors:
+        if d.name == PATTERNS_DETECTOR:
+            continue
         supported = set(d.languages)
         marks = ["yes" if lang in supported else "no" for lang in FIRST_CLASS_LANGUAGES]
         extra = sorted(supported - set(FIRST_CLASS_LANGUAGES))

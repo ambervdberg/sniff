@@ -136,6 +136,22 @@ def test_top_locs_zero_lists_every_location(tmp_path):
 
 
 @unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
+def test_top_is_accepted_but_changes_nothing(tmp_path):
+    """`--top N` parses cleanly and leaves the output untouched.
+
+    Guards against argparse prefix-matching: without an explicit --top argument,
+    `--top 1` silently becomes `--top-locs 1` and truncates the location lists
+    the README says are never cut off."""
+    (tmp_path / "a.ts").write_text("console.log('x')\n" * 3, encoding="utf-8")
+
+    with_top = run_format([str(tmp_path), "--rule", "no-console-log", "--top", "1"])
+    without = run_format([str(tmp_path), "--rule", "no-console-log"])
+
+    assert with_top == without
+    assert with_top.count("| a.ts:") == 3
+
+
+@unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
 def test_rules_are_ordered_worst_severity_first(tmp_path):
     """Errors sort above warnings, warnings above info, whatever the hit counts.
 
@@ -188,6 +204,51 @@ def test_list_rules_groups_by_language(capsys):
     format_mod.print_list_rules(format_mod.catalog_rules())
     out = capsys.readouterr().out
     assert "### typescript" in out and "### python" in out
+
+
+def _run_patterns(scan_dir, *extra):
+    """Run the catalog over `scan_dir` and return its stdout."""
+    proc = subprocess.run(
+        [sys.executable, "-m", "sniff.cli", "--only", "sniff-patterns", str(scan_dir), *extra],
+        capture_output=True, text=True,
+        env={**os.environ, "PYTHONPATH": os.path.join(REPO_ROOT, "src")},
+    )
+    return proc.stdout
+
+
+@unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
+def test_pattern_findings_in_test_files_are_skipped_by_default(tmp_path):
+    """Every other detector skips test code, and the catalog used to not.
+
+    On excalidraw that meant 57% of no-non-null-assertion's findings sat in
+    specs, which is not work anyone is going to do."""
+    (tmp_path / "app.py").write_text("print('ship')\n", encoding="utf-8")
+    (tmp_path / "test_app.py").write_text("print('spec')\n", encoding="utf-8")
+
+    out = _run_patterns(tmp_path)
+
+    assert "app.py" in out
+    assert "test_app.py" not in out, out
+    assert "tests excluded" in out
+
+
+@unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
+def test_include_tests_brings_pattern_findings_back(tmp_path):
+    (tmp_path / "app.py").write_text("print('ship')\n", encoding="utf-8")
+    (tmp_path / "test_app.py").write_text("print('spec')\n", encoding="utf-8")
+
+    out = _run_patterns(tmp_path, "--include-tests")
+
+    assert "test_app.py" in out, out
+    assert "tests included" in out
+
+
+def test_pattern_ignore_dirs_stay_in_step_with_the_harness():
+    """The local copy had already drifted, so pattern rules reported build
+    output from .astro/.nuxt/.turbo that every other detector skipped."""
+    from sniff import harness as h
+
+    assert format_mod.IGNORE_DIRS == h.IGNORE_DIRS
 
 
 def test_vendored_dir_check_ignores_parents_above_scan_root():

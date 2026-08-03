@@ -76,7 +76,34 @@ IGNORE_DIRS = {
 }
 
 # Files that look like tests, excluded unless the caller opts in.
-TEST_RE = re.compile(r"\.(spec|test)\.[a-z]+$", re.IGNORECASE)
+#
+# Every supported ecosystem names its tests differently, and a detector header
+# that says "tests excluded" has to be true for all of them. Matching only the
+# JavaScript spelling is how scrapy's test classes ended up ranked as production
+# code while the header claimed otherwise.
+TEST_RE = re.compile(
+    r"""
+      \.(spec|test)\.[a-z]+$      # JS/TS:  thing.test.ts, thing.spec.tsx
+    | (^|/)test_[^/]*\.py$        # Python: test_thing.py
+    | _test\.py$                  # Python: thing_test.py
+    | (^|/)conftest\.py$          # Python: pytest's shared fixtures
+    | _test\.go$                  # Go:     thing_test.go
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+# Directories whose entire contents are test code. Filename rules alone leave the
+# helpers behind (scrapy's tests/utils/bases/http_response.py defines a 399-line
+# class that no test-file naming convention would catch).
+TEST_DIRS = {"tests", "test", "__tests__", "spec", "specs"}
+
+
+def is_test_file(path: str) -> bool:
+    """True if `path` is test code rather than the source being measured."""
+    normalized = path.replace("\\", "/")
+    if TEST_RE.search(normalized):
+        return True
+    return any(segment in TEST_DIRS for segment in normalized.split("/")[:-1])
 
 # Best-effort name extraction, tried in order against a definition's first line.
 # Reading the single line from disk costs the calling agent nothing.
@@ -418,7 +445,7 @@ def iter_source_files(
             if EXT_LANG.get(os.path.splitext(name)[1].lower()) is None:
                 continue
             path = os.path.join(dirpath, name).replace("\\", "/")
-            if not include_tests and TEST_RE.search(path):
+            if not include_tests and is_test_file(path):
                 continue
             if extra_ignores and _in_ignored_dir(path, root, extra_ignores):
                 continue
@@ -597,7 +624,7 @@ def run(
     raw = [m for m in raw if not _in_ignored_dir(m["file"], path, extra_ignores)]
 
     if not include_tests:
-        raw = [m for m in raw if not TEST_RE.search(m["file"])]
+        raw = [m for m in raw if not is_test_file(m["file"])]
 
     return [_to_match(m, with_name) for m in raw]
 

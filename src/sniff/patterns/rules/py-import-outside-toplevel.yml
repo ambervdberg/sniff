@@ -1,0 +1,18 @@
+# Imports hidden inside functions
+# Flag `import x` inside a function body, which hides a dependency from the
+# module's import list and pays the lookup on every call.
+id: py-import-outside-toplevel
+language: python
+# info, not warning: a function-level import is sometimes deliberate, to break an
+# import cycle or keep an optional dependency optional.
+severity: info
+message: "Import inside a function hides the dependency; move it to the top of the module unless it breaks a cycle."
+rule:
+  any:
+    - kind: import_statement
+    - kind: import_from_statement
+  inside:
+    kind: function_definition
+    # `stopBy: end` so an import nested in a try/if inside the function still counts.
+    # Class bodies are not function bodies, so class-level imports stay clean.
+    stopBy: end

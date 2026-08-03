@@ -75,7 +75,6 @@ sniff prime                          # agent-optimized context, never scans
 sniff baseline write [DIR]           # save per-detector counts to .sniff/baseline.json
 sniff diff [DIR]                     # compare current scan to the saved baseline
 sniff diff --comment [DIR]           # same, as a markdown table to paste in a PR
-sniff test-rules                     # run the rule fixture tests, exit 0/1
 sniff contribute <rule-id>           # upstream a local .sniff/rules/ rule
 ```
 

@@ -1,0 +1,34 @@
+id: py-broad-except
+valid:
+  - |
+    try:
+        risky()
+    except ValueError:
+        pass
+  # Raising Exception from inside a narrow handler is not a broad handler.
+  - |
+    try:
+        risky()
+    except ValueError:
+        raise Exception("wrapped")
+invalid:
+  - |
+    try:
+        risky()
+    except Exception:
+        pass
+  - |
+    try:
+        risky()
+    except Exception as exc:
+        log(exc)
+  - |
+    try:
+        risky()
+    except (KeyError, Exception):
+        pass
+  - |
+    try:
+        risky()
+    except BaseException:
+        pass

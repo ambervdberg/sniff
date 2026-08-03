@@ -14,8 +14,9 @@ Usage:
                      [--extra-ignore GLOB ...]
 
 DIR defaults to the current directory. Vendored/build dirs are skipped by the
-shared ignore list; test files are NOT excluded here (a lint finding in a test is
-still a finding).
+shared ignore list, and so is test code, as in every other detector: an `as any`
+in a mock or a `!` in a spec is not work anyone is going to do. `--include-tests`
+brings them back.
 """
 
 from __future__ import annotations
@@ -31,16 +32,16 @@ import sys
 import tempfile
 from typing import Iterator
 
+from sniff import harness as h
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SGCONFIG = os.path.join(HERE, "sgconfig.yml")
 RULES_DIR = os.path.join(HERE, "rules")
 
-# Same vendored/build dirs the harness ignores; kept local so this script has no
-# import dependency on _ast-harness (it speaks ast-grep's scan JSON, not Match).
-IGNORE_DIRS = {
-    "node_modules", "dist", "build", "out", "coverage", ".git", ".nx",
-    ".angular", ".next", "vendor", "target", "__pycache__", ".venv", "venv", ".claude",
-}
+# Taken from the harness rather than copied. The copy that used to live here had
+# already drifted: it never learned about .astro, .svelte-kit, .nuxt or .turbo, so
+# pattern rules reported build output that every other detector skipped.
+IGNORE_DIRS = h.IGNORE_DIRS
 
 # ast-grep severity ordering, worst first, for sorting the table.
 SEVERITY_ORDER = {"error": 0, "warning": 1, "info": 2, "hint": 3}
@@ -527,6 +528,13 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument("--top-locs", type=int, default=DEFAULT_TOP_LOCS,
                         help=f"cap locations listed per rule (default: {DEFAULT_TOP_LOCS}; "
                              "0 = list every location)")
+    # Accepted so `--top` works uniformly across detectors, but ignored: every
+    # match is a finding, so there is no ranking to cut off. Without this
+    # argument, argparse prefix-matching would silently treat --top as
+    # --top-locs and truncate the location lists.
+    parser.add_argument("--top", type=int,
+                        help="accepted for consistency with the ranking detectors; ignored, "
+                             "every match is always reported")
     parser.add_argument("--list-rules", action="store_true",
                         help="print catalog of available rule IDs and exit")
     parser.add_argument("--disable", help="comma-separated rule ids to skip (e.g. from .sniff.toml [rules])")
@@ -536,6 +544,9 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument("--extra-ignore", action="append", metavar="GLOB",
                         help="extra glob to exclude, relative to DIR (repeatable); "
                              "from .sniff.toml [ignore] globs. Overrides SNIFF_EXTRA_IGNORE.")
+    parser.add_argument("--include-tests", action="store_true",
+                        help="also report findings in test files (excluded by default, "
+                             "as in every other detector)")
     args = parser.parse_args(argv)
 
     disabled = {r.strip() for r in (args.disable or "").split(",") if r.strip()}
@@ -566,6 +577,11 @@ def main(argv: "list[str] | None" = None) -> int:
     extra_ignores = _extra_ignore_patterns(args.extra_ignore)
 
     def _ignored(file: str) -> bool:
+        # Test code is skipped by default, matching every other detector. A `!`
+        # in a spec or an `as any` in a mock is not work anyone is going to do:
+        # on excalidraw that was 57% of no-non-null-assertion's findings.
+        if not args.include_tests and h.is_test_file(file):
+            return True
         return _in_ignored_dir(file, args.path) or _matches_extra_ignore(file, args.path, extra_ignores)
 
     matches = run_scan(args.path)
@@ -625,7 +641,9 @@ def main(argv: "list[str] | None" = None) -> int:
     rows = [(rid, e["severity"], e["count"], e["locs"]) for rid, e in sorted_rules]
 
     total = sum(r[2] for r in rows)
-    print(f"sniff-patterns: {total} findings, {len(rows)} of {len(ran)} rules matched in {args.path!r}\n")
+    tests = "tests included" if args.include_tests else "tests excluded"
+    print(f"sniff-patterns: {total} findings, {len(rows)} of {len(ran)} rules matched "
+          f"in {args.path!r} ({tests})\n")
 
     print_rule_table(rows)
     print_rules_ran(ran)
