@@ -1,6 +1,12 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/ambervdberg/sniff/main/assets/sniff-logo.png" alt="sniff logo" width="220">
+
+  [![PyPI](https://img.shields.io/pypi/v/sniff-smells)](https://pypi.org/project/sniff-smells/)
 </div>
+
+> [!IMPORTANT]
+> Sniff is still in early development. More detectors, pattern rules and language support are coming. <br>
+> Sniff cannot find all mistakes. It is intended to be a cost-effective way to identify some obvious code quality issues.
 
 # sniff
 
@@ -10,11 +16,15 @@ It complements linters and code checkers like ESLint, Ruff, or SonarQube. They j
 
 Same CLI for you and your agent. Small output means an agent learns the worst offenders for a few tokens.
 
-[Install](#install) · [Quickstart](#quickstart) · [Use it from an agent](#use-it-from-an-agent) ·
+Measured against an agent working without it: **53% average cost reduction** per
+question, and the agent reads almost no files. See [Benchmark](#benchmark).
+
+[Install](#install) · [Quickstart](#quickstart) ·
+[Use it from an agent](#use-it-from-an-agent) · [Benchmark](#benchmark) ·
 [Detectors vs pattern rules](#detectors-vs-pattern-rules) · [The detectors](#the-detectors) ·
-[Commands](#commands) ·
+[Pattern rules](#pattern-rules) · [Commands](#commands) ·
 [Configuration](#configuration) · [Language support](#language-support) ·
-[Pattern rules](#pattern-rules) · [CI mode](#ci-mode) · [Hooks](#hooks) ·
+[CI mode](#ci-mode) · [Hooks](#hooks) ·
 [Contributing](#contributing)
 
 ## Install
@@ -82,7 +92,7 @@ That's the whole output: file and line only, never source code or an AST dump.
 **How to read it.** Ranked sections are sorted worst-first and show the top 10 (configurable).
 
 There is no pass/fail line: `31` is not "failing", it is just the hardest thing to read in this
-repo, so start at the top row and stop caring wherever the numbers flatten out. 
+repo, so start at the top row and stop caring wherever the numbers flatten out.
 
 Pattern
 rule sections are the opposite: every row is one concrete mistake with a severity, and a
@@ -136,6 +146,43 @@ Add to your AGENTS.md:
 Or paste the live output of `sniff prime` into your agent's instructions file for the
 exact command list.
 
+## Benchmark
+
+![average saved](https://img.shields.io/badge/average_cost_saved-53%25-brightgreen)
+
+**Repositories used**, pinned by commit:
+
+| Repo | Language | Commit | Files | Lines |
+|---|---|---|---|---|
+| excalidraw | TypeScript, TSX | `786ab26` | 654 | 188k |
+| scrapy | Python | `a499dc9` | 475 | 84k |
+
+API costs from Claude Code runs on Sonnet 5, once with sniff on `PATH` and once without.
+Snapshot of v0.14.0. Average **53% cost reduction** across 8 question/repo pairs
+(range 22% to 93%); 80% of total dollars, since the expensive vague questions dominate.
+
+| Question | Repo | Without sniff | With sniff | Saved |
+|---|---|---|---|---|
+| Find all code smells | scrapy | $3.07 | $0.22 | 93% |
+| Find all code smells | excalidraw | $2.09 | $0.24 | 89% |
+| Top 10 largest functions | excalidraw | $0.23 | $0.07 | 70% |
+| Where should I start refactoring | excalidraw | $0.31 | $0.14 | 56% |
+| Most complex parts | excalidraw | $0.30 | $0.19 | 38% |
+| Most complex parts | scrapy | $0.25 | $0.17 | 30% |
+| Where should I start refactoring | scrapy | $0.30 | $0.22 | 27% |
+| Top 10 largest functions | scrapy | $0.13 | $0.10 | 22% |
+| **Total** | | **$6.68** | **$1.35** | **80%** |
+
+The saving scales with how vague the question is. "Find all code smells" has no
+natural stopping point, so the unaided agent read 70 files and spent 124 tool
+calls on scrapy. sniff answered from one command. A precise question tells the
+agent where to stop on its own, and the gap narrows to 22%.
+
+Accuracy: of 504 checkable claims sniff made, 0 were wrong. It
+also made 3.4x more of them than the unaided agent, and matched 10 of 10 against
+an independent complexity ranking where the unaided agent matched 0, having
+answered at module level instead of naming functions.
+
 ## Detectors vs pattern rules
 
 **Two kinds of checks: Detectors and Patterns.**
@@ -188,6 +235,79 @@ With the plugin installed, two more skills are available beyond the detectors ab
 | -------------- | ------------------------------------------------------------------------------------------------ |
 | `sniff`        | Umbrella runner: runs **all** detectors in one pass. Wraps the CLI's default `sniff [DIR]` scan. |
 | `sniff-create` | Scaffold a new smell skill or catalog rule from a short conversation. No CLI equivalent.         |
+
+## Pattern rules
+
+The catalog `sniff-patterns` runs, grouped by the language a rule is written for and
+sorted worst severity first. **ALSO RUNS ON** lists the other languages the same rule
+applies to, so `-` means that one language only.
+
+`sniff --list-patterns` prints the same rules plus any your repo adds under
+`.sniff/rules/`, with one extra **ORIGIN** column marking each rule `core` or `local`.
+
+<!-- pattern-catalog:start -->
+### python
+
+| SEVERITY | RULE | ALSO RUNS ON | MESSAGE |
+| --- | --- | --- | --- |
+| warning | py-bare-except | - | Bare except: swallows all exceptions, including KeyboardInterrupt and SystemExit; catch Exception or a specific type instead. |
+| warning | py-broad-except | - | Catching Exception hides unrelated failures; catch the specific exception you can handle. |
+| warning | py-mutable-default-arg | - | Mutable default argument is shared across all calls; use None and initialize inside the function body instead. |
+| warning | py-nested-conditional-expr | - | Nested conditional expression; extract to if/elif/else or a helper function for readability. |
+| info | py-import-outside-toplevel | - | Import inside a function hides the dependency; move it to the top of the module unless it breaks a cycle. |
+| info | py-print-statement | - | Bare print() call; use a logging library instead of print for anything beyond throwaway debugging. |
+
+### typescript
+
+| SEVERITY | RULE | ALSO RUNS ON | MESSAGE |
+| --- | --- | --- | --- |
+| error | no-empty-catch | tsx, javascript | Empty catch block swallows errors; add error handling or use a comment explaining why. |
+| warning | no-any-cast | tsx | 'as any' defeats type safety; use a precise type or 'unknown'. |
+| warning | no-boolean-param | tsx | Boolean parameter enables unclear call sites; use a more descriptive type, enum, or extracted method. |
+| warning | no-console-log | tsx, javascript | Remove console.log/debug/info in production; use a logging library. |
+| warning | no-explicit-any | tsx | Explicit 'any' defeats type safety; use a precise type or 'unknown'. |
+| warning | no-multiline-single-comment | tsx, javascript | Block comment spans multiple lines with only one content line; use single-line syntax instead. |
+| warning | no-nested-ternary | tsx, javascript | Nested ternary; extract to if/else or a helper for readability. |
+| warning | no-non-null-assertion | tsx | Non-null assertion operator `!` bypasses type safety; use proper null checks instead. |
+| warning | prefer-at-over-length-index | tsx, javascript | Use `.at(-N)` instead of `arr[arr.length - N]`. |
+| warning | prefer-optional-chain | tsx, javascript | Use optional chaining `?.` instead of `&&` guard for property access. |
+<!-- pattern-catalog:end -->
+
+### Add a rule
+
+**With the plugin installed, ask your agent:** *"use sniff-create to add a rule that
+flags X"*. The `sniff-create` skill picks the engine, writes the pattern, and checks
+it against your actual code before saving anything, so you never guess at syntax.
+
+**By hand**, if you would rather write it yourself:
+
+1. **Work out the pattern.** Check out the
+   [ast-grep guide](https://ast-grep.github.io/guide/introduction.html) for help, then
+   try it live in the [playground](https://ast-grep.github.io/playground.html).
+2. **Save it** as `.sniff/rules/<id>.yml` in the repo you scan.
+
+   ```yaml
+   # .sniff/rules/no-alert.yml
+   id: no-alert
+   language: typescript      # one language per rule
+   severity: warning         # error | warning | info | hint
+   message: "alert() blocks the page; use a dialog component instead."
+   rule:
+     pattern: alert($MSG)
+   ```
+
+3. **Run it.** `sniff --only sniff-patterns .` reports its findings alongside the
+   catalog's. If nothing shows up, `sniff --list-patterns` tells you whether the rule
+   loaded at all: yours appears tagged `local`.
+
+Local rules run in the same `ast-grep scan` pass as the catalog, so both sets of
+findings arrive together. An id that collides with a catalog rule is ignored with a
+warning.
+
+Want to contribute the rule to the global catalog? `sniff contribute <rule-id>` moves it upstream
+into this catalog; see
+[CONTRIBUTING.md](CONTRIBUTING.md#promoting-a-local-rule-from-a-project-that-uses-sniff)
+for the fixtures it expects and the two backends it can use.
 
 ## Commands
 
@@ -351,84 +471,11 @@ scan skips it entirely unless you name it in `--only`.
 <!-- language-matrix:end -->
 
 `large-inline-templates` is Angular-only by design. `sniff-patterns` is not in the
-table: it covers whatever its rules declare, so see the catalog below.
+table: it covers whatever its rules declare, so see the [Pattern rules](#pattern-rules) catalog.
 
 `sniff --list` prints the same coverage per detector, including any your repo adds. It
 writes `all` where this table spells out fifteen language names; both mean the same
 thing, every file type sniff walks.
-
-## Pattern rules
-
-The catalog `sniff-patterns` runs, grouped by the language a rule is written for and
-sorted worst severity first. **ALSO RUNS ON** lists the other languages the same rule
-applies to, so `-` means that one language only.
-
-`sniff --list-patterns` prints the same rules plus any your repo adds under
-`.sniff/rules/`, with one extra **ORIGIN** column marking each rule `core` or `local`.
-
-<!-- pattern-catalog:start -->
-### python
-
-| SEVERITY | RULE | ALSO RUNS ON | MESSAGE |
-| --- | --- | --- | --- |
-| warning | py-bare-except | - | Bare except: swallows all exceptions, including KeyboardInterrupt and SystemExit; catch Exception or a specific type instead. |
-| warning | py-broad-except | - | Catching Exception hides unrelated failures; catch the specific exception you can handle. |
-| warning | py-mutable-default-arg | - | Mutable default argument is shared across all calls; use None and initialize inside the function body instead. |
-| warning | py-nested-conditional-expr | - | Nested conditional expression; extract to if/elif/else or a helper function for readability. |
-| info | py-import-outside-toplevel | - | Import inside a function hides the dependency; move it to the top of the module unless it breaks a cycle. |
-| info | py-print-statement | - | Bare print() call; use a logging library instead of print for anything beyond throwaway debugging. |
-
-### typescript
-
-| SEVERITY | RULE | ALSO RUNS ON | MESSAGE |
-| --- | --- | --- | --- |
-| error | no-empty-catch | tsx, javascript | Empty catch block swallows errors; add error handling or use a comment explaining why. |
-| warning | no-any-cast | tsx | 'as any' defeats type safety; use a precise type or 'unknown'. |
-| warning | no-boolean-param | tsx | Boolean parameter enables unclear call sites; use a more descriptive type, enum, or extracted method. |
-| warning | no-console-log | tsx, javascript | Remove console.log/debug/info in production; use a logging library. |
-| warning | no-explicit-any | tsx | Explicit 'any' defeats type safety; use a precise type or 'unknown'. |
-| warning | no-multiline-single-comment | tsx, javascript | Block comment spans multiple lines with only one content line; use single-line syntax instead. |
-| warning | no-nested-ternary | tsx, javascript | Nested ternary; extract to if/else or a helper for readability. |
-| warning | no-non-null-assertion | tsx | Non-null assertion operator `!` bypasses type safety; use proper null checks instead. |
-| warning | prefer-at-over-length-index | tsx, javascript | Use `.at(-N)` instead of `arr[arr.length - N]`. |
-| warning | prefer-optional-chain | tsx, javascript | Use optional chaining `?.` instead of `&&` guard for property access. |
-<!-- pattern-catalog:end -->
-
-### Add a rule
-
-**With the plugin installed, ask your agent:** *"use sniff-create to add a rule that
-flags X"*. The `sniff-create` skill picks the engine, writes the pattern, and checks
-it against your actual code before saving anything, so you never guess at syntax.
-
-**By hand**, if you would rather write it yourself:
-
-1. **Work out the pattern.** Check out the
-   [ast-grep guide](https://ast-grep.github.io/guide/introduction.html) for help, then
-   try it live in the [playground](https://ast-grep.github.io/playground.html).
-2. **Save it** as `.sniff/rules/<id>.yml` in the repo you scan.
-
-   ```yaml
-   # .sniff/rules/no-alert.yml
-   id: no-alert
-   language: typescript      # one language per rule
-   severity: warning         # error | warning | info | hint
-   message: "alert() blocks the page; use a dialog component instead."
-   rule:
-     pattern: alert($MSG)
-   ```
-
-3. **Run it.** `sniff --only sniff-patterns .` reports its findings alongside the
-   catalog's. If nothing shows up, `sniff --list-patterns` tells you whether the rule
-   loaded at all: yours appears tagged `local`.
-
-Local rules run in the same `ast-grep scan` pass as the catalog, so both sets of
-findings arrive together. An id that collides with a catalog rule is ignored with a
-warning.
-
-Want to contribute the rule to the global catalog? `sniff contribute <rule-id>` moves it upstream
-into this catalog; see
-[CONTRIBUTING.md](CONTRIBUTING.md#promoting-a-local-rule-from-a-project-that-uses-sniff)
-for the fixtures it expects and the two backends it can use.
 
 ## CI mode
 
