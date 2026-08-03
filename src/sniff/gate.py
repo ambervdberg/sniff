@@ -14,9 +14,14 @@ names the key rather than assuming one place:
 
 Detectors that are already self-thresholded (sniff-patterns, duplicate-code,
 no-duplicate-string, self-admitted-debt) have no entry here at all: every finding
-they report is a violation worth one point. That is also the fallback for any
-detector added later, so a new detector is gated by default rather than silently
-ignored.
+they report is a violation, so their value is how many findings landed on that
+fingerprint. That is also the fallback for any detector added later, so a new
+detector is gated by default rather than silently ignored.
+
+Counting matters wherever one fingerprint can legitimately cover several
+findings. duplicate-code is the sharpest case: a clone group is identified by the
+files it spans, so two unrelated duplicated blocks inside the same file share a
+fingerprint. Flattening each to 1 would let the second one arrive for free.
 """
 
 from __future__ import annotations
@@ -41,20 +46,22 @@ GATE_THRESHOLDS: dict[str, tuple[str, int]] = {
 # Detectors whose fingerprint is the file alone (whole-file metrics).
 _FILE_LEVEL = {"largest-files", "most-imports"}
 
-# Every finding of a self-thresholded or unknown detector counts once.
-_UNGATED = (None, 1)
-
 
 class DetectorFailure(Exception):
     """A detector errored during a gated scan; the gate must not pass."""
 
 
 def fingerprint_findings(detector_name: str, findings: list[dict]) -> dict[str, int]:
-    """Sink entries -> {fingerprint: value}, keeping only gate violations."""
-    if detector_name == "sniff-patterns":
-        return _pattern_fingerprints(findings)
+    """Sink entries -> {fingerprint: value}, keeping only gate violations.
 
-    metric, floor = GATE_THRESHOLDS.get(detector_name, _UNGATED)
+    A detector with a gate threshold is measured: its value is the worst finding
+    on that fingerprint. A detector without one is counted: every finding it
+    reports is already a violation, so its value is how many of them there are
+    (see the module docstring on why counting, not flattening to 1)."""
+    if detector_name not in GATE_THRESHOLDS:
+        return dict(Counter(_fingerprint_of(f, detector_name) for f in findings))
+
+    metric, floor = GATE_THRESHOLDS[detector_name]
 
     fingerprints: dict[str, int] = {}
     for finding in findings:
@@ -71,28 +78,22 @@ def fingerprint_findings(detector_name: str, findings: list[dict]) -> dict[str, 
     return fingerprints
 
 
-def _pattern_fingerprints(findings: list[dict]) -> dict[str, int]:
-    """sniff-patterns fingerprints: how often each rule fires in each file.
-
-    Every pattern hit is a violation by construction, so the value is a count
-    rather than a metric. Counting per rule per file (not per line) is what
-    keeps the fingerprint stable while the file around it moves."""
-    return dict(Counter(f"{f['metrics']['rule']}|{f['file']}" for f in findings))
-
-
-def _value_of(finding: dict, metric: "str | None") -> int:
-    """The finding's gated value: 1 when the detector is self-thresholded.
+def _value_of(finding: dict, metric: str) -> int:
+    """The finding's measured value.
 
     A metric lives either in the detector's `metrics` dict or, for the detectors
     that rank on a plain row field, directly on the sink entry."""
-    if metric is None:
-        return 1
     raw = finding["metrics"].get(metric, finding.get(metric, 1))
     return int(raw)
 
 
 def _fingerprint_of(finding: dict, detector_name: str) -> str:
-    """The finding's line-free identity: the file, plus the entity inside it."""
+    """The finding's line-free identity: the file, plus the entity inside it.
+
+    sniff-patterns is keyed by the rule instead of the entity, since a pattern
+    hit names a rule, not a definition."""
+    if detector_name == "sniff-patterns":
+        return f"{finding['metrics']['rule']}|{finding['file']}"
     if detector_name in _FILE_LEVEL:
         return finding["file"]
     return f"{finding['file']}|{finding['name']}"

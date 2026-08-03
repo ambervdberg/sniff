@@ -69,6 +69,25 @@ class FingerprintTest(unittest.TestCase):
         fps = gate.fingerprint_findings("most-imports", [entry])
         self.assertEqual(fps, {"hub.py": 25})
 
+    def test_clone_groups_sharing_a_file_set_do_not_collapse(self):
+        """Two unrelated duplicated blocks in one file share a fingerprint.
+
+        A clone group is identified by the files it spans, so a second block
+        duplicated inside a file that already had one lands on the same key. If
+        both flattened to 1 the gate would see no change and wave it through."""
+        one = [finding(file="a.py", name="(anon)")]
+        two = one + [finding(file="a.py", name="(anon)")]
+
+        self.assertEqual(
+            gate.fingerprint_findings("duplicate-code", one), {"a.py|(anon)": 1})
+        self.assertEqual(
+            gate.fingerprint_findings("duplicate-code", two), {"a.py|(anon)": 2})
+
+    def test_unknown_detector_findings_sharing_a_fingerprint_accumulate(self):
+        rows = [finding(), finding(), finding()]
+        fps = gate.fingerprint_findings("brand-new-detector", rows)
+        self.assertEqual(fps, {"src/a.py|fn": 3})
+
     def test_worst_value_wins_for_a_repeated_fingerprint(self):
         rows = [finding(cyclomatic=12), finding(cyclomatic=20)]
         fps = gate.fingerprint_findings("cyclomatic-complexity", rows)
@@ -157,6 +176,42 @@ class ScanRealDetectorsTest(unittest.TestCase):
 
         self.assertEqual(sorted(results), sorted(d.name for d in builtins))
 
+    def test_a_second_duplicated_block_registers_as_a_change(self):
+        """The same scenario, through the real duplicate-code detector.
+
+        One file, two structurally unrelated blocks, each duplicated. Both clone
+        groups span the same single file, so both carry the same fingerprint;
+        only the value tells the gate that the file got worse."""
+        from sniff import discovery
+
+        detectors = [d for d in discovery.discover()[0] if d.name == "duplicate-code"]
+
+        before = self._duplicate_code_values(_ALPHA_BLOCK.format(n=1)
+                                             + _ALPHA_BLOCK.format(n=2))
+        after = self._duplicate_code_values(_ALPHA_BLOCK.format(n=1)
+                                            + _ALPHA_BLOCK.format(n=2)
+                                            + _BETA_BLOCK.format(n=1)
+                                            + _BETA_BLOCK.format(n=2),
+                                            detectors=detectors)
+
+        self.assertEqual(before, [1])
+        self.assertEqual(after, [2])
+
+    def _duplicate_code_values(self, source: str, detectors=None) -> list:
+        """duplicate-code's fingerprint values for a one-file tree."""
+        from sniff import discovery
+
+        if detectors is None:
+            detectors = [d for d in discovery.discover()[0]
+                         if d.name == "duplicate-code"]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, "dup.py"), "w", encoding="utf-8") as fh:
+                fh.write(source)
+            results = gate.scan_fingerprints(detectors, tmp)
+
+        return sorted(results["duplicate-code"].values())
+
     def test_every_threshold_key_resolves_on_real_findings(self):
         """A threshold naming a key no detector writes drops every finding.
 
@@ -182,6 +237,34 @@ class ScanRealDetectorsTest(unittest.TestCase):
 
         empty = sorted(name for name, fps in results.items() if not fps)
         self.assertEqual(empty, [], "detectors whose gate metric never resolved")
+
+
+# Two duplicated blocks, long enough to clear duplicate-code's defaults (5 lines,
+# 30 tokens) and shaped differently enough that they do not normalise into one
+# clone group: a loop over a list versus a while over a dict.
+_ALPHA_BLOCK = """\
+def alpha_{n}(source):
+    result = []
+    for item in source:
+        if item.weight is None:
+            continue
+        result.append(item.weight * 3 + len(source))
+    result.sort(key=lambda value: -value)
+    return result[:10]
+
+"""
+
+_BETA_BLOCK = """\
+def beta_{n}(table, key):
+    seen = {{}}
+    index = 0
+    while index < len(table):
+        row = table[index]
+        seen[row[key]] = seen.get(row[key], 0) + 1
+        index += 1
+    return sorted(seen.items())
+
+"""
 
 
 def _over_every_threshold() -> str:
