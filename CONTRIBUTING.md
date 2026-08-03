@@ -1,5 +1,15 @@
 # Contributing to sniff
 
+Found a bug, or want a detector sniff does not have? Open an
+[issue](https://github.com/ambervdberg/sniff/issues). Include the command you ran, what
+you expected, and the output of `sniff doctor`. No checkout needed.
+
+Came here to send a rule you wrote in your own project upstream? Also no checkout
+needed: skip to
+[Promoting a local rule](#promoting-a-local-rule-from-a-project-that-uses-sniff).
+
+The rest of this file is for changing sniff itself.
+
 ## Dev setup
 
 Needs [uv](https://docs.astral.sh/uv/getting-started/installation/) and Python 3.10+.
@@ -42,6 +52,7 @@ hooks/hooks.json     lifecycle hooks, and the single source for BOTH hosts, sinc
 .claude-plugin/      plugin.json + marketplace.json (Claude Code)
 .codex-plugin/       plugin.json (Codex)
 action.yml           composite GitHub Action behind the README's CI mode
+scripts/             update_docs.py (PR checklist) and bump_version.py (releases only)
 evals/               agent-routing eval harness; see Evals below
 ```
 
@@ -59,20 +70,27 @@ The quickest way to add one is the `sniff-create` Claude skill: ask Claude to "c
 sniff rule for <the smell>". It drafts the rule with you, validates it against the current
 repo, then writes the rule and its fixture file.
 
-Or hand-write a rule (e.g., `rules/no-console-log.yml`) and a fixture file (e.g., `rule-tests/no-console-log.yml`). Each fixture file must contain at least one invalid snippet (should be flagged) and one valid snippet (stays clean). See `no-empty-catch.yml` and `no-explicit-any.yml` for examples.
+To hand-write one instead, add the rule (e.g. `rules/no-console-log.yml`) and a fixture
+file of the same name under `rule-tests/`. Every fixture file needs at least one invalid
+snippet (must be flagged) and one valid snippet (must stay clean). `no-empty-catch.yml`
+and `no-explicit-any.yml` are the ones to copy.
 
-Test locally before committing:
+A rule with no fixture file fails `sniff test-rules` by name. The one exception is a rule
+implemented in Python inside `patterns/format.py` rather than as ast-grep YAML, which
+`ast-grep test` cannot run: those are listed in `PYTHON_RULES` in
+`src/sniff/rules_testing.py` and skipped. Adding to that set means giving up fixture
+coverage, so treat it as a last resort.
+
+Either way, run the fixture suite before committing. All fixtures must pass:
 
 ```bash
 uv run sniff test-rules
 ```
 
-All fixtures must pass before you open a PR.
-
-`sniff test-rules` is a maintainer command: it reads the catalog sources under
-`src/sniff/patterns/`, which the published wheel does not ship, so it only works from a
-checkout. That is why it is absent from `sniff --help` and from the README's command
-table, and why it always runs through `uv run` here.
+`sniff test-rules` is maintainer-only: it reads the catalog sources under
+`src/sniff/patterns/`, which the published wheel does not ship, so it works from a
+checkout and nowhere else. That is why it is absent from `sniff --help` and from the
+README's command table, and why it always runs through `uv run` here.
 
 ## Promoting a local rule from a project that uses sniff
 
@@ -81,27 +99,31 @@ and wrote a project-specific rule that turned out generally useful. Run these
 steps from that project, not from this sniff repo, to send the rule upstream
 into this catalog.
 
-1. In that project (not here), create a local rule under `.sniff/rules/<rule-id>.yml` with matching fixtures at `.sniff/rule-tests/<rule-id>.yml`.
+1. In that project (not here), create a local rule under `.sniff/rules/<rule-id>.yml`,
+   with matching fixtures at `.sniff/rule-tests/<rule-id>.yml`.
 
 2. Prove the rule works by scanning that project with it:
    ```bash
    sniff --only sniff-patterns .
    ```
 
-   `sniff test-rules` is NOT available here: it runs the catalog's fixture suite and needs
-   a sniff repo checkout. Your fixtures are tested for you in the next step, once the rule
-   has been copied into the catalog.
+   `sniff test-rules` is maintainer-only, so it is not available here. Your fixtures get
+   tested in the next step instead, once the rule has been copied into the catalog.
 
 3. Contribute:
    ```bash
    sniff contribute <rule-id>
    ```
 
-Contribution backend depends on config:
-   - If `SNIFF_REPO` env var or `~/.sniff/config.toml` (with `repo = "..."`) points to a local sniff checkout, the rule is copied there, fixtures tested, and staged on a branch. Review and open a PR yourself.
-   - Otherwise, `sniff contribute` forks the repo via `gh` CLI and opens a PR automatically.
+Which backend that uses depends on your config:
 
-Guards: the rule must exist locally, have a fixture file, and not collide with a rule id already in the catalog.
+- If the `SNIFF_REPO` env var or `~/.sniff/config.toml` (with `repo = "..."`) points at a
+  local sniff checkout, the rule is copied there, its fixtures are tested, and it is
+  staged on a branch. Review and open the PR yourself.
+- Otherwise it forks the repo through the `gh` CLI and opens the PR for you.
+
+Guards: the rule must exist locally, have a fixture file, and not collide with a rule id
+already in the catalog.
 
 ## Regenerating the docs
 
@@ -114,9 +136,11 @@ a detector's `LANGUAGES`:
 uv run python scripts/update_docs.py
 ```
 
-It rewrites only the text between the `<!-- language-matrix:start -->` and
-`<!-- pattern-catalog:start -->` markers. Add `--check` to see whether the README is
-stale without changing it.
+Each table sits between its own pair of markers, `<!-- language-matrix:start -->` to
+`<!-- language-matrix:end -->` and `<!-- pattern-catalog:start -->` to
+`<!-- pattern-catalog:end -->`, and the script rewrites only what is inside those two
+spans. Everything else in the README stays hand-written. Add `--check` to see whether the
+README is stale without changing it.
 
 Tests enforce this, so a forgotten run shows up as a failing test rather than a README
 that claims support sniff does not have.
@@ -127,10 +151,21 @@ that claims support sniff does not have.
 part of CI and not needed for most PRs: run it when you change a surface an agent reads,
 meaning a SKILL.md, `sniff prime`, `sniff --help`, or the README's command table.
 
+A real run calls a hosted model, so it needs more than the dev extra installs. `--dry-run`
+does not, and is the only part that works out of the box:
+
 ```bash
-python evals/runner.py --dry-run    # prints the prompts, no API calls
-python evals/runner.py              # simulated agent, one API call per case
-python evals/scorer.py --results evals/results/<file>.jsonl
+uv run python evals/runner.py --dry-run    # prints the prompts, no API calls
+```
+
+For a real run, install the client for whichever model you target and export its key.
+The default model is `gpt-5.4-nano`; a `--model claude-*` value routes to Anthropic
+instead.
+
+```bash
+uv run --with openai python evals/runner.py               # needs OPENAI_API_KEY
+uv run --with anthropic python evals/runner.py --model claude-haiku-4-5-20251001
+uv run python evals/scorer.py --results evals/results/<file>.jsonl
 ```
 
 `evals/cases.jsonl` holds the prompts, `runner.py` simulates an agent in a single API
@@ -140,12 +175,20 @@ sees context the simulation does not and so catches regressions it misses.
 
 ## Conventions
 
-Name rule ids in kebab-case. Prefix with `no-` to forbid a pattern (e.g., `no-console-log`, `no-explicit-any`), or `prefer-` to recommend an alternative (e.g., `prefer-const-over-let`).
+Name rule ids in kebab-case. Prefix with `no-` to forbid a pattern (`no-console-log`,
+`no-explicit-any`), or `prefer-` to recommend an alternative (`prefer-const-over-let`).
 
-Severity guidance:
-   - `error`: nearly always a real bug (e.g., empty catch block, explicit any)
-   - `warning`: maintainability smell, likely a real issue (default; e.g., cognitive complexity)
-   - `info` or `hint`: stylistic preference, not actionable for all projects (e.g., prefer trailing commas)
+Severity guidance, with a shipped rule as the example of each:
+
+- `error`: nearly always a real bug (`no-empty-catch`)
+- `warning`: maintainability smell, likely a real issue. The default
+  (`no-explicit-any`, `no-nested-ternary`)
+- `info` or `hint`: stylistic preference, not actionable for every project
+  (`py-print-statement`)
+
+There is no linter or formatter in this repo, and CI runs none, so nothing will reformat
+your patch. Match the surrounding file instead: markdown wraps near 90 columns, Python
+stays comfortably under 120, and both use plain LF endings.
 
 ## Engines
 
@@ -163,16 +206,39 @@ Use the engine that fits your smell:
 Pattern rules and node metrics run on [ast-grep](https://ast-grep.github.io). File metrics
 are plain Python.
 
-Built-in detectors are registry modules: add `src/sniff/detectors/<name>.py` (exposing
-`NAME`, `TITLE`, `DEFAULT_ARGS`, `main(argv)`) and list it in `BUILTIN` in
-`src/sniff/detectors/__init__.py`. They run in-process, no manifest involved.
+Pattern rules go in the catalog (see [Adding a pattern rule](#adding-a-pattern-rule)).
+The other three engines are detectors; see below.
 
-External, project-specific detectors need no code in this repo: drop a `detector.yml`
-manifest plus its script under `<scan-dir>/.sniff/detectors/<name>/` and sniff discovers
-it automatically when scanning that directory.
+External, project-specific detectors need no code in this repo at all: drop a
+`detector.yml` manifest plus its script under `<scan-dir>/.sniff/detectors/<name>/` and
+sniff discovers it automatically when scanning that directory. Consumer repos can also
+tune a run through a `.sniff.toml` config file (see the Configuration section of the
+README) without touching this repo.
 
-Consumer repos can also tune a run without touching this repo, via a `.sniff.toml`
-config file (see the Configuration section of the README).
+## Adding a detector
+
+Built-in detectors are registry modules, run in-process, with no manifest involved. Four
+things have to land together, and a detector that skips any of them is half-wired:
+
+1. **The module.** Add `src/sniff/detectors/<name>.py`. Copy the closest existing
+   detector rather than starting blank: `deepest_nesting.py` for a node metric,
+   `largest_files.py` for a file metric. It must expose `NAME`, `TITLE`, `DEFAULT_ARGS`,
+   `LANGUAGES`, and `main(argv) -> int`, and its argument parser should accept `--top`,
+   `--include-tests`, and `--extra-ignore` like every other detector does.
+
+2. **The registration.** Import the module in `src/sniff/detectors/__init__.py` and add
+   it to `BUILTIN`. Nothing discovers it otherwise.
+
+3. **The skill wrapper.** Add `skills/<name>/SKILL.md`, one per detector, so agents can
+   trigger it by name. Copy `skills/deepest-nesting/SKILL.md` and rewrite the
+   frontmatter `description`: that text is the whole routing signal, so spell out the
+   questions a user would actually ask.
+
+4. **The generated docs.** Run `uv run python scripts/update_docs.py` so the README's
+   language matrix picks up your `LANGUAGES`. `tests/test_detector_languages.py` fails
+   the build if you forget.
+
+Then `uv run sniff --list` should show it and `uv run sniff doctor` should still pass.
 
 ## PR checklist
 
@@ -182,19 +248,25 @@ Before opening a PR:
 - [ ] `uv run python scripts/update_docs.py` run, if a rule or a detector's languages changed
 - [ ] `uv run python -m pytest tests -q` passes
 - [ ] Add a note as a new entry at the top of `CHANGELOG.md`
-- [ ] If this is a version bump, run `python scripts/bump_version.py <version>` (not for feature PRs).
-      Never hand-edit a version: the script is the only thing that keeps `pyproject.toml`,
-      both `plugin.json` files, and the `marketplace.json` entries in lockstep, and
-      `tests/test_version_consistency.py` fails the build if they drift apart.
+- [ ] If this is a version bump (not a feature PR), see [Release](#release). Never
+      hand-edit a version.
 - [ ] CI passes (GitHub Actions will run the checks)
 
 ## Release
 
-`python scripts/bump_version.py <new-version>` rewrites the version in five places together:
-`pyproject.toml`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, every plugin
-entry in `.claude-plugin/marketplace.json`, and `uv.lock` (which it refreshes by running
-`uv lock` itself). `tests/test_version_consistency.py` fails the build if any of the five
-drift apart. After bumping, update `CHANGELOG.md`, commit, and tag `v<new-version>`.
+Never hand-edit a version. `python scripts/bump_version.py <new-version>` rewrites all
+six declarations together, and `tests/test_version_consistency.py` fails the build if any
+of them drift apart:
+
+- `pyproject.toml`
+- `.claude-plugin/plugin.json`
+- `.codex-plugin/plugin.json`
+- every plugin entry in `.claude-plugin/marketplace.json`
+- `uv.lock`, refreshed by running `uv lock` itself
+- the `ambervdberg/sniff@v<version>` action pin in the README's CI-mode snippet, which
+  users copy verbatim into their own workflow
+
+After bumping, update `CHANGELOG.md`, commit, and tag `v<new-version>`.
 
 What gets published is an explicit allowlist in `[tool.hatch.build.targets.sdist]`, not
 whatever happens to sit in the repo. Hatchling's default sweeps in every file it can see,

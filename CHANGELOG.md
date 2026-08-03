@@ -7,11 +7,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 - Two new Python rules: `py-broad-except` and `py-import-outside-toplevel`.
-- Fix: Python and Go test files were ranked as production code even though the
-  output said tests were excluded.
 - Pattern rules now skip test files too, like every other detector.
   `sniff --only sniff-patterns . --include-tests` reports them.
 - `sniff --help` no longer lists `test-rules`, which only ever worked from a source checkout.
+- Fix: `sniff prime` named the wrong detectors as the ones that still work without `ast-grep`.
+- Fix: `--top` on `sniff-patterns` silently truncated the location lists; it is now ignored as documented.
 
 ## [0.12.1] - 2026-08-02
 
