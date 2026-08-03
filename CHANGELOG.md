@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+- Two new Python rules: `py-broad-except` and `py-import-outside-toplevel`.
+
 ## [0.12.1] - 2026-08-02
 
 - Fix: detectors reported no findings when the scanned repo sat under a directory

@@ -249,8 +249,10 @@ The catalog `sniff-patterns` runs, worst severity first within each language.
 | SEVERITY | RULE | ALSO RUNS ON | MESSAGE |
 | --- | --- | --- | --- |
 | warning | py-bare-except | - | Bare except: swallows all exceptions, including KeyboardInterrupt and SystemExit; catch Exception or a specific type instead. |
+| warning | py-broad-except | - | Catching Exception hides unrelated failures; catch the specific exception you can handle. |
 | warning | py-mutable-default-arg | - | Mutable default argument is shared across all calls; use None and initialize inside the function body instead. |
 | warning | py-nested-conditional-expr | - | Nested conditional expression; extract to if/elif/else or a helper function for readability. |
+| info | py-import-outside-toplevel | - | Import inside a function hides the dependency; move it to the top of the module unless it breaks a cycle. |
 | info | py-print-statement | - | Bare print() call; use a logging library instead of print for anything beyond throwaway debugging. |
 
 ### typescript

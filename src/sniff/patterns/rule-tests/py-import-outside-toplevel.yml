@@ -1,0 +1,30 @@
+id: py-import-outside-toplevel
+valid:
+  - |
+    import os
+
+    def read():
+        return os.getcwd()
+  # A module-level conditional import is still a module-level import.
+  - |
+    try:
+        import ujson as json
+    except ImportError:
+        import json
+invalid:
+  - |
+    def read():
+        import os
+        return os.getcwd()
+  - |
+    def read():
+        from pathlib import Path
+        return Path.cwd()
+  # Nested inside a try, still inside the function.
+  - |
+    def read():
+        try:
+            import ujson
+        except ImportError:
+            ujson = None
+        return ujson

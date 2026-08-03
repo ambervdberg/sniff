@@ -1,0 +1,18 @@
+# Broad exception handlers
+# Flag `except Exception` / `except BaseException`, which catch nearly everything
+# and hide the failure the code was not written to handle.
+id: py-broad-except
+language: python
+severity: warning
+message: "Catching Exception hides unrelated failures; catch the specific exception you can handle."
+rule:
+  # Matching the exception name rather than the whole clause is deliberate. A rule
+  # that searched the clause with `stopBy: end` would also reach into the handler
+  # body and flag `except ValueError: raise Exception(...)`, which is not this smell.
+  # So each shape the name can appear in is spelled out instead:
+  kind: identifier
+  regex: "^(Exception|BaseException)$"
+  any:
+    - inside: {kind: except_clause}                                # except Exception:
+    - inside: {kind: as_pattern, inside: {kind: except_clause}}    # except Exception as exc:
+    - inside: {kind: tuple, inside: {kind: except_clause}}         # except (KeyError, Exception):
