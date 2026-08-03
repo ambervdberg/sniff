@@ -136,6 +136,22 @@ def test_top_locs_zero_lists_every_location(tmp_path):
 
 
 @unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
+def test_top_is_accepted_but_changes_nothing(tmp_path):
+    """`--top N` parses cleanly and leaves the output untouched.
+
+    Guards against argparse prefix-matching: without an explicit --top argument,
+    `--top 1` silently becomes `--top-locs 1` and truncates the location lists
+    the README says are never cut off."""
+    (tmp_path / "a.ts").write_text("console.log('x')\n" * 3, encoding="utf-8")
+
+    with_top = run_format([str(tmp_path), "--rule", "no-console-log", "--top", "1"])
+    without = run_format([str(tmp_path), "--rule", "no-console-log"])
+
+    assert with_top == without
+    assert with_top.count("| a.ts:") == 3
+
+
+@unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
 def test_rules_are_ordered_worst_severity_first(tmp_path):
     """Errors sort above warnings, warnings above info, whatever the hit counts.
 

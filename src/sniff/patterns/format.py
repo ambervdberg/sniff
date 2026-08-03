@@ -528,6 +528,13 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument("--top-locs", type=int, default=DEFAULT_TOP_LOCS,
                         help=f"cap locations listed per rule (default: {DEFAULT_TOP_LOCS}; "
                              "0 = list every location)")
+    # Accepted so `--top` works uniformly across detectors, but ignored: every
+    # match is a finding, so there is no ranking to cut off. Without this
+    # argument, argparse prefix-matching would silently treat --top as
+    # --top-locs and truncate the location lists.
+    parser.add_argument("--top", type=int,
+                        help="accepted for consistency with the ranking detectors; ignored, "
+                             "every match is always reported")
     parser.add_argument("--list-rules", action="store_true",
                         help="print catalog of available rule IDs and exit")
     parser.add_argument("--disable", help="comma-separated rule ids to skip (e.g. from .sniff.toml [rules])")
