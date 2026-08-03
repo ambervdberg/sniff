@@ -30,6 +30,9 @@ DEFAULT_ARGS: "list[str]" = []
 # handful of openers, so every language the file walk recognizes is covered.
 LANGUAGES = list(h.ALL_LANGUAGES)
 
+# No parser involved, so this one still runs when ast-grep is missing.
+NEEDS_AST_GREP = False
+
 DEFAULT_MARKERS = ("TODO", "FIXME", "HACK", "XXX")
 
 # What starts a comment, across the supported languages: `//`, `#`, `/*`, and the

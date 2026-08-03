@@ -35,6 +35,9 @@ DEFAULT_ARGS: "list[str]" = []
 # recognizes is covered.
 LANGUAGES = list(h.ALL_LANGUAGES)
 
+# No parser involved, so this one still runs when ast-grep is missing.
+NEEDS_AST_GREP = False
+
 
 # Regex to extract string literals: "..." or '...' (non-empty, single-line only).
 # Uses a negative lookahead to avoid matching escaped quotes inside the string.

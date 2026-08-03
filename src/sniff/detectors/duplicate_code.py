@@ -43,6 +43,9 @@ DEFAULT_ARGS: "list[str]" = []
 # recognizes is covered.
 LANGUAGES = list(h.ALL_LANGUAGES)
 
+# No parser involved, so this one still runs when ast-grep is missing.
+NEEDS_AST_GREP = False
+
 # A clone must be at least this long to be worth a row. Defaults are deliberately
 # lower than jscpd's 50 tokens: the duplicates that matter in practice (a
 # copy-pasted `peek()`, a repeated timeout callback) sit just under that line.
@@ -218,6 +221,10 @@ class Clone:
 
     tokens: int
     occurrences: "list[Occurrence]"
+    # True when the search stopped at MAX_GROUP_MEMBERS, so `copies` is a floor
+    # rather than a count. The header says so, since an undercount presented as
+    # a count is worse than a number the reader knows is partial.
+    capped: bool = False
 
     @property
     def lines(self) -> int:
@@ -293,7 +300,8 @@ def find_clones(files: "list[str]", min_tokens: int, min_lines: int) -> "list[Cl
         if len(group) < 2:
             continue
 
-        clone = _build_clone(corpus, group, length)
+        clone = _build_clone(corpus, group, length,
+                             capped=len(members) >= MAX_GROUP_MEMBERS)
         if clone.lines < min_lines or _is_boilerplate(corpus, position, length):
             continue
 
@@ -410,10 +418,12 @@ def _common_length(corpus: _Corpus, starts: "list[int]", width: int,
         length += 1
 
 
-def _build_clone(corpus: _Corpus, starts: "list[int]", length: int) -> Clone:
+def _build_clone(corpus: _Corpus, starts: "list[int]", length: int,
+                 capped: bool = False) -> Clone:
     """Turn matching token ranges into the reportable clone."""
     return Clone(
         tokens=length,
+        capped=capped,
         occurrences=[
             Occurrence(
                 file=corpus.file_of[start],
@@ -513,6 +523,11 @@ def main(argv: "list[str] | None" = None) -> int:
         f"({len(clones)} found; min {args.min_lines} lines / {args.min_tokens} tokens; "
         f"tests {'included' if args.include_tests else 'excluded'}):"
     )
+    if any(clone.capped for clone in clones[:args.top]):
+        header += (
+            f"\nCOPIES stops counting at {MAX_GROUP_MEMBERS + 1} per block, "
+            f"so the highest counts are a floor."
+        )
 
     h.print_table(
         clones,

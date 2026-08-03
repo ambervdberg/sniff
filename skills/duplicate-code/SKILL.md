@@ -54,5 +54,7 @@ lists up to three of them as `file:start-end`.
   are excluded, since they otherwise outrank every real clone.
 - Copies of one clone never overlap: a run of near-identical methods is reported
   as separate copies, not as one method matching itself.
+- `COPIES` stops counting at 13 per block. When a block hits that, the header
+  says so and the number is a floor, not a total.
 - Duplication that was reworded rather than copied (same idea, different
   structure) is not token-level duplication and is not reported.

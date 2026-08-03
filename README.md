@@ -277,7 +277,7 @@ applies to, so `-` means that one language only.
 | warning | no-multiline-single-comment | tsx, javascript | Block comment spans multiple lines with only one content line; use single-line syntax instead. |
 | warning | no-nested-ternary | tsx, javascript | Nested ternary; extract to if/else or a helper for readability. |
 | warning | no-non-null-assertion | tsx | Non-null assertion operator `!` bypasses type safety; use proper null checks instead. |
-| warning | no-private-property-access | tsx | Reaching into another object's private property; use its public API, or the owner can break you in a patch release. |
+| warning | no-private-property-access | tsx, javascript | Reaching into another object's private property; use its public API, or the owner can break you in a patch release. |
 | warning | prefer-at-over-length-index | tsx, javascript | Use `.at(-N)` instead of `arr[arr.length - N]`. |
 | warning | prefer-optional-chain | tsx, javascript | Use optional chaining `?.` instead of `&&` guard for property access. |
 <!-- pattern-catalog:end -->

@@ -157,6 +157,26 @@ class DuplicateCodeTest(unittest.TestCase):
             for earlier, later in zip(spans, spans[1:]):
                 self.assertLess(earlier[1], later[0], f"overlapping copies: {spans}")
 
+    def test_copy_counts_say_when_they_stop_counting(self):
+        # More copies than the search looks at: the count must announce itself as
+        # a floor rather than read as a total.
+        block = (
+            "def handler_{n}(self, payload):\n"
+            "    result = self.parser.parse(payload)\n"
+            "    if result is None:\n"
+            "        raise ValueError('bad payload')\n"
+            "    for item in result.items:\n"
+            "        self.sink.write(item)\n"
+            "    return result\n"
+        )
+        copies = "\n".join(block.format(n=n) for n in range(dc.MAX_GROUP_MEMBERS + 6))
+        path = self._write("many.py", copies)
+
+        clones = self._clones(path)
+
+        self.assertTrue(clones[0].capped)
+        self.assertLessEqual(clones[0].copies, dc.MAX_GROUP_MEMBERS + 1)
+
     def test_clones_stay_inside_one_file(self):
         # Files sit end to end in one token array; a clone must not span the seam.
         first = self._write("a.py", HANDLER)

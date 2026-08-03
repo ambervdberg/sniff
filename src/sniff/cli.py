@@ -495,8 +495,12 @@ def run_prime() -> None:
 
     caveats: list[str] = []
     if not facts.has_ast_grep:
+        # Named from what the detectors declare, never written out here: a
+        # hardcoded list goes stale the next time a parser-free detector lands,
+        # and telling an agent a working detector will fail is worse than silence.
+        parser_free = ", ".join(d.name for d in facts.detectors if not d.needs_ast_grep)
         caveats.append(
-            "ast-grep is not on PATH; only largest-files and no-duplicate-string will run. "
+            f"ast-grep is not on PATH; only {parser_free} will run. "
             "Every other detector, sniff-patterns included, parses with it and will fail."
         )
     if facts.errors:

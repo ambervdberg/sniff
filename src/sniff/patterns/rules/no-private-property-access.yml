@@ -7,7 +7,9 @@ language: typescript
 severity: warning
 message: "Reaching into another object's private property; use its public API, or the owner can break you in a patch release."
 metadata:
-  languages: [tsx]
+  # `_private` is a convention, not syntax, so JavaScript needs this as much as
+  # TypeScript does; the nodes it matches exist in both grammars.
+  languages: [tsx, javascript]
 rule:
   kind: member_expression
   all:
