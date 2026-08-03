@@ -39,6 +39,7 @@ KNOWN_DETECTORS: frozenset[str] = frozenset(
         "most-imports",
         "no-duplicate-string",
         "duplicate-code",
+        "self-admitted-debt",
         "sniff-patterns",
         "large-inline-templates",
     ]

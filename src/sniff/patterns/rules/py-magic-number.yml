@@ -1,0 +1,29 @@
+# Unexplained numeric literals
+# A hex flag or a seven-digit byte count says nothing about what it means, and
+# the same value usually appears somewhere else with a different intent. Only
+# hex and large decimals are flagged: small integers are mostly loop bounds and
+# offsets, and a rule that fires on those is a rule people turn off.
+id: py-magic-number
+language: python
+severity: info
+message: "Unexplained numeric literal; bind it to a named constant so its meaning travels with it."
+rule:
+  kind: integer
+  regex: "^(0[xX][0-9a-fA-F]+|[0-9][0-9_]{3,})$"
+  # Naming the value is exactly the fix, so a constant definition is not a smell.
+  not:
+    any:
+      - inside:
+          kind: assignment
+          stopBy: end
+          has:
+            field: left
+            kind: identifier
+            regex: "^[A-Z][A-Z0-9_]*$"
+      # A parameter name documents its own default.
+      - inside:
+          kind: default_parameter
+          stopBy: end
+      - inside:
+          kind: typed_default_parameter
+          stopBy: end

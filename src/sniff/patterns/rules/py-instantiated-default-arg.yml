@@ -1,0 +1,30 @@
+# Objects built once at def time and shared by every caller
+# `def f(policy=Policy())` evaluates `Policy()` when the function is defined, so
+# every call that takes the default shares one object, state and all. The
+# literal `[]` / `{}` spelling of the same gotcha is py-mutable-default-arg; the
+# two rules do not overlap.
+id: py-instantiated-default-arg
+language: python
+severity: warning
+message: "Default argument is instantiated once at def time and shared by every caller; use None and build it in the function body."
+rule:
+  # An annotated parameter is a different node kind, and the annotated spelling
+  # is where this shows up most, since it reads like a type declaration.
+  any:
+    - kind: default_parameter
+    - kind: typed_default_parameter
+  has:
+    field: value
+    kind: call
+    # Only constructor-shaped calls (`Policy()`, `module.Policy()`). A lowercase
+    # helper is as often a cheap pure call as it is shared state, and a rule that
+    # fires on every one of those is a rule people turn off.
+    has:
+      any:
+        - kind: identifier
+          regex: "^[A-Z]"
+        - kind: attribute
+          has:
+            field: attribute
+            kind: identifier
+            regex: "^[A-Z]"

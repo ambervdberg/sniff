@@ -1,0 +1,10 @@
+# Module-level state rebound from inside a function
+# `global x` makes a function's effect invisible at its call site: the value
+# outlives the call, and every other reader of the module sees the change.
+# Severity is info because module initialisation is a legitimate use.
+id: py-global-statement
+language: python
+severity: info
+message: "Rebinding module-level state with `global` hides the effect from the call site; pass the value or hold it on an object instead."
+rule:
+  kind: global_statement

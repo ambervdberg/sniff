@@ -1,0 +1,14 @@
+id: py-global-statement
+valid:
+  - |
+    def install(handler):
+        return handler
+  # Reading module-level state needs no `global`.
+  - |
+    def current():
+        return _handler
+invalid:
+  - |
+    def install():
+        global _handler
+        _handler = build()

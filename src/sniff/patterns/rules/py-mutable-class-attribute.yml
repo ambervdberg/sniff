@@ -1,0 +1,25 @@
+# Mutable state on the class instead of the instance
+# A list/dict/set built in the class body exists once, not once per instance, so
+# every instance that mutates it mutates what all the others see.
+id: py-mutable-class-attribute
+language: python
+severity: warning
+message: "Mutable class attribute is shared by every instance; build it per instance in __init__ instead."
+rule:
+  kind: assignment
+  all:
+    # Directly in the class body, not inside a method that happens to live there.
+    # Each step is spelled out because `inside` looks at the immediate parent:
+    # assignment sits in an expression_statement, in the class's block.
+    - inside:
+        kind: expression_statement
+        inside:
+          kind: block
+          inside:
+            kind: class_definition
+    - has:
+        field: right
+        any:
+          - kind: dictionary
+          - kind: list
+          - kind: set

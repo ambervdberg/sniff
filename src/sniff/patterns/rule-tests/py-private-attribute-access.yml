@@ -1,0 +1,41 @@
+id: py-private-attribute-access
+valid:
+  - |
+    class Pool:
+        def close(self):
+            self._factory.stop()
+  - |
+    class Pool:
+        @classmethod
+        def build(cls):
+            return cls._registry
+  # Dunders are the documented protocol, not somebody's private field.
+  - |
+    def name_of(obj):
+        return obj.__class__
+  # Public attributes on other objects are the point of having them.
+  - |
+    def stop(response):
+        response.transport.stop()
+  # An inherited private is this object's own.
+  - |
+    class Agent(Base):
+        def send(self):
+            return super()._send()
+  # A class using its own private through its own name is not reaching out.
+  - |
+    class Fonts:
+        @staticmethod
+        def registered():
+            return Fonts._registry
+invalid:
+  - |
+    def stop(response):
+        response._transport.stop()
+  - |
+    class Agent:
+        def close(self):
+            self._pool._factory.stop()
+  - |
+    def read(jar):
+        return jar._cookies
