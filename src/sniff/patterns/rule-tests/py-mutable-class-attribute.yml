@@ -1,0 +1,26 @@
+id: py-mutable-class-attribute
+valid:
+  - |
+    class Contract:
+        def __init__(self):
+            self.known = {}
+  - |
+    class Contract:
+        limit = 3
+        name = "contract"
+  # A local inside a method is per call, not per class.
+  - |
+    class Contract:
+        def load(self):
+            cache = {}
+            return cache
+invalid:
+  - |
+    class Contract:
+        known = {}
+  - |
+    class Contract:
+        seen: ClassVar[dict] = {}
+  - |
+    class Contract:
+        order = []

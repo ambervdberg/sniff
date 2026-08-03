@@ -25,6 +25,10 @@ DEFAULT_ARGS: "list[str]" = []
 # covered.
 LANGUAGES = list(h.ALL_LANGUAGES)
 
+# No parser: the file walk and a line count are the whole detector, so this one
+# still runs when ast-grep is missing.
+NEEDS_AST_GREP = False
+
 
 @dataclass
 class FileStat:

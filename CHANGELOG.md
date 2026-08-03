@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.15.0] - 2026-08-03
+
+- New detector `duplicate-code`: the largest blocks of copy-pasted code, ranked by size.
+- New detector `self-admitted-debt`: files ranked by the TODO/FIXME/HACK/XXX markers in their comments.
+- Six new pattern rules: reaching into another object's privates (Python and TypeScript), mutable class attributes, `global` rebinding, instantiated default arguments, and unexplained numeric literals.
+
 ## [0.14.0] - 2026-08-03
 
 - `sniff prime` now warns when a newer release is on PyPI. Set `SNIFF_NO_VERSION_CHECK=1` to skip the check.

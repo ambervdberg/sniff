@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Discover smell detectors: built-in registry modules plus manifest-based ones.
 
-All 11 built-in detectors (complexity, nesting, size, sniff-patterns, etc.) live
+All 13 built-in detectors (complexity, nesting, size, sniff-patterns, etc.) live
 as modules in `sniff.detectors.BUILTIN` and run in-process (see cli.py). No
 built-in is discovered via a manifest any more.
 
@@ -48,6 +48,10 @@ class Detector:
     args: list[str] = field(default_factory=list)
     skill_dir: str = ""
     languages: list[str] = field(default_factory=list)  # empty means "unknown"
+    # Whether this detector parses with ast-grep. True is the safe default: an
+    # external detector declares nothing, and promising it works without the
+    # parser is worse than staying quiet about it.
+    needs_ast_grep: bool = True
 
     def covers(self, present: "Iterable[str]") -> bool:
         """Whether this detector can match any of the languages in a repo.
@@ -144,7 +148,8 @@ def discover(scan_path: "str | None" = None) -> tuple[list[Detector], list[str]]
     Detectors are returned sorted by name for stable output."""
     detectors: list[Detector] = [
         Detector(name=m.NAME, title=m.TITLE, module=m, args=list(m.DEFAULT_ARGS),
-                 languages=_module_languages(m, scan_path))
+                 languages=_module_languages(m, scan_path),
+                 needs_ast_grep=getattr(m, "NEEDS_AST_GREP", True))
         for m in BUILTIN
     ]
     known_names = {d.name for d in detectors}

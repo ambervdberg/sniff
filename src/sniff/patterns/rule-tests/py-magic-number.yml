@@ -1,0 +1,24 @@
+id: py-magic-number
+valid:
+  # Naming it is the fix.
+  - |
+    MAX_SIZE = 1073741824
+  # Small integers are loop bounds and offsets, not hidden meaning.
+  - |
+    def f(items):
+        return items[0] + len(items) - 1
+  # A parameter name documents its own default.
+  - |
+    def f(timeout=30000):
+        return timeout
+invalid:
+  - |
+    def configure(ctx):
+        ctx.set_options(0x4)
+  - |
+    class Middleware:
+        def __init__(self):
+            self._max_size = 1073741824
+  - |
+    def check(size):
+        return size > 33554432

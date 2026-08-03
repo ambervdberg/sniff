@@ -15,6 +15,7 @@ from sniff.detectors import (
     cognitive_complexity,
     cyclomatic_complexity,
     deepest_nesting,
+    duplicate_code,
     large_classes,
     large_inline_templates,
     largest_files,
@@ -22,10 +23,12 @@ from sniff.detectors import (
     most_imports,
     most_parameters,
     no_duplicate_string,
+    self_admitted_debt,
 )
 
 BUILTIN = [
-    cognitive_complexity, cyclomatic_complexity, deepest_nesting, large_classes,
-    large_inline_templates, largest_files, largest_methods, most_imports,
-    most_parameters, no_duplicate_string, patterns_detector,
+    cognitive_complexity, cyclomatic_complexity, deepest_nesting, duplicate_code,
+    large_classes, large_inline_templates, largest_files, largest_methods,
+    most_imports, most_parameters, no_duplicate_string, self_admitted_debt,
+    patterns_detector,
 ]

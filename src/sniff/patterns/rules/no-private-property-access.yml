@@ -1,0 +1,54 @@
+# Reaching into another object's privates
+# Flag `other._field` on any receiver that is not this: the leading underscore
+# says the owner may rename or drop it in a patch release, so every such access
+# is an upgrade hazard against code you do not control.
+id: no-private-property-access
+language: typescript
+severity: warning
+message: "Reaching into another object's private property; use its public API, or the owner can break you in a patch release."
+metadata:
+  # `_private` is a convention, not syntax, so JavaScript needs this as much as
+  # TypeScript does; the nodes it matches exist in both grammars.
+  languages: [tsx, javascript]
+rule:
+  kind: member_expression
+  all:
+    - has:
+        field: property
+        kind: property_identifier
+        regex: "^_[a-zA-Z][a-zA-Z0-9_$]*$"
+    # Keying on the receiver is what separates the smell from a class using its
+    # own privates. `this._pool._factory` still matches on the outer access,
+    # whose receiver is `this._pool` rather than `this`.
+    - not:
+        has:
+          field: object
+          kind: this
+    - not:
+        has:
+          field: object
+          kind: super
+    # A class reaching its own static private through its own name
+    # (`Fonts._registered` inside `class Fonts`) is the same class's private.
+    - not:
+        all:
+          - has:
+              field: object
+              kind: identifier
+              pattern: $CLS
+          - inside:
+              kind: class_declaration
+              stopBy: end
+              has:
+                field: name
+                pattern: $CLS
+    # One row per chain, not one per link: in `a._b._c` the inner `a._b` is
+    # already covered by the outer access that reaches past it.
+    - not:
+        inside:
+          kind: member_expression
+          field: object
+          has:
+            field: property
+            kind: property_identifier
+            regex: "^_[a-zA-Z][a-zA-Z0-9_$]*$"

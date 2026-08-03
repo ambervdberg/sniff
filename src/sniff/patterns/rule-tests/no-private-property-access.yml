@@ -1,0 +1,40 @@
+id: no-private-property-access
+valid:
+  - |
+    class Pool {
+      close() {
+        this._factory.stop();
+      }
+    }
+  - |
+    class Agent extends Base {
+      send() {
+        return super._send();
+      }
+    }
+  - |
+    function stop(response) {
+      response.transport.stop();
+    }
+  # A class using its own static private through its own name is not reaching out.
+  - |
+    class Fonts {
+      static registered() {
+        return Fonts._registry;
+      }
+    }
+invalid:
+  - |
+    function stop(response) {
+      response._transport.stop();
+    }
+  - |
+    class Agent {
+      close() {
+        this._pool._factory.stop();
+      }
+    }
+  - |
+    function read(jar) {
+      return jar._cookies;
+    }

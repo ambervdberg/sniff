@@ -1,0 +1,23 @@
+id: py-instantiated-default-arg
+valid:
+  - |
+    def f(policy=None):
+        policy = policy or Policy()
+  # A literal collection default is py-mutable-default-arg's case, not this one.
+  - |
+    def f(items=[]):
+        return items
+  # Lowercase calls are as often cheap and pure as they are shared state.
+  - |
+    def f(timeout=default_timeout()):
+        return timeout
+invalid:
+  - |
+    def f(policy=Policy()):
+        return policy
+  - |
+    def f(policy=agent.Policy()):
+        return policy
+  - |
+    def f(policy: Policy = Policy()):
+        return policy

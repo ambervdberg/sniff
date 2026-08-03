@@ -1,0 +1,59 @@
+# Reaching into another object's privates
+# Flag `other._field` on any receiver that is not self/cls: the leading
+# underscore says the owner may rename or drop it in a patch release, so every
+# such access is an upgrade hazard against a library you do not control.
+id: py-private-attribute-access
+language: python
+severity: warning
+message: "Reaching into another object's private attribute; use its public API, or the owner can break you in a patch release."
+rule:
+  kind: attribute
+  all:
+    # The attribute name, not the whole expression. Dunders are the documented
+    # protocol rather than somebody's private field, so they are excluded.
+    - has:
+        field: attribute
+        kind: identifier
+        regex: "^_[a-zA-Z][a-zA-Z0-9_]*$"
+        not:
+          regex: "__$"
+    # Keying on the receiver is what separates the smell from a module using its
+    # own privates. `self._pool._factory` still matches on the outer access,
+    # whose receiver is `self._pool` rather than `self`, and that outer reach is
+    # the hazard: the pool's private, not this object's.
+    - not:
+        has:
+          field: object
+          kind: identifier
+          regex: "^(self|cls)$"
+    # `super()._method()` calls an inherited private, which is this object's own.
+    - not:
+        has:
+          field: object
+          pattern: super()
+    # A class reaching its own private through its own name (`Fonts._registry`
+    # inside `class Fonts`) is the same object's private, spelled statically.
+    - not:
+        all:
+          - has:
+              field: object
+              kind: identifier
+              pattern: $CLS
+          - inside:
+              kind: class_definition
+              stopBy: end
+              has:
+                field: name
+                pattern: $CLS
+    # One row per chain, not one per link: in `a._b._c` the inner `a._b` is
+    # already covered by the outer access that reaches past it.
+    - not:
+        inside:
+          kind: attribute
+          field: object
+          has:
+            field: attribute
+            kind: identifier
+            regex: "^_[a-zA-Z][a-zA-Z0-9_]*$"
+            not:
+              regex: "__$"

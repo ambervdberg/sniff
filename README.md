@@ -36,8 +36,9 @@ uv tool install ast-grep-cli
 
 Both lines are required. The first puts the `sniff` command on PATH via
 [uv](https://docs.astral.sh/uv/); the second installs
-[`ast-grep`](https://ast-grep.github.io), the parser 9 of the 11 detectors run on. Skip
-it and only `largest-files` and `no-duplicate-string` still work; every other detector
+[`ast-grep`](https://ast-grep.github.io), the parser 9 of the 13 detectors run on. Skip
+it and only `largest-files`, `no-duplicate-string`, `duplicate-code`, and
+`self-admitted-debt` still work; every other detector
 exits with `error: ast-grep is not installed or not on PATH`. One-time per machine, not
 per repo.
 
@@ -61,7 +62,7 @@ tables.
 
 ```console
 $ sniff .
-sniff: 11 detectors over '.': cognitive-complexity, cyclomatic-complexity, deepest-nesting, ...
+sniff: 13 detectors over '.': cognitive-complexity, cyclomatic-complexity, deepest-nesting, ...
 
 ## cognitive-complexity
 
@@ -226,6 +227,8 @@ each also ships as a thin SKILL.md wrapper so an agent can trigger it by name.
 | `most-parameters`        | Rank functions by parameter count (long-parameter-list smell).                    |
 | `most-imports`           | Rank files by import count (high-coupling smell).                                 |
 | `no-duplicate-string`    | Rank string literals by how many files repeat them (extract-as-constant candidates). |
+| `duplicate-code`         | Rank the largest blocks of copy-pasted code, renames and async twins included (no AST). |
+| `self-admitted-debt`     | Rank files by the TODO/FIXME/HACK/XXX markers in their comments (no AST).          |
 | `large-inline-templates` | Rank Angular components by inline-template line count.                            |
 | `sniff-patterns`         | Run the pattern rule catalog in one `ast-grep scan` pass; compact findings table. |
 
@@ -252,9 +255,14 @@ applies to, so `-` means that one language only.
 | --- | --- | --- | --- |
 | warning | py-bare-except | - | Bare except: swallows all exceptions, including KeyboardInterrupt and SystemExit; catch Exception or a specific type instead. |
 | warning | py-broad-except | - | Catching Exception hides unrelated failures; catch the specific exception you can handle. |
+| warning | py-instantiated-default-arg | - | Default argument is instantiated once at def time and shared by every caller; use None and build it in the function body. |
+| warning | py-mutable-class-attribute | - | Mutable class attribute is shared by every instance; build it per instance in __init__ instead. |
 | warning | py-mutable-default-arg | - | Mutable default argument is shared across all calls; use None and initialize inside the function body instead. |
 | warning | py-nested-conditional-expr | - | Nested conditional expression; extract to if/elif/else or a helper function for readability. |
+| warning | py-private-attribute-access | - | Reaching into another object's private attribute; use its public API, or the owner can break you in a patch release. |
+| info | py-global-statement | - | Rebinding module-level state with `global` hides the effect from the call site; pass the value or hold it on an object instead. |
 | info | py-import-outside-toplevel | - | Import inside a function hides the dependency; move it to the top of the module unless it breaks a cycle. |
+| info | py-magic-number | - | Unexplained numeric literal; bind it to a named constant so its meaning travels with it. |
 | info | py-print-statement | - | Bare print() call; use a logging library instead of print for anything beyond throwaway debugging. |
 
 ### typescript
@@ -269,6 +277,7 @@ applies to, so `-` means that one language only.
 | warning | no-multiline-single-comment | tsx, javascript | Block comment spans multiple lines with only one content line; use single-line syntax instead. |
 | warning | no-nested-ternary | tsx, javascript | Nested ternary; extract to if/else or a helper for readability. |
 | warning | no-non-null-assertion | tsx | Non-null assertion operator `!` bypasses type safety; use proper null checks instead. |
+| warning | no-private-property-access | tsx, javascript | Reaching into another object's private property; use its public API, or the owner can break you in a patch release. |
 | warning | prefer-at-over-length-index | tsx, javascript | Use `.at(-N)` instead of `arr[arr.length - N]`. |
 | warning | prefer-optional-chain | tsx, javascript | Use optional chaining `?.` instead of `&&` guard for property access. |
 <!-- pattern-catalog:end -->
@@ -461,6 +470,7 @@ scan skips it entirely unless you name it in `--only`.
 | cognitive-complexity | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust |
 | cyclomatic-complexity | yes | yes | yes | yes | c, cpp, csharp, go, java, ruby |
 | deepest-nesting | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust |
+| duplicate-code | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
 | large-classes | yes | yes | yes | yes | - |
 | large-inline-templates | yes | yes | no | no | - |
 | largest-files | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
@@ -468,6 +478,7 @@ scan skips it entirely unless you name it in `--only`.
 | most-imports | yes | yes | yes | yes | - |
 | most-parameters | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust |
 | no-duplicate-string | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
+| self-admitted-debt | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
 <!-- language-matrix:end -->
 
 `large-inline-templates` is Angular-only by design. `sniff-patterns` is not in the
@@ -486,7 +497,7 @@ Gate PRs on code-smell regressions using the committed baseline:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: ambervdberg/sniff@v0.14.0
+- uses: ambervdberg/sniff@v0.15.0
   with:
     path: .
 ```

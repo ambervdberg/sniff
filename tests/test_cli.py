@@ -12,6 +12,7 @@ import unittest
 import unittest.mock
 
 from sniff import cli as run_module
+from sniff import discovery
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "..", "src")
@@ -478,6 +479,64 @@ class DetectorFlagPassthroughTest(unittest.TestCase):
         proc = self._run("--only", "largest-methods,largest-files", ".", "--top", "1")
         self.assertEqual(proc.returncode, 2)
         self.assertIn("exactly one detector", proc.stderr)
+
+
+class ParserFreeCaveatTest(unittest.TestCase):
+    """`sniff prime` must name the detectors that survive a missing ast-grep.
+
+    The list used to be written out by hand and went stale the moment a
+    parser-free detector landed, which told agents a working detector would
+    fail. Both halves are checked: that each detector's declaration matches what
+    its module actually does, and that prime prints the declared set."""
+
+    def _builtin_modules(self):
+        from sniff.detectors import BUILTIN
+        return BUILTIN
+
+    def test_every_parser_free_detector_runs_without_ast_grep(self):
+        """The claim is behavioural, so it is checked by making it true or false.
+
+        Hiding the binary makes the harness exit with its own error, so a
+        detector that only looks parser-free fails this outright."""
+        import io
+        import contextlib
+        from sniff import harness
+
+        with tempfile.TemporaryDirectory() as root:
+            with open(os.path.join(root, "sample.py"), "w", encoding="utf-8") as fh:
+                fh.write("def f(x):\n    return x\n")
+            with open(os.path.join(root, "sample.ts"), "w", encoding="utf-8") as fh:
+                fh.write("export function f(x: number) {\n  return x;\n}\n")
+
+            for module in self._builtin_modules():
+                if getattr(module, "NEEDS_AST_GREP", True):
+                    continue
+                with self.subTest(detector=module.NAME), \
+                        unittest.mock.patch.object(harness.shutil, "which", return_value=None), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(module.main([root]), 0,
+                                     f"{module.NAME} declares NEEDS_AST_GREP=False but did not run")
+
+    def test_prime_names_every_parser_free_detector(self):
+        import io
+        import contextlib
+
+        detectors, _ = discovery.discover()
+        parser_free = [d.name for d in detectors if not d.needs_ast_grep]
+        self.assertGreater(len(parser_free), 1, "expected several parser-free detectors")
+
+        out = io.StringIO()
+        with unittest.mock.patch.object(run_module.shutil, "which", return_value=None), \
+                unittest.mock.patch.dict(os.environ, {"SNIFF_NO_VERSION_CHECK": "1"}), \
+                contextlib.redirect_stdout(out):
+            run_module.run_prime()
+        caveat = out.getvalue()
+
+        for name in parser_free:
+            self.assertIn(name, caveat)
+        for detector in detectors:
+            if detector.needs_ast_grep:
+                self.assertNotIn(f"only {detector.name}", caveat)
 
 
 class SniffMissingDirTest(unittest.TestCase):
