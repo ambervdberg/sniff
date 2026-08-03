@@ -151,6 +151,12 @@ class Match:
         return f"{self.file}:{self.line}"
 
 
+# When a list is installed here, print_table records every match it was given
+# (not just the rendered top-N) so `sniff baseline` / `sniff diff` can gate on
+# the full finding set. None (the default) means rendering-only behaviour.
+FINDINGS_SINK: list | None = None
+
+
 def ast_grep_exe() -> str:
     """Absolute path to ast-grep, resolving Windows .cmd/.exe shims; bare name if not found.
 
@@ -670,6 +676,11 @@ def print_table(
     This is the only thing the calling agent should ever see. Never print raw
     matches or AST JSON alongside it. Numeric columns are right-aligned; the
     first column is sized to its content, the rest to their widest cell."""
+    if FINDINGS_SINK is not None:
+        FINDINGS_SINK.extend(
+            {"file": m.file, "line": m.line, "name": m.name, "metrics": dict(m.metrics)}
+            for m in matches
+        )
     rows = list(matches)
     if sort_key is not None:
         rows.sort(key=sort_key, reverse=True)
