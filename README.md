@@ -146,12 +146,10 @@ Three layers stack, in this order:
    parsing the ignore files itself. Outside a git repo this layer is simply absent.
 3. **Your own globs**: `[ignore] globs` in `.sniff.toml`, plus any `--ignore` flags.
 
-Ranking detectors also skip test code, so the tables rank the source you ship.
+Every detector also skips test code, so the tables describe the source you ship.
 That means `*.test.ts`, `*.spec.ts`, `test_*.py`, `*_test.py`, `conftest.py`,
 `*_test.go`, and anything inside a `tests/`, `test/`, `__tests__/`, or `spec/`
-directory. Pass `--include-tests` to a detector to rank them too. Pattern rules
-are the exception: they run everywhere, since a rule violation in a test is still
-a rule violation.
+directory. Pass `--include-tests` to a detector to rank them too.
 
 `--ignore` is repeatable and *adds to* `.sniff.toml` rather than replacing it, so a one-off
 exclusion cannot silently drop the ones a repo already committed:

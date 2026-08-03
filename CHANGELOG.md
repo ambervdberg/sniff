@@ -9,6 +9,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Two new Python rules: `py-broad-except` and `py-import-outside-toplevel`.
 - Fix: Python and Go test files were ranked as production code even though the
   output said tests were excluded.
+- Pattern rules now skip test files too, like every other detector.
+  `sniff --only sniff-patterns . --include-tests` reports them.
 
 ## [0.12.1] - 2026-08-02
 
