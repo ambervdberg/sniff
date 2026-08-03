@@ -8,29 +8,70 @@ Point `sniff` at a repo and it hands back small ranked tables and lists of findi
 the longest methods, the deepest nesting, the empty catch blocks, each with just a
 file and a line number, never the source itself. Some checks rank your code by a
 number so you can find the worst offenders; others flag one specific mistake
-wherever it appears. It's a self-serve, private code-smell scan you grow one check
-at a time.
+wherever it appears.
 
-It installs as a plain CLI (`uv tool install sniff-smells`) that works the same
-whether you run it yourself or your coding agent does, Claude Code, Codex, or
-anything else that can run a shell command. Because a scan prints a handful of
-ranked rows instead of dumping source or an AST into the conversation, an agent can
-ask "what's the worst offender here?" and get an answer for a few tokens instead of
-reading every file.
+**Why not just ESLint, Ruff, or SonarQube?** Those answer *"is this line wrong?"*,
+one language at a time, and are worth keeping. sniff answers *"where is the worst of
+it?"* across every language in the repo, in one command, in a few dozen rows. No rule
+set to adopt, no server, nothing leaves your machine.
+
+It installs as a plain CLI that works the same whether you run it yourself or your
+coding agent does, Claude Code, Codex, or anything else that can run a shell command.
+Because a scan prints a handful of ranked rows instead of dumping source or an AST
+into the conversation, an agent can ask "what's the worst offender here?" and get an
+answer for a few tokens instead of reading every file.
 
 ## Install
+
+### 1. The CLI
 
 ```bash
 uv tool install sniff-smells
 uv tool install ast-grep-cli
 ```
 
-Requires Python 3.10+ and works the same on Windows, macOS, and Linux. The first line puts the
-`sniff` command on PATH via [uv](https://docs.astral.sh/uv/); the second installs
-[`ast-grep`](https://ast-grep.github.io), the scan engine most detectors run on. One-time per
-machine, not per repo. Run `sniff doctor` to confirm both are present.
+Requires Python 3.10+ and works the same on Windows, macOS, and Linux. The first line
+puts the `sniff` command on PATH via [uv](https://docs.astral.sh/uv/); the second
+installs [`ast-grep`](https://ast-grep.github.io), the scan engine most detectors run
+on. One-time per machine, not per repo. Run `sniff doctor` to confirm both are present.
 
-No `uv`? `pip install sniff-smells` works the same.
+No `uv`? `pip install sniff-smells ast-grep-cli` works the same.
+
+### 2. The agent plugin (optional)
+
+The CLI is enough on its own. The plugin adds a skill per detector so an agent can
+trigger a check by name, plus `sniff-create` for writing new ones. It wraps the same
+CLI, so the install above is still required underneath.
+
+**Claude Code**
+
+```bash
+/plugin marketplace add https://github.com/ambervdberg/sniff
+/plugin install sniff
+```
+
+To update: `/plugin marketplace update sniff`, then re-run `/plugin install sniff`.
+
+**Codex**
+
+```bash
+codex plugin marketplace add ambervdberg/sniff
+```
+
+Then, in a Codex CLI session, run `/plugins` to install the `sniff` plugin from that
+marketplace, and start a new session before its skills and hooks are available. To
+update: `codex plugin marketplace upgrade sniff`, then reinstall from `/plugins`.
+
+**Any other agent (Cursor, ...)**
+
+Add to your AGENTS.md:
+
+    For code-quality questions (largest methods, complexity, smells), run
+    `sniff [DIR]` and read its compact tables instead of scanning files.
+    Run `sniff prime` once to learn all commands.
+
+Or paste the live output of `sniff prime` into your agent's instructions file for the
+exact command list.
 
 ## Quickstart
 
@@ -76,9 +117,33 @@ sniff-patterns: 23 findings, 4 of 16 rules matched in '.' (tests excluded)
 
 That's the whole output: file and line only, never source code or an AST dump.
 
-## What's here
+## Commands
 
-**Two kind of checks.**
+| Command | What it does |
+| --- | --- |
+| `sniff [DIR]` | Scan `DIR` (default: `.`) with all detectors. |
+| `sniff --list` | List all available detectors. |
+| `sniff --list-patterns` | List all pattern rules (RULE / SEVERITY / ORIGIN / ALSO RUNS ON / MESSAGE). |
+| `sniff --only a,b [DIR]` | Run only the named detectors (e.g. `--only sniff-patterns` for pattern rules). |
+| `sniff --skip a,b [DIR]` | Run all detectors except the named ones. |
+| `sniff --json [DIR]` | Scan output as JSON instead of markdown (also works with `--list`). |
+| `sniff --ignore GLOB [DIR]` | Exclude paths matching `GLOB`; repeatable, adds to `.sniff.toml`. |
+| `sniff version` | Print the installed version. |
+| `sniff doctor` | Check prerequisites (Python, ast-grep, manifests, `.sniff.toml`); exits 0/1. |
+| `sniff prime` | Agent-optimized context (version, detectors, prereqs, usage hints); never scans. |
+| `sniff baseline write [DIR]` | Save per-detector finding counts to `.sniff/baseline.json`. |
+| `sniff diff [DIR]` | Compare a fresh scan to the saved baseline; exits 1 if any detector regressed. |
+| `sniff diff --comment [DIR]` | Same as above, formatted as a markdown table for pasting into a PR comment. |
+| `sniff contribute <rule-id>` | Promote a local rule to the shared catalog, via a local checkout or a `gh` fork + PR. |
+| `sniff --help` | Show usage and examples. |
+
+With `--only <one detector>`, extra flags are forwarded to that detector and beat
+`.sniff.toml`; put them **after** `DIR` (`sniff --only largest-methods . --top 5`), since
+`--top 1 DIR` would bind `1` as the directory to scan.
+
+## Detectors vs pattern rules
+
+**Two kinds of checks.**
 
 - **Detectors rank.** *"Which are the worst?"* Each one sorts your code by a number
   (lines, complexity, parameters) and prints the top N. There is always a longest
@@ -124,6 +189,66 @@ With the plugin installed, two more skills are available beyond the detectors ab
 | --- | --- |
 | `sniff` | Umbrella runner: runs **all** detectors in one pass. Wraps the CLI's default `sniff [DIR]` scan. |
 | `sniff-create` | Scaffold a new smell skill or catalog rule from a short conversation. No CLI equivalent. |
+
+## Configuration
+
+Drop a `.sniff.toml` in the root of the repo being scanned to turn rules off, re-grade
+severities, skip detectors, retune thresholds, and ignore paths. `sniff doctor` validates it.
+
+```toml
+[rules]                           # targets the sniff-patterns catalog only. Key is a rule id:
+no-console-log = false            # turn a pattern rule off
+no-explicit-any = "error"         # re-grade it (error | warning | info | hint)
+
+[detectors]
+skip = "most-imports,largest-files"   # comma-separated detector names
+largest-methods.top = 15              # <detector>.<arg> becomes --arg on that detector
+deepest-nesting.min-depth = 3
+
+[ignore]
+globs = ["docs/**", "**/*.generated.ts"]
+```
+
+Details worth knowing:
+
+- `[rules]` only affects pattern rules. `[detectors]` affects the detectors, and each `<detector>.<arg>`
+  key becomes a `--arg` flag on that detector.
+- `globs` also accepts one string: `globs = "docs/**,**/*.generated.ts"`.
+  Paths are matched from the root of the repo you scan.
+- A section or key that sniff does not recognize is a warning, not an error, so a typo never stops a scan.
+
+### What gets skipped
+
+Three layers stack, in this order:
+
+1. **Vendored and build directories**, always: `node_modules`, `dist`, `build`, `out`,
+   `coverage`, `target`, `vendor`, `.venv`, `venv`, `.git`, `.nx`, `.angular`, `.astro`,
+   `.next`, `.svelte-kit`, `.nuxt`, `.turbo`, `__pycache__`, `.claude`.
+2. **Anything `.gitignore` excludes**, when the scanned directory is a git repo. Your
+   `.git/info/exclude` and global ignore file count too, since sniff asks git rather than
+   parsing the ignore files itself. Outside a git repo this layer is simply absent.
+3. **Your own globs**: `[ignore] globs` in `.sniff.toml`, plus any `--ignore` flags.
+
+Every detector also skips test code, so the tables describe the source you ship.
+That means `*.test.ts`, `*.spec.ts`, `test_*.py`, `*_test.py`, `conftest.py`,
+`*_test.go`, and anything inside a `tests/`, `test/`, `__tests__/`, or `spec/`
+directory. Pass `--include-tests` to a detector to rank them too.
+
+`--ignore` is repeatable and *adds to* `.sniff.toml` rather than replacing it, so a one-off
+exclusion cannot silently drop the ones a repo already committed:
+
+```bash
+sniff --ignore "docs/**" --ignore "**/*.generated.ts" .
+```
+
+### Custom checks, without forking sniff
+
+Two escape hatches for a repo with its own conventions:
+
+- **Local pattern rules.** Drop a `.yml` in `.sniff/rules/` and it runs in the same pass
+  as the catalog. See [Add a rule](#add-a-rule).
+- **External detectors.** Drop a `detector.yml` manifest under `.sniff/detectors/<name>/`
+  and `sniff --list` picks it up alongside the built-ins.
 
 ## Language support
 
@@ -194,8 +319,9 @@ it against your actual code before saving anything, so you never guess at syntax
 
 **By hand**, if you would rather write it yourself:
 
-1. **Work out the pattern.** Check out [astgrep.com/guide/](https://astgrep.com/guide/introduction)
-   for help, then try it live in the [ast-grep playground](https://astgrep.com/playground.html).
+1. **Work out the pattern.** Check out the
+   [ast-grep guide](https://ast-grep.github.io/guide/introduction.html) for help, then
+   try it live in the [playground](https://ast-grep.github.io/playground.html).
 2. **Save it** as `.sniff/rules/<id>.yml` in the repo you scan.
 
    ```yaml
@@ -216,151 +342,10 @@ Local rules run in the same `ast-grep scan` pass as the catalog, so both sets of
 findings arrive together. An id that collides with a catalog rule is ignored with a
 warning.
 
-Want to contribute the rule to the catalog? Add examples at `.sniff/rule-tests/<id>.yml`
-first:
-
-```yaml
-id: no-alert
-valid:
-  - |
-    showDialog("boom");
-invalid:
-  - |
-    alert("boom");
-```
-
-Then `sniff contribute <rule-id>` moves it upstream, `--dry-run` first if you want to
-see which backend it would use. Point `SNIFF_REPO` (or `repo = "..."` in
-`~/.sniff/config.toml`) at a local sniff checkout and the rule and its fixtures are
-copied there on a `rule/<rule-id>` branch with the fixture tests run, leaving the commit
-and PR to you. Otherwise it uses the `gh` CLI: fork, branch, commit, push, and open a PR
-against `ambervdberg/sniff`. Guards run first, so a missing rule, missing fixtures, or a
-colliding id fails before anything moves.
-
-## Per-ecosystem setup
-
-Every option below wraps the same `sniff` CLI, so `uv tool install sniff-smells` (or
-`pip install sniff-smells`, see Install above) is still required underneath.
-
-### Claude Code (plugin)
-
-```bash
-/plugin marketplace add https://github.com/ambervdberg/sniff
-/plugin install sniff
-```
-
-To update: refresh the marketplace entry (`/plugin marketplace update sniff`), then re-run
-`/plugin install sniff`.
-
-### Codex (plugin)
-
-```bash
-codex plugin marketplace add ambervdberg/sniff
-```
-
-Then, in a Codex CLI session, run `/plugins` to install the `sniff` plugin from that
-marketplace, and start a new session before its skills and hooks are available. This reads
-the native manifest at `.codex-plugin/plugin.json`; the git repo itself is the marketplace
-source (`.claude-plugin/marketplace.json` is the legacy-compatible repo marketplace path the
-Codex packaging spec also accepts). To update: `codex plugin marketplace upgrade sniff`, then
-reinstall from `/plugins`.
-
-### Any agent (Codex, Cursor, ...)
-
-Add to your AGENTS.md:
-
-    For code-quality questions (largest methods, complexity, smells), run
-    `sniff [DIR]` and read its compact tables instead of scanning files.
-    Run `sniff prime` once to learn all commands.
-
-Or paste the live output of `sniff prime` into your agent's instructions file
-for the exact command list.
-
-## Commands
-
-| Command | What it does |
-| --- | --- |
-| `sniff [DIR]` | Scan `DIR` (default: `.`) with all detectors. |
-| `sniff --list` | List all available detectors. |
-| `sniff --list-patterns` | List all pattern rules (RULE / SEVERITY / ORIGIN / ALSO RUNS ON / MESSAGE). |
-| `sniff --only a,b [DIR]` | Run only the named detectors (e.g. `--only sniff-patterns` for pattern rules). |
-| `sniff --skip a,b [DIR]` | Run all detectors except the named ones. |
-| `sniff --json [DIR]` | Scan output as JSON instead of markdown (also works with `--list`). |
-| `sniff --ignore GLOB [DIR]` | Exclude paths matching `GLOB`; repeatable, adds to `.sniff.toml`. |
-| `sniff version` | Print the installed version. |
-| `sniff doctor` | Check prerequisites (Python, ast-grep, manifests, `.sniff.toml`); exits 0/1. |
-| `sniff prime` | Agent-optimized context (version, detectors, prereqs, usage hints); never scans. |
-| `sniff baseline write [DIR]` | Save per-detector finding counts to `.sniff/baseline.json`. |
-| `sniff diff [DIR]` | Compare a fresh scan to the saved baseline; exits 1 if any detector regressed. |
-| `sniff diff --comment [DIR]` | Same as above, formatted as a markdown table for pasting into a PR comment. |
-| `sniff contribute <rule-id>` | Promote a local rule to the shared catalog, via a local checkout or a `gh` fork + PR. |
-| `sniff --help` | Show usage and examples. |
-
-With `--only <one detector>`, extra flags are forwarded to that detector and beat
-`.sniff.toml`; put them **after** `DIR` (`sniff --only largest-methods . --top 5`), since
-`--top 1 DIR` would bind `1` as the directory to scan.
-
-## Configuration
-
-Drop a `.sniff.toml` in the root of the repo being scanned to turn rules off, re-grade
-severities, skip detectors, retune thresholds, and ignore paths. `sniff doctor` validates it.
-
-```toml
-[rules]                           # targets the sniff-patterns catalog only. Key is a rule id:
-no-console-log = false            # turn a pattern rule off
-no-explicit-any = "error"         # re-grade it (error | warning | info | hint)
-
-[detectors]
-skip = "most-imports,largest-files"   # comma-separated detector names
-largest-methods.top = 15              # <detector>.<arg> becomes --arg on that detector
-deepest-nesting.min-depth = 3
-
-[ignore]
-globs = ["docs/**", "**/*.generated.ts"]
-```
-
-Details worth knowing:
-
-- `[rules]` only affects pattern rules. `[detectors]` affects the detectors, and each `<detector>.<arg>`
-  key becomes a `--arg` flag on that detector.
-- `globs` also accepts one string: `globs = "docs/**,**/*.generated.ts"`.
-  Paths are matched from the root of the repo you scan.
-- A section or key that sniff does not recognize is a warning, not an error, so a typo never stops a scan.
-
-### What gets skipped
-
-Three layers stack, in this order:
-
-1. **Vendored and build directories**, always: `node_modules`, `dist`, `build`, `out`,
-   `coverage`, `target`, `vendor`, `.venv`, `venv`, `.git`, `.nx`, `.angular`, `.astro`,
-   `.next`, `.svelte-kit`, `.nuxt`, `.turbo`, `__pycache__`, `.claude`.
-2. **Anything `.gitignore` excludes**, when the scanned directory is a git repo. Your
-   `.git/info/exclude` and global ignore file count too, since sniff asks git rather than
-   parsing the ignore files itself. Outside a git repo this layer is simply absent.
-3. **Your own globs**: `[ignore] globs` in `.sniff.toml`, plus any `--ignore` flags.
-
-Every detector also skips test code, so the tables describe the source you ship.
-That means `*.test.ts`, `*.spec.ts`, `test_*.py`, `*_test.py`, `conftest.py`,
-`*_test.go`, and anything inside a `tests/`, `test/`, `__tests__/`, or `spec/`
-directory. Pass `--include-tests` to a detector to rank them too.
-
-`--ignore` is repeatable and *adds to* `.sniff.toml` rather than replacing it, so a one-off
-exclusion cannot silently drop the ones a repo already committed:
-
-```bash
-sniff --ignore "docs/**" --ignore "**/*.generated.ts" .
-```
-
-### Local rules
-
-A repo can carry its own pattern rules in `.sniff/rules/*.yml` without touching this
-catalog. See [Add a rule](#add-a-rule).
-
-### External detectors
-
-Drop a `detector.yml` manifest under `.sniff/detectors/<name>/` in the project being scanned to
-add a custom check without touching this repo. `sniff --list` picks it up alongside the
-built-ins.
+Want to share the rule with everyone? `sniff contribute <rule-id>` moves it upstream
+into this catalog; see
+[CONTRIBUTING.md](CONTRIBUTING.md#promoting-a-local-rule-from-a-project-that-uses-sniff)
+for the fixtures it expects and the two backends it can use.
 
 ## CI mode
 
@@ -370,7 +355,7 @@ Gate PRs on code-smell regressions using the committed baseline:
 2. Add this action to a workflow:
 
 ```yaml
-- uses: ambervdberg/sniff@main
+- uses: ambervdberg/sniff@v0.12.1
   with:
     path: .
 ```
@@ -378,21 +363,16 @@ Gate PRs on code-smell regressions using the committed baseline:
 The action installs `ast-grep` and `sniff`, then runs `sniff diff --comment` against the committed
 baseline, failing the job if any detector regressed.
 
+Pin a release tag, as above, so a push to this repo cannot change what runs in your CI.
+`@main` tracks the latest instead, at that cost.
+
 ## Engines
 
-A smell needs an engine. `sniff-create` picks the right one when you make a new check; see
-[CONTRIBUTING.md](CONTRIBUTING.md#engines) for the full breakdown of all five.
-
-| Engine | For | Example |
-| --- | --- | --- |
-| **pattern rule** | a specific code shape, flagged with a severity | `any` type, empty `imports: []` |
-| **node span** | rank AST nodes by line count | largest methods, large classes |
-| **node metric** | score each method/class from its AST | nesting depth, cyclomatic / cognitive complexity, inline-template line count |
-| **file metric** | a number per file, no AST | largest files (split candidates) |
-
-`pattern rule`, `node span`, and `node metric` run on [ast-grep](https://ast-grep.github.io);
-`file metric` is plain Python. A fifth engine, cross-file (a whole-project graph, for smells
-like inheritance depth), is planned but not built yet.
+A smell needs an engine: a pattern rule for a specific code shape, a node span or node
+metric for anything scored off the AST, a file metric for a number per file, and a
+planned cross-file engine for whole-project graphs. `sniff-create` picks the right one
+when you make a new check; [CONTRIBUTING.md](CONTRIBUTING.md#engines) has the full
+breakdown of all five.
 
 ## Suggest-create hook
 

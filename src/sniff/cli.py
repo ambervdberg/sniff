@@ -663,7 +663,6 @@ def main(argv: "list[str] | None" = None) -> int:
             "  sniff prime                  # agent-optimized context (no scan)\n"
             "  sniff baseline write [DIR]   # save per-detector counts to .sniff/baseline.json\n"
             "  sniff diff [DIR]             # compare current scan to the saved baseline\n"
-            "  sniff test-rules             # run rule fixture tests, exit 0/1\n"
             "  sniff contribute <rule>      # move a local rule into the plugin repo\n"
             "\n"
             "Pattern rules only:  sniff --only sniff-patterns [DIR]\n"

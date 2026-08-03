@@ -2,6 +2,8 @@
 
 ## Dev setup
 
+Needs [uv](https://docs.astral.sh/uv/getting-started/installation/) and Python 3.10+.
+
 1. Clone the repo and install prerequisites (one-time):
    ```bash
    git clone https://github.com/ambervdberg/sniff.git
@@ -59,6 +61,11 @@ scripts/          bump_version.py and other maintenance scripts
 docs/             design spec
 ```
 
+The git repo is itself the plugin marketplace for both hosts. Codex reads the native
+manifest at `.codex-plugin/plugin.json`; `.claude-plugin/marketplace.json` is the
+legacy-compatible repo marketplace path the Codex packaging spec also accepts, and the
+one Claude Code uses.
+
 ## Adding a pattern rule
 
 Rules live in `src/sniff/patterns/rules/` as YAML files, with fixtures alongside in
@@ -73,10 +80,15 @@ Or hand-write a rule (e.g., `rules/no-console-log.yml`) and a fixture file (e.g.
 Test locally before committing:
 
 ```bash
-sniff test-rules
+uv run sniff test-rules
 ```
 
 All fixtures must pass before you open a PR.
+
+`sniff test-rules` is a maintainer command: it reads the catalog sources under
+`src/sniff/patterns/`, which the published wheel does not ship, so it only works from a
+checkout. That is why it is absent from `sniff --help` and from the README's command
+table, and why it always runs through `uv run` here.
 
 ## Promoting a local rule from a project that uses sniff
 
@@ -124,6 +136,23 @@ stale without changing it.
 
 Tests enforce this, so a forgotten run shows up as a failing test rather than a README
 that claims support sniff does not have.
+
+## Evals
+
+`evals/` measures whether an agent picks the right `sniff` command from a prompt. Not
+part of CI and not needed for most PRs: run it when you change a surface an agent reads,
+meaning a SKILL.md, `sniff prime`, `sniff --help`, or the README's command table.
+
+```bash
+python evals/runner.py --dry-run    # prints the prompts, no API calls
+python evals/runner.py              # simulated agent, one API call per case
+python evals/scorer.py --results evals/results/<file>.jsonl
+```
+
+`evals/cases.jsonl` holds the prompts, `runner.py` simulates an agent in a single API
+call, and `scorer.py` grades routing and hallucinated flags. A simulated pass is not
+proof: `evals/smoke/README.md` describes the hand-run real-session complement, which
+sees context the simulation does not and so catches regressions it misses.
 
 ## Conventions
 

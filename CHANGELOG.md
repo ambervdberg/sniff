@@ -11,6 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   output said tests were excluded.
 - Pattern rules now skip test files too, like every other detector.
   `sniff --only sniff-patterns . --include-tests` reports them.
+- `sniff --help` no longer lists `test-rules`, which only ever worked from a source checkout.
 
 ## [0.12.1] - 2026-08-02
 
