@@ -234,13 +234,12 @@ scan skips it entirely unless you name it in `--only`.
 | most-imports | yes | yes | yes | yes | - |
 | most-parameters | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust |
 | no-duplicate-string | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
-| sniff-patterns | yes | yes | yes | yes | - |
 <!-- language-matrix:end -->
 
-`large-inline-templates` is Angular-only by design. `sniff-patterns` covers
-whatever its rules declare, including any you add under `.sniff/rules/`, so this
-row grows with the catalog. Run `sniff --list` for the same coverage per
-detector, including detectors your repo adds.
+`large-inline-templates` is Angular-only by design. `sniff-patterns` is not in the
+table: it covers whatever its rules declare, so see the catalog below. Run
+`sniff --list` for the same coverage per detector, including detectors your repo
+adds.
 
 ## Pattern rules
 

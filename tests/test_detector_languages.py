@@ -176,6 +176,17 @@ def test_readme_pattern_catalog_matches_the_rules():
     assert block == fmt.render_catalog_table(fmt.catalog_rules()).strip(), REGENERATE
 
 
+def test_matrix_leaves_out_the_pattern_detector():
+    """Its coverage is whatever the rules declare, so a yes/no row reads as a
+    promise the catalog does not make. The pattern rule catalog states the real
+    per-language coverage a few lines below it in the README."""
+    detectors, _ = discovery.discover()
+    matrix = discovery.render_language_matrix(detectors)
+
+    assert "sniff-patterns" not in matrix, matrix
+    assert "largest-files" in matrix, "the other detectors still belong in the matrix"
+
+
 def test_readme_matrix_matches_the_detectors():
     """A hand-edited matrix would claim support the code does not have."""
     detectors, _ = discovery.discover()
