@@ -43,9 +43,9 @@ Only the entries a change tends to land in. Everything else is named for what it
 
 ```
 src/sniff/           the installable package (dist sniff-smells, command sniff)
-  detectors/           one module per built-in metric detector (10)
+  detectors/           one module per built-in metric detector (11)
   patterns/            the rule catalog: rules/, rule-tests/, sgconfig.yml
-  patterns_detector.py the 11th detector, at the package root rather than in detectors/
+  patterns_detector.py the 12th detector, at the package root rather than in detectors/
 skills/              one thin SKILL.md wrapper per detector, plus sniff/ and sniff-create/
 hooks/hooks.json     lifecycle hooks, and the single source for BOTH hosts, since Claude
                      Code and Codex each auto-discover this exact path

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Discover smell detectors: built-in registry modules plus manifest-based ones.
 
-All 11 built-in detectors (complexity, nesting, size, sniff-patterns, etc.) live
+All 12 built-in detectors (complexity, nesting, size, sniff-patterns, etc.) live
 as modules in `sniff.detectors.BUILTIN` and run in-process (see cli.py). No
 built-in is discovered via a manifest any more.
 

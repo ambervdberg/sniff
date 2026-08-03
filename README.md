@@ -36,8 +36,8 @@ uv tool install ast-grep-cli
 
 Both lines are required. The first puts the `sniff` command on PATH via
 [uv](https://docs.astral.sh/uv/); the second installs
-[`ast-grep`](https://ast-grep.github.io), the parser 9 of the 11 detectors run on. Skip
-it and only `largest-files` and `no-duplicate-string` still work; every other detector
+[`ast-grep`](https://ast-grep.github.io), the parser 9 of the 12 detectors run on. Skip
+it and only `largest-files`, `no-duplicate-string`, and `duplicate-code` still work; every other detector
 exits with `error: ast-grep is not installed or not on PATH`. One-time per machine, not
 per repo.
 
@@ -61,7 +61,7 @@ tables.
 
 ```console
 $ sniff .
-sniff: 11 detectors over '.': cognitive-complexity, cyclomatic-complexity, deepest-nesting, ...
+sniff: 12 detectors over '.': cognitive-complexity, cyclomatic-complexity, deepest-nesting, ...
 
 ## cognitive-complexity
 
@@ -226,6 +226,7 @@ each also ships as a thin SKILL.md wrapper so an agent can trigger it by name.
 | `most-parameters`        | Rank functions by parameter count (long-parameter-list smell).                    |
 | `most-imports`           | Rank files by import count (high-coupling smell).                                 |
 | `no-duplicate-string`    | Rank string literals by how many files repeat them (extract-as-constant candidates). |
+| `duplicate-code`         | Rank the largest blocks of copy-pasted code, renames and async twins included (no AST). |
 | `large-inline-templates` | Rank Angular components by inline-template line count.                            |
 | `sniff-patterns`         | Run the pattern rule catalog in one `ast-grep scan` pass; compact findings table. |
 
@@ -461,6 +462,7 @@ scan skips it entirely unless you name it in `--only`.
 | cognitive-complexity | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust |
 | cyclomatic-complexity | yes | yes | yes | yes | c, cpp, csharp, go, java, ruby |
 | deepest-nesting | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust |
+| duplicate-code | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
 | large-classes | yes | yes | yes | yes | - |
 | large-inline-templates | yes | yes | no | no | - |
 | largest-files | yes | yes | yes | yes | c, cpp, csharp, go, java, kotlin, php, ruby, rust, scala, swift |
@@ -486,7 +488,7 @@ Gate PRs on code-smell regressions using the committed baseline:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: ambervdberg/sniff@v0.14.0
+- uses: ambervdberg/sniff@v0.15.0
   with:
     path: .
 ```
