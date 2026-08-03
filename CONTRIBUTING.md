@@ -29,36 +29,20 @@ shell out to the CLI exercise your working tree rather than whatever global
 
 ## Repo layout
 
+Only the entries a change tends to land in. Everything else is named for what it does.
+
 ```
-.claude-plugin/   plugin.json (skills) + marketplace.json
-.codex-plugin/    plugin.json (native Codex plugin manifest)
-.github/workflows/  CI (test matrix, ubuntu + windows) and release (PyPI trusted publishing)
-action.yml        composite GitHub Action; powers the README's CI mode section
-hooks/hooks.json  lifecycle hooks (SessionStart -> sniff prime, Stop -> costly-search nudge);
-                  single source for BOTH hosts, since Claude Code and Codex each
-                  auto-discover this exact path
-assets/           plugin logo + composer icon (the 1024px master is untracked, in docs/)
-evals/            LLM eval harness: cases.jsonl, runner.py (simulated), scorer.py, smoke/ (real-agent)
-LICENSE           MIT
-src/sniff/        installable package (dist sniff-smells, command sniff)
-  cli.py            entry point, argument parsing, subcommands
-  config.py         .sniff.toml config loading
-  discovery.py      built-in + external (.sniff/detectors/) detector discovery
-  contribute.py     `sniff contribute` upstreaming flow
-  harness.py        shared ast-grep integration
-  node_metric.py    per-node scoring (complexity, nesting, ...)
-  rules_testing.py  `sniff test-rules` fixture runner
-  detectors/         one module per built-in metric detector (10)
-  patterns_detector.py  the sniff-patterns rule-catalog detector (11th, at package root)
-  patterns/          rule catalog: rules/, rule-tests/, sgconfig.yml
-skills/           thin SKILL.md wrappers around the sniff CLI, one per detector
-  largest-methods/  large-classes/  largest-files/  deepest-nesting/
-  cyclomatic-complexity/  cognitive-complexity/  most-parameters/  most-imports/
-  no-duplicate-string/  large-inline-templates/  sniff/  sniff-patterns/
-  sniff-create/     scripts/ + templates/, the skill/rule generator
-tests/            pytest suite
-scripts/          bump_version.py and other maintenance scripts
-docs/             design spec
+src/sniff/           the installable package (dist sniff-smells, command sniff)
+  detectors/           one module per built-in metric detector (10)
+  patterns/            the rule catalog: rules/, rule-tests/, sgconfig.yml
+  patterns_detector.py the 11th detector, at the package root rather than in detectors/
+skills/              one thin SKILL.md wrapper per detector, plus sniff/ and sniff-create/
+hooks/hooks.json     lifecycle hooks, and the single source for BOTH hosts, since Claude
+                     Code and Codex each auto-discover this exact path
+.claude-plugin/      plugin.json + marketplace.json (Claude Code)
+.codex-plugin/       plugin.json (Codex)
+action.yml           composite GitHub Action behind the README's CI mode
+evals/               agent-routing eval harness; see Evals below
 ```
 
 The git repo is itself the plugin marketplace for both hosts. Codex reads the native
