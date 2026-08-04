@@ -19,10 +19,12 @@ import textwrap
 import unittest
 from contextlib import redirect_stdout
 
+from conftest import tool_available
+
 from sniff import harness as h
 
-HAS_AST_GREP = shutil.which("ast-grep") is not None
-HAS_GIT = shutil.which("git") is not None
+HAS_AST_GREP = tool_available("ast-grep")
+HAS_GIT = tool_available("git")
 
 
 def _short_path(path: str) -> str:

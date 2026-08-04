@@ -15,10 +15,12 @@ import sys
 import tempfile
 import unittest
 
+from conftest import tool_available
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
 FORMAT = os.path.join(REPO_ROOT, "src", "sniff", "patterns", "format.py")
-HAS_AST_GREP = shutil.which("ast-grep") is not None
+HAS_AST_GREP = tool_available("ast-grep")
 
 # Load format.py as a module (not just a subprocess target) so the pytest-style
 # tests below can call catalog_rules() directly and inspect its return value.

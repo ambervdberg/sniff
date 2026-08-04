@@ -23,7 +23,13 @@ jobs:
       - run: uv sync --locked --extra dev
       - run: uv run sniff doctor
       - run: uv run sniff test-rules
+      # SNIFF_TEST_REQUIRE_TOOLS turns a missing ast-grep or git into a hard
+      # error, so an image without them cannot pass by skipping those suites.
       - run: uv run python -m pytest tests -q
+        env:
+          SNIFF_TEST_REQUIRE_TOOLS: "1"
+      # evals/smoke is left out on purpose: it asserts on gitignored results/ dirs.
+      - run: uv run python -m pytest evals/test_scorer.py -q
   install-smoke:
     runs-on: ubuntu-latest
     steps:

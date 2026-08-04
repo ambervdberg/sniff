@@ -12,9 +12,11 @@ import shutil
 import tempfile
 import unittest
 
+from conftest import tool_available
+
 from sniff import node_metric as nm
 
-HAS_AST_GREP = shutil.which("ast-grep") is not None
+HAS_AST_GREP = tool_available("ast-grep")
 
 
 @unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
