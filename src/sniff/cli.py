@@ -37,7 +37,7 @@ import sys
 import urllib.request
 from dataclasses import dataclass, replace
 
-from sniff import config, contribute, discovery, harness, patterns, rules_testing
+from sniff import config, contribute, discovery, gate, harness, patterns, rules_testing
 
 
 # Flags seen hallucinated in eval runs (gpt-5.4-nano, gpt-5.4-mini, sonnet-4-6).
@@ -518,74 +518,11 @@ def run_prime() -> None:
     print("\n".join(lines))
 
 
-# Patterns detectors use to report a true total in their summary line, tried in
-# order. Falls back to _count_table_rows() when none match (e.g. "No X found").
-# Catches the common totals so a capped table (e.g. "Largest 20 of 262 methods")
-# doesn't mask a regression that grew the true count but not the displayed rows.
-_TOTAL_COUNT_PATTERNS = [
-    re.compile(r"\b\d+\s+of\s+(\d+)\b"),     # "Largest 20 of 262 methods"
-    re.compile(r"\((\d+)\s+found\b"),         # "(71 found; tests excluded)"
-    re.compile(r"\b(\d+)\s+findings?\b"),     # "0 findings across 9 rules"
-]
-
-
-def _count_table_rows(output: str) -> int:
-    """Count markdown table data rows in a detector's output.
-
-    A header row is a non-separator pipe row immediately followed by a
-    `| --- |` separator row; both are skipped. Tracking this per-table (instead
-    of a single global "first row is the header" flag) keeps multi-table output
-    correct: sniff-patterns prints one table per matched rule, and a global flag
-    would count every table-after-the-first's own header as a finding."""
-    lines = [line.strip() for line in output.splitlines()]
-    is_separator = lambda line: bool(re.fullmatch(r"[\s|:-]+", line))
-
-    rows = 0
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        if not line.startswith("|") or not line.endswith("|"):
-            i += 1
-            continue
-        if is_separator(line):
-            i += 1
-            continue
-        if i + 1 < len(lines) and is_separator(lines[i + 1]):
-            i += 2  # header followed by its separator: skip both
-            continue
-        rows += 1
-        i += 1
-    return rows
-
-
-def _count_findings(output: str) -> int:
-    """Best-effort true finding count for one detector's output.
-
-    Tries to read the total straight out of the detector's own summary line
-    (most detectors report it even when their table is capped at top-N);
-    falls back to _count_table_rows() when no recognized pattern matches."""
-    first_line = output.splitlines()[0] if output else ""
-    for pattern in _TOTAL_COUNT_PATTERNS:
-        match = pattern.search(first_line)
-        if match:
-            return int(match.group(1))
-    return _count_table_rows(output)
-
-
-def _scan_counts(detectors: list[discovery.Detector], path: str) -> dict[str, int]:
-    """Run every detector over `path`, return {detector_name: finding_count}."""
-    counts: dict[str, int] = {}
-    for d in detectors:
-        result = run_detector_json(d, path)
-        counts[d.name] = _count_findings(result.get("output") or "")
-    return counts
-
-
 def run_baseline(argv: list[str]) -> int:
-    """`sniff baseline write [DIR]`: scan DIR, save per-detector counts as JSON.
+    """`sniff baseline write [DIR]`: scan DIR, save per-detector fingerprints as JSON.
 
     Saved to <DIR>/.sniff/baseline.json so a later `sniff diff` can compare
-    against it. Returns 0 on success, 1 on a usage or path error."""
+    against it. Returns 0 on success, 1 on a usage, path, or detector error."""
     if not argv or argv[0] != "write":
         print("usage: sniff baseline write [DIR]", file=sys.stderr)
         return 1
@@ -595,27 +532,35 @@ def run_baseline(argv: list[str]) -> int:
         print(f"error: {path!r} is not a directory. Check the path and try again.", file=sys.stderr)
         return 1
 
-    counts = _scan_counts(_discover_with_warnings(path), path)
+    try:
+        fingerprints = gate.scan_fingerprints(_discover_with_warnings(path), path)
+    except gate.DetectorFailure as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    payload = {"version": 2, "path": path, "fingerprints": fingerprints}
 
     baseline_dir = os.path.join(path, ".sniff")
     os.makedirs(baseline_dir, exist_ok=True)
     baseline_path = os.path.join(baseline_dir, "baseline.json")
     with open(baseline_path, "w", encoding="utf-8") as fh:
-        json.dump({"path": path, "counts": counts}, fh, indent=2)
+        json.dump(payload, fh, indent=2)
 
-    print(f"sniff: baseline written to {baseline_path} ({len(counts)} detectors)")
+    print(f"sniff: baseline written to {baseline_path} ({len(fingerprints)} detectors)")
     return 0
 
 
 def run_diff(argv: list[str]) -> int:
-    """`sniff diff [DIR]`: compare a fresh scan of DIR against its saved baseline.
+    """`sniff diff [DIR]`: compare a fresh fingerprint scan of DIR against its baseline.
 
-    Prints a per-detector count delta table. Returns 0 if no detector's count
-    increased (same or better), 1 if any detector regressed (or no baseline
-    exists yet), so the exit code alone answers "did this get worse?".
+    A regression is a fingerprint that is new (absent from the baseline) or whose
+    value increased; fixed or removed fingerprints count as improvements instead.
+    Returns 0 if no detector regressed (same or better), 1 if any detector has a
+    new or worsened fingerprint, so the exit code alone answers "did this get
+    worse?" without adding clean, unrelated growth to the count.
 
-    --comment switches the table to markdown (| DETECTOR | BASELINE | CURRENT |
-    DELTA |) with a bold verdict line, suitable to paste as a PR comment."""
+    --comment switches the table to markdown with a bold verdict line, suitable
+    to paste as a PR comment."""
     comment = "--comment" in argv
     argv = [a for a in argv if a != "--comment"]
     path = argv[0] if argv else "."
@@ -629,35 +574,77 @@ def run_diff(argv: list[str]) -> int:
         return 1
 
     with open(baseline_path, "r", encoding="utf-8") as fh:
-        baseline_counts: dict[str, int] = json.load(fh).get("counts", {})
+        baseline_data = json.load(fh)
 
-    current_counts = _scan_counts(_discover_with_warnings(path), path)
+    if baseline_data.get("version") != 2:
+        print(
+            "error: baseline is in an old format. "
+            f"Run `sniff baseline write {path}` to refresh it.",
+            file=sys.stderr,
+        )
+        return 1
 
-    names = sorted(set(baseline_counts) | set(current_counts))
-    worse = False
+    try:
+        current = gate.scan_fingerprints(_discover_with_warnings(path), path)
+    except gate.DetectorFailure as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    baseline_fps: dict[str, dict[str, int]] = baseline_data.get("fingerprints", {})
+
+    # A fingerprint is a regression when it is new to a detector's set or its
+    # value climbed; the inverse (present in the baseline, gone or lower now)
+    # is an improvement. Comparing on value, not presence alone, is what lets a
+    # repeated duplicate-code block register even though its fingerprint (the
+    # pair of files it spans) does not change between the two scans.
+    regressions: dict[str, list[str]] = {}
+    improvements = 0
+    for name in sorted(set(baseline_fps) | set(current)):
+        before, after = baseline_fps.get(name, {}), current.get(name, {})
+        new = [fp for fp, v in after.items() if v > before.get(fp, 0)]
+        improvements += sum(1 for fp in before if before[fp] > after.get(fp, 0))
+        if new:
+            regressions[name] = sorted(new)
 
     if comment:
-        lines = ["| DETECTOR | BASELINE | CURRENT | DELTA |", "| --- | --- | --- | --- |"]
-        for name in names:
-            before, after = baseline_counts.get(name, 0), current_counts.get(name, 0)
-            delta = after - before
-            worse = worse or delta > 0
-            lines.append(f"| {name} | {before} | {after} | {f'+{delta}' if delta > 0 else delta} |")
-        print("\n".join(lines))
-        print()
-        print("**worse**" if worse else "**same or better**")
-        return 1 if worse else 0
+        return _print_diff_comment(sorted(set(baseline_fps) | set(current)), regressions)
+    return _print_diff_text(regressions, improvements)
 
-    lines = [f"{'DETECTOR':<24} {'BASELINE':>8} {'CURRENT':>8} {'DELTA':>8}"]
+
+def _print_diff_comment(names: list[str], regressions: dict[str, list[str]]) -> int:
+    """Markdown table for `sniff diff --comment`, one row per detector.
+
+    NEW VIOLATIONS lists up to 5 fingerprints per detector, then a `+N more`
+    tally, so a detector with dozens of new violations doesn't blow up a PR
+    comment."""
+    lines = ["| DETECTOR | REGRESSIONS | NEW VIOLATIONS |", "| --- | --- | --- |"]
     for name in names:
-        before, after = baseline_counts.get(name, 0), current_counts.get(name, 0)
-        delta = after - before
-        worse = worse or delta > 0
-        lines.append(f"{name:<24} {before:>8} {after:>8} {(f'+{delta}' if delta > 0 else str(delta)):>8}")
+        new = regressions.get(name, [])
+        shown = ", ".join(new[:5])
+        if len(new) > 5:
+            shown += f", +{len(new) - 5} more"
+        lines.append(f"| {name} | {len(new)} | {shown} |")
     print("\n".join(lines))
     print()
-    print("worse" if worse else "same or better")
-    return 1 if worse else 0
+    print("**worse**" if regressions else "**same or better**")
+    return 1 if regressions else 0
+
+
+def _print_diff_text(regressions: dict[str, list[str]], improvements: int) -> int:
+    """Plain-text `sniff diff` output: regression lines when any exist, the
+    exact `same or better` phrase (CI greps for it) when none do."""
+    if regressions:
+        lines = [f"{'DETECTOR':<24} NEW VIOLATIONS"]
+        for name in sorted(regressions):
+            lines.append(f"{name:<24} {', '.join(regressions[name])}")
+        print("\n".join(lines))
+        print()
+        total_new = sum(len(fps) for fps in regressions.values())
+        print(f"worse: {total_new} new violation(s), {improvements} improvement(s)")
+        return 1
+
+    print(f"same or better ({improvements} improvement(s))" if improvements else "same or better")
+    return 0
 
 
 def _reject_extras(parser: argparse.ArgumentParser, argv: list[str], extras: list[str]) -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -13,6 +14,7 @@ import unittest.mock
 
 from sniff import cli as run_module
 from sniff import discovery
+from sniff import gate
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "..", "src")
@@ -229,87 +231,74 @@ class SniffUpgradeCaveatTest(unittest.TestCase):
 
 
 class SniffBaselineDiffTest(unittest.TestCase):
-    """`sniff baseline write` saves counts; `sniff diff` compares against them."""
+    """`sniff baseline write` saves fingerprints; `sniff diff` compares against them."""
 
     def setUp(self):
-        self.tmp = tempfile.mkdtemp()
-        with open(os.path.join(self.tmp, "a.py"), "w", encoding="utf-8") as fh:
+        self.repo = tempfile.mkdtemp()
+        with open(os.path.join(self.repo, "a.py"), "w", encoding="utf-8") as fh:
             fh.write("def foo(a, b, c, d, e, f, g):\n    pass\n")
 
-    def _run(self, *args: str) -> subprocess.CompletedProcess:
-        return subprocess.run([*RUN, *args], capture_output=True, text=True, env=SUBPROCESS_ENV)
+    def _run(self, *args: str, env: dict | None = None) -> subprocess.CompletedProcess:
+        return subprocess.run([*RUN, *args], capture_output=True, text=True, env=env or SUBPROCESS_ENV)
 
-    def test_baseline_write_saves_json_file(self):
-        proc = self._run("baseline", "write", self.tmp)
+    def _path_without_astgrep(self) -> str:
+        """PATH with every directory containing an `ast-grep` executable removed."""
+        dirs = os.environ.get("PATH", "").split(os.pathsep)
+        return os.pathsep.join(d for d in dirs if not shutil.which("ast-grep", path=d))
+
+    def test_baseline_write_saves_v2_fingerprints(self):
+        proc = self._run("baseline", "write", self.repo)
         self.assertEqual(proc.returncode, 0)
-        baseline_path = os.path.join(self.tmp, ".sniff", "baseline.json")
-        self.assertTrue(os.path.isfile(baseline_path))
-        with open(baseline_path, encoding="utf-8") as fh:
+        with open(os.path.join(self.repo, ".sniff", "baseline.json")) as fh:
             data = json.load(fh)
-        self.assertIn("most-parameters", data["counts"])
+        self.assertEqual(data["version"], 2)
+        self.assertIn("most-parameters", data["fingerprints"])
 
-    def test_diff_without_baseline_errors(self):
-        proc = self._run("diff", self.tmp)
-        self.assertEqual(proc.returncode, 1)
-        self.assertIn("no baseline", proc.stderr)
-
-    def test_diff_reports_same_or_better_when_unchanged(self):
-        self._run("baseline", "write", self.tmp)
-        proc = self._run("diff", self.tmp)
+    def test_diff_clean_growth_is_not_a_regression(self):
+        # THE core fix: adding a small clean function must not trip the gate.
+        self._run("baseline", "write", self.repo)
+        with open(os.path.join(self.repo, "extra.py"), "w") as fh:
+            fh.write("def tiny(a, b):\n    return a + b\n")
+        proc = self._run("diff", self.repo)
         self.assertEqual(proc.returncode, 0)
         self.assertIn("same or better", proc.stdout)
 
-    def test_diff_detects_regression(self):
-        self._run("baseline", "write", self.tmp)
-        with open(os.path.join(self.tmp, "a.py"), "a", encoding="utf-8") as fh:
-            fh.write("\ndef bar(a, b, c, d, e, f, g, h):\n    pass\n")
-        proc = self._run("diff", self.tmp)
+    def test_diff_detects_new_violation(self):
+        self._run("baseline", "write", self.repo)
+        with open(os.path.join(self.repo, "extra.py"), "w") as fh:
+            fh.write("def wide(a, b, c, d, e, f, g, h):\n    return a\n")
+        proc = self._run("diff", self.repo)
         self.assertEqual(proc.returncode, 1)
-        self.assertIn("worse", proc.stdout)
-        self.assertIn("+1", proc.stdout)
+        self.assertIn("extra.py|wide", proc.stdout)
+
+    def test_diff_rejects_v1_baseline(self):
+        self._run("baseline", "write", self.repo)
+        path = os.path.join(self.repo, ".sniff", "baseline.json")
+        with open(path, "w") as fh:
+            json.dump({"path": ".", "counts": {"most-parameters": 3}}, fh)
+        proc = self._run("diff", self.repo)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("old format", proc.stderr)
+
+    def test_diff_fails_when_detector_errors(self):
+        # Point the gate at a detector that cannot run: strip ast-grep from
+        # PATH so ast-grep-backed detectors error. Exit must be 1, output
+        # must name the failure, and must NOT say "same or better".
+        self._run("baseline", "write", self.repo)
+        env = {**SUBPROCESS_ENV, "PATH": self._path_without_astgrep()}
+        proc = self._run("diff", self.repo, env=env)
+        self.assertEqual(proc.returncode, 1)
+        self.assertNotIn("same or better", proc.stdout + proc.stderr)
 
 
 def test_diff_comment_renders_markdown(tmp_path, capsys, monkeypatch):
     (tmp_path / ".sniff").mkdir()
-    (tmp_path / ".sniff" / "baseline.json").write_text('{"counts": {"x": 1}}', encoding="utf-8")
-    monkeypatch.setattr(run_module, "_scan_counts", lambda dets, path: {"x": 3})
+    baseline = {"version": 2, "path": ".", "fingerprints": {"x": {"a.py|foo": 1}}}
+    (tmp_path / ".sniff" / "baseline.json").write_text(json.dumps(baseline), encoding="utf-8")
+    monkeypatch.setattr(gate, "scan_fingerprints", lambda dets, path: {"x": {"a.py|foo": 1, "a.py|bar": 2}})
     rc = run_module.run_diff(["--comment", str(tmp_path)])
     out = capsys.readouterr().out
-    assert rc == 1 and "| DETECTOR |" in out and "**worse**" in out and "+2" in out
-
-
-class CountFindingsTest(unittest.TestCase):
-    """_count_table_rows handles multiple tables; _count_findings reads the true
-    total from a detector's summary line instead of a possibly-capped table."""
-
-    def test_count_table_rows_does_not_double_count_multiple_tables(self):
-        # sniff-patterns prints one "| LOCATION |" table per matched rule; a
-        # global "first row is the header" flag would miscount the second
-        # table's own header as a finding (3 true rows, would read as 4).
-        output = (
-            "### ruleA (warning): 2\n\n"
-            "| LOCATION |\n| --- |\n| loc1 |\n| loc2 |\n\n"
-            "### ruleB (error): 1\n\n"
-            "| LOCATION |\n| --- |\n| loc3 |\n"
-        )
-        self.assertEqual(run_module._count_table_rows(output), 3)
-
-    def test_count_findings_reads_true_total_from_capped_table(self):
-        # "Largest 20 of 262" — the table only shows 20 rows but the true
-        # count is 262; a capped table must not mask a real regression.
-        output = "Largest 20 of 262 methods/functions (python; tests excluded):\n"
-        self.assertEqual(run_module._count_findings(output), 262)
-
-    def test_count_findings_reads_sniff_patterns_total(self):
-        output = "sniff-patterns: 5 findings across 9 rules in '.'\n"
-        self.assertEqual(run_module._count_findings(output), 5)
-
-    def test_count_findings_reads_duplicate_string_total(self):
-        output = "Strings duplicated in 3+ distinct files (71 found; tests excluded):\n"
-        self.assertEqual(run_module._count_findings(output), 71)
-
-    def test_count_findings_falls_back_to_zero_for_no_matches(self):
-        self.assertEqual(run_module._count_findings("No classes matched.\n"), 0)
+    assert rc == 1 and "| DETECTOR |" in out and "**worse**" in out and "a.py|bar" in out
 
 
 class ConfigIgnoreGlobsTest(unittest.TestCase):
