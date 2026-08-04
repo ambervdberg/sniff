@@ -26,6 +26,7 @@ fingerprint. Flattening each to 1 would let the second one arrive for free.
 
 from __future__ import annotations
 
+import os
 from collections import Counter
 
 from sniff import execution, harness
@@ -51,15 +52,22 @@ class DetectorFailure(Exception):
     """A detector errored during a gated scan; the gate must not pass."""
 
 
-def fingerprint_findings(detector_name: str, findings: list[dict]) -> dict[str, int]:
+def fingerprint_findings(
+    detector_name: str, findings: list[dict], scan_root: str = "."
+) -> dict[str, int]:
     """Sink entries -> {fingerprint: value}, keeping only gate violations.
 
     A detector with a gate threshold is measured: its value is the worst finding
     on that fingerprint. A detector without one is counted: every finding it
     reports is already a violation, so its value is how many of them there are
-    (see the module docstring on why counting, not flattening to 1)."""
+    (see the module docstring on why counting, not flattening to 1).
+
+    `scan_root` is the directory the caller scanned (`sniff baseline write DIR`
+    or `sniff diff DIR`); every fingerprint is built relative to it so the same
+    repo scanned under two different spellings of that path (`.` vs its
+    absolute form) produces the same fingerprints. See `_relative_file`."""
     if detector_name not in GATE_THRESHOLDS:
-        return dict(Counter(_fingerprint_of(f, detector_name) for f in findings))
+        return dict(Counter(_fingerprint_of(f, detector_name, scan_root) for f in findings))
 
     metric, floor = GATE_THRESHOLDS[detector_name]
 
@@ -72,7 +80,7 @@ def fingerprint_findings(detector_name: str, findings: list[dict]) -> dict[str, 
         # The worst value wins: two findings can share a fingerprint (an
         # overloaded method, a name resolved from a line that repeats), and a
         # gate must not be talked down by the milder of the two.
-        key = _fingerprint_of(finding, detector_name)
+        key = _fingerprint_of(finding, detector_name, scan_root)
         fingerprints[key] = max(value, fingerprints.get(key, 0))
 
     return fingerprints
@@ -87,16 +95,43 @@ def _value_of(finding: dict, metric: str) -> int:
     return int(raw)
 
 
-def _fingerprint_of(finding: dict, detector_name: str) -> str:
+def _fingerprint_of(finding: dict, detector_name: str, scan_root: str) -> str:
     """The finding's line-free identity: the file, plus the entity inside it.
 
     sniff-patterns is keyed by the rule instead of the entity, since a pattern
     hit names a rule, not a definition."""
+    file = _relative_file(finding["file"], scan_root)
     if detector_name == "sniff-patterns":
-        return f"{finding['metrics']['rule']}|{finding['file']}"
+        return f"{finding['metrics']['rule']}|{file}"
     if detector_name in _FILE_LEVEL:
-        return finding["file"]
-    return f"{finding['file']}|{finding['name']}"
+        return file
+    return f"{file}|{finding['name']}"
+
+
+def _relative_file(file: str, scan_root: str) -> str:
+    """A finding's file path, made portable: relative to `scan_root`, forward
+    slashes only.
+
+    A detector reports `file` exactly as the command-line path was spelled
+    (`.`, an absolute path, some other relative prefix), so the raw value is
+    not stable across two scans of the same directory spelled two different
+    ways. duplicate-code's fingerprint is the one exception worth naming: a
+    clone group spans several files, joined with `+` (see `_sink_row_file`),
+    so each side of the join is normalized on its own."""
+    return "+".join(_relative_single_file(part, scan_root) for part in file.split("+"))
+
+
+def _relative_single_file(file: str, scan_root: str) -> str:
+    """One path, made portable relative to `scan_root`.
+
+    Resolving both `file` and `scan_root` to absolute paths first (via
+    `os.path.abspath`, which does not touch the filesystem) makes the
+    subtraction agree regardless of spelling, as long as both scans ran from
+    the same working directory, which every `sniff` invocation does."""
+    absolute_file = os.path.abspath(file)
+    absolute_root = os.path.abspath(scan_root)
+    relative = os.path.relpath(absolute_file, absolute_root)
+    return relative.replace("\\", "/")
 
 
 def _is_builtin(detector) -> bool:
@@ -124,7 +159,7 @@ def scan_fingerprints(detectors, path: str) -> dict[str, dict[str, int]]:
         if not _is_builtin(detector):
             continue  # external subprocess detectors have no sink; not gated
         findings = _collect(detector, path)
-        results[detector.name] = fingerprint_findings(detector.name, findings)
+        results[detector.name] = fingerprint_findings(detector.name, findings, path)
 
     return results
 

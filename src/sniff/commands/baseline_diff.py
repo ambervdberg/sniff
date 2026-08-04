@@ -38,7 +38,7 @@ def run_baseline(argv: list[str]) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    payload = {"version": 2, "path": path, "fingerprints": fingerprints}
+    payload = {"version": 3, "path": path, "fingerprints": fingerprints}
 
     baseline_dir = os.path.join(path, ".sniff")
     os.makedirs(baseline_dir, exist_ok=True)
@@ -76,7 +76,7 @@ def run_diff(argv: list[str]) -> int:
     with open(baseline_path, "r", encoding="utf-8") as fh:
         baseline_data = json.load(fh)
 
-    if baseline_data.get("version") != 2:
+    if baseline_data.get("version") != 3:
         print(
             "error: baseline is in an old format. "
             f"Run `sniff baseline write {path}` to refresh it.",

@@ -614,8 +614,14 @@ def main(argv: "list[str] | None" = None) -> int:
         if args.top_locs <= 0 or len(entry["locs"]) < args.top_locs:
             entry["locs"].append(f"{_rel(m['file'], args.path)}:{line}")
         if h.FINDINGS_SINK is not None:
+            # Raw `m['file']`, not the display-relativized path above: the
+            # gate fingerprints on the raw file field for every detector, and
+            # is itself responsible for making that portable across scan-root
+            # spellings (see gate._relative_file). Pre-relativizing here would
+            # double-normalize it against a base (args.path) that gate.py
+            # cannot see.
             h.FINDINGS_SINK.append({
-                "file": _rel(m["file"], args.path),
+                "file": m["file"],
                 "line": line,
                 "name": rule_id,
                 "metrics": {"rule": rule_id, "severity": sev},

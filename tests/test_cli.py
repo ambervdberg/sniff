@@ -300,15 +300,19 @@ class SniffBaselineDiffTest(unittest.TestCase):
         with open(os.path.join(self.repo, "a.py"), "w", encoding="utf-8") as fh:
             fh.write("def foo(a, b, c, d, e, f, g):\n    pass\n")
 
-    def _run(self, *args: str, env: dict | None = None) -> subprocess.CompletedProcess:
-        return subprocess.run([*RUN, *args], capture_output=True, text=True, env=env or SUBPROCESS_ENV)
+    def _run(
+        self, *args: str, env: dict | None = None, cwd: str | None = None
+    ) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [*RUN, *args], capture_output=True, text=True, env=env or SUBPROCESS_ENV, cwd=cwd
+        )
 
-    def test_baseline_write_saves_v2_fingerprints(self):
+    def test_baseline_write_saves_v3_fingerprints(self):
         proc = self._run("baseline", "write", self.repo)
         self.assertEqual(proc.returncode, 0)
         with open(os.path.join(self.repo, ".sniff", "baseline.json")) as fh:
             data = json.load(fh)
-        self.assertEqual(data["version"], 2)
+        self.assertEqual(data["version"], 3)
         self.assertIn("most-parameters", data["fingerprints"])
 
     def test_diff_without_baseline_errors(self):
@@ -341,6 +345,32 @@ class SniffBaselineDiffTest(unittest.TestCase):
         proc = self._run("diff", self.repo)
         self.assertEqual(proc.returncode, 1)
         self.assertIn("old format", proc.stderr)
+
+    def test_diff_rejects_v2_baseline(self):
+        # v2 fingerprinted the raw, command-line-spelling-dependent file path
+        # (sniff-6yh); any baseline written before the v3 portability fix must
+        # be refreshed, not silently trusted.
+        self._run("baseline", "write", self.repo)
+        path = os.path.join(self.repo, ".sniff", "baseline.json")
+        with open(path) as fh:
+            data = json.load(fh)
+        data["version"] = 2
+        with open(path, "w") as fh:
+            json.dump(data, fh)
+        proc = self._run("diff", self.repo)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("old format", proc.stderr)
+
+    def test_diff_is_stable_across_path_spellings(self):
+        # sniff-6yh: a baseline written with the relative spelling '.' (what
+        # action.yml defaults to) must still match a diff run with the
+        # absolute path to that same, unchanged directory. Before the fix,
+        # fingerprints embedded the command-line spelling verbatim, so this
+        # reported false regressions and improvements on a clean repo.
+        self._run("baseline", "write", ".", cwd=self.repo)
+        proc = self._run("diff", os.path.abspath(self.repo))
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("same or better", proc.stdout)
 
     def test_diff_fails_when_detector_errors(self):
         # Point the gate at a detector that cannot run: strip ast-grep from
@@ -384,7 +414,7 @@ class SniffBaselineDiffTest(unittest.TestCase):
 
 def test_diff_comment_renders_markdown(tmp_path, capsys, monkeypatch):
     (tmp_path / ".sniff").mkdir()
-    baseline = {"version": 2, "path": ".", "fingerprints": {"x": {"a.py|foo": 1}}}
+    baseline = {"version": 3, "path": ".", "fingerprints": {"x": {"a.py|foo": 1}}}
     (tmp_path / ".sniff" / "baseline.json").write_text(json.dumps(baseline), encoding="utf-8")
     monkeypatch.setattr(gate, "scan_fingerprints", lambda dets, path: {"x": {"a.py|foo": 1, "a.py|bar": 2}})
     rc = run_module.run_diff(["--comment", str(tmp_path)])

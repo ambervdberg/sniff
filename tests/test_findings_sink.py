@@ -103,6 +103,10 @@ class PatternsSinkTest(unittest.TestCase):
             self.assertIn("py-print-statement", rules)
             hit = next(f for f in harness.FINDINGS_SINK
                        if f["metrics"]["rule"] == "py-print-statement")
-            self.assertEqual(hit["file"], "app.py")
+            # Raw, root-prefixed, like every other detector's sink entry: the
+            # gate is the single place that relativizes to the scan root (see
+            # gate._relative_file), not the detector itself. ast-grep's raw
+            # path uses the platform's own separators, hence normpath here.
+            self.assertEqual(os.path.normpath(hit["file"]), os.path.normpath(os.path.join(tmp, "app.py")))
             self.assertEqual(hit["line"], 1)
             self.assertEqual(hit["name"], "py-print-statement")
