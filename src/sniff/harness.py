@@ -186,6 +186,15 @@ def _extra_ignore_patterns(extra_ignores: "list[str] | None" = None) -> list[str
     return [p.strip() for p in raw.split(",") if p.strip()]
 
 
+def _matches_extra_ignore(rel: str, patterns: "list[str]") -> bool:
+    """True if a scan-root-relative, forward-slashed path matches any extra-ignore glob.
+
+    Shared by `_in_ignored_dir` here and by `sniff.patterns.paths._matches_extra_ignore`,
+    so both engines resolve `.sniff.toml`'s `[ignore] globs` against the same rule
+    instead of maintaining two copies of the same fnmatch loop."""
+    return any(fnmatch.fnmatch(rel, pat) for pat in patterns)
+
+
 def _run_git(root: str, args: "list[str]") -> "str | None":
     """stdout of `git -C <root> <args>`, or None when git cannot answer.
 
@@ -372,9 +381,7 @@ def _in_ignored_dir(
     if any(seg in IGNORE_DIRS for seg in norm.split("/")):
         return True
     patterns = _extra_ignore_patterns(extra_ignores)
-    if not patterns:
-        return False
-    return any(fnmatch.fnmatch(norm, pat) for pat in patterns)
+    return _matches_extra_ignore(norm, patterns)
 
 
 def detect_languages(root: str, extra_ignores: "list[str] | None" = None) -> set[str]:

@@ -9,7 +9,6 @@ without importing each other.
 
 from __future__ import annotations
 
-import fnmatch
 import os
 import re
 
@@ -47,18 +46,12 @@ def _in_ignored_dir(path: str, root: "str | None" = None) -> bool:
     return any(seg in IGNORE_DIRS for seg in re.split(r"[\\/]", scoped))
 
 
-def _extra_ignore_patterns(extra_ignores: "list[str] | None" = None) -> list[str]:
-    """Glob patterns to exclude on top of the fixed vendored-dir list.
-
-    `extra_ignores` is the parsed `--extra-ignore` args cli.py folds in from
-    `.sniff.toml`'s `[ignore] globs = "..."`; when given (even empty), it wins.
-    Only when it is absent (None) does this fall back to the SNIFF_EXTRA_IGNORE
-    env var, which cli.py sets around subprocess/external detectors. Mirrors
-    harness._extra_ignore_patterns so both engines resolve ignores identically."""
-    if extra_ignores is not None:
-        return [p.strip() for p in extra_ignores if p.strip()]
-    raw = os.environ.get("SNIFF_EXTRA_IGNORE", "")
-    return [p.strip() for p in raw.split(",") if p.strip()]
+# Taken from the harness rather than copied, same reasoning as IGNORE_DIRS above:
+# both engines must resolve `.sniff.toml`'s `[ignore] globs` (and the
+# SNIFF_EXTRA_IGNORE env var cli.py sets around subprocess/external detectors)
+# identically, so there is exactly one place that decides what "extra ignore"
+# means.
+_extra_ignore_patterns = h._extra_ignore_patterns
 
 
 def _matches_extra_ignore(path: str, root: str, patterns: list[str]) -> bool:
@@ -66,8 +59,9 @@ def _matches_extra_ignore(path: str, root: str, patterns: list[str]) -> bool:
 
     Extends _in_ignored_dir's hardcoded vendored-dir list rather than replacing
     it, so both the fixed ignore list and a consumer's own .sniff.toml globs
-    apply together."""
+    apply together. The actual glob loop lives in harness._matches_extra_ignore
+    so both engines match a `.sniff.toml` glob the same way."""
     if not patterns:
         return False
     rel = _rel(path, root)
-    return any(fnmatch.fnmatch(rel, pat) for pat in patterns)
+    return h._matches_extra_ignore(rel, patterns)
