@@ -15,6 +15,7 @@ import os
 import sys
 
 from sniff import gate
+from sniff.commands.scan import _discover_with_warnings
 
 
 def run_baseline(argv: list[str]) -> int:
@@ -31,12 +32,8 @@ def run_baseline(argv: list[str]) -> int:
         print(f"error: {path!r} is not a directory. Check the path and try again.", file=sys.stderr)
         return 1
 
-    # Local import; sniff.cli is where detector discovery-with-warnings lives
-    # (sniff.commands.scan), and cli imports this module for its shim, so
-    # importing at call time avoids a load-order cycle between the two.
-    from sniff import cli
     try:
-        fingerprints = gate.scan_fingerprints(cli._discover_with_warnings(path), path)
+        fingerprints = gate.scan_fingerprints(_discover_with_warnings(path), path)
     except gate.DetectorFailure as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -87,10 +84,8 @@ def run_diff(argv: list[str]) -> int:
         )
         return 1
 
-    # Local import; see the matching comment in run_baseline above.
-    from sniff import cli
     try:
-        current = gate.scan_fingerprints(cli._discover_with_warnings(path), path)
+        current = gate.scan_fingerprints(_discover_with_warnings(path), path)
     except gate.DetectorFailure as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
