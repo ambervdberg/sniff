@@ -31,11 +31,15 @@ PYPROJECT = os.path.join(PLUGIN_ROOT, "pyproject.toml")
 NEVER_PUBLISH = (".beads", ".claude", ".superpowers", ".vscode", ".github", "evals")
 
 
+def _build_targets() -> dict:
+    """The [tool.hatch.build.targets] table, keyed by target name."""
+    with open(PYPROJECT, "rb") as fh:
+        return tomllib.load(fh)["tool"]["hatch"]["build"]["targets"]
+
+
 class SdistAllowlistTest(unittest.TestCase):
     def setUp(self):
-        with open(PYPROJECT, "rb") as fh:
-            config = tomllib.load(fh)
-        self.include = config["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
+        self.include = _build_targets()["sdist"]["include"]
 
     def test_allowlist_is_declared(self):
         self.assertTrue(self.include)
@@ -47,3 +51,16 @@ class SdistAllowlistTest(unittest.TestCase):
     def test_no_local_tool_directory_is_allowlisted(self):
         for pattern in self.include:
             self.assertNotIn(pattern.lstrip("/").split("/")[0], NEVER_PUBLISH)
+
+
+class RuleTestExclusionTest(unittest.TestCase):
+    """The pattern rule-tests are catalog fixtures, not shipped code.
+
+    The wheel already drops them, but the sdist allowlist includes all of /src,
+    which sweeps them back in unless the sdist excludes them explicitly.
+    """
+
+    def test_rule_tests_are_excluded_from_both_build_targets(self):
+        targets = _build_targets()
+        self.assertIn("/src/sniff/patterns/rule-tests", targets["sdist"].get("exclude", []))
+        self.assertIn("src/sniff/patterns/rule-tests", targets["wheel"].get("exclude", []))

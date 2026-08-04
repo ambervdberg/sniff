@@ -35,3 +35,5 @@ include = [
   "/CHANGELOG.md",
   "/LICENSE",
 ]
+# /src sweeps in the pattern rule-tests; they are catalog fixtures, not shipped code.
+exclude = ["/src/sniff/patterns/rule-tests"]
