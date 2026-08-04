@@ -372,6 +372,45 @@ class SniffBaselineDiffTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("same or better", proc.stdout)
 
+    def test_baseline_write_honours_sniff_toml_detector_skip(self):
+        # sniff-ewd: `[detectors] skip` must remove that detector from the
+        # gate the same way it removes it from a normal scan.
+        with open(os.path.join(self.repo, ".sniff.toml"), "w", encoding="utf-8") as fh:
+            fh.write("[detectors]\nskip = \"most-parameters\"\n")
+        proc = self._run("baseline", "write", self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(self.repo, ".sniff", "baseline.json")) as fh:
+            data = json.load(fh)
+        self.assertNotIn("most-parameters", data["fingerprints"])
+
+    def test_diff_honours_sniff_toml_disabled_rule(self):
+        # sniff-ewd: `[rules] <id> = false` must silence that sniff-patterns
+        # rule in the gate too, not just in a normal scan.
+        with open(os.path.join(self.repo, ".sniff.toml"), "w", encoding="utf-8") as fh:
+            fh.write('[rules]\nno-explicit-any = false\n')
+        with open(os.path.join(self.repo, "loose.ts"), "w", encoding="utf-8") as fh:
+            fh.write("let x: any = 1;\n")
+        self._run("baseline", "write", self.repo)
+        with open(os.path.join(self.repo, ".sniff", "baseline.json")) as fh:
+            data = json.load(fh)
+        rule_fps = data["fingerprints"].get("sniff-patterns", {})
+        self.assertFalse(any(fp.startswith("no-explicit-any|") for fp in rule_fps), rule_fps)
+
+    def test_diff_honours_sniff_toml_ignore_globs(self):
+        # sniff-ewd: `[ignore] globs` must exclude matching files from the
+        # gate's fingerprint scan, the same as it does for a normal scan.
+        with open(os.path.join(self.repo, ".sniff.toml"), "w", encoding="utf-8") as fh:
+            fh.write('[ignore]\nglobs = "generated/**"\n')
+        generated_dir = os.path.join(self.repo, "generated")
+        os.makedirs(generated_dir, exist_ok=True)
+        with open(os.path.join(generated_dir, "wide.py"), "w", encoding="utf-8") as fh:
+            fh.write("def wide(a, b, c, d, e, f, g, h):\n    return a\n")
+        self._run("baseline", "write", self.repo)
+        with open(os.path.join(self.repo, ".sniff", "baseline.json")) as fh:
+            data = json.load(fh)
+        params_fps = data["fingerprints"].get("most-parameters", {})
+        self.assertFalse(any("generated" in fp for fp in params_fps), params_fps)
+
     def test_diff_fails_when_detector_errors(self):
         # Point the gate at a detector that cannot run: strip ast-grep from
         # PATH so ast-grep-backed detectors error. Exit must be 1, output

@@ -14,8 +14,26 @@ import json
 import os
 import sys
 
-from sniff import gate
-from sniff.commands.scan import _discover_with_warnings
+from sniff import config, gate, harness
+from sniff.commands.scan import _discover_with_warnings, _readable_here, apply_config_to_detector, select_with_config
+
+
+def _configured_detectors(path: str) -> list:
+    """Discovered detectors, narrowed and configured exactly as a normal scan does.
+
+    `sniff baseline write` and `sniff diff` must gate on what `.sniff.toml`
+    actually leaves in a scan, not on the raw discovered set: a repo that
+    disabled a detector (`[detectors] skip`), a rule (`[rules] <id> = false`),
+    or a path (`[ignore] globs`) expects the gate to honour that too. This
+    mirrors cli.py's `main()` wiring (config load, select_with_config,
+    _readable_here, apply_config_to_detector) so both paths see the same
+    detector list a plain `sniff PATH` run would."""
+    cfg = config.load(path)
+    detectors = _discover_with_warnings(path)
+    selected, _unknown = select_with_config(detectors, set(), set(), cfg)
+    present = harness.detect_languages(path, cfg.extra_ignores)
+    selected = _readable_here(selected, present, set())
+    return [apply_config_to_detector(d, cfg) for d in selected]
 
 
 def run_baseline(argv: list[str]) -> int:
@@ -33,7 +51,7 @@ def run_baseline(argv: list[str]) -> int:
         return 1
 
     try:
-        fingerprints = gate.scan_fingerprints(_discover_with_warnings(path), path)
+        fingerprints = gate.scan_fingerprints(_configured_detectors(path), path)
     except gate.DetectorFailure as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -85,7 +103,7 @@ def run_diff(argv: list[str]) -> int:
         return 1
 
     try:
-        current = gate.scan_fingerprints(_discover_with_warnings(path), path)
+        current = gate.scan_fingerprints(_configured_detectors(path), path)
     except gate.DetectorFailure as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
