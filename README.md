@@ -74,7 +74,7 @@ Hardest to read: 10 of 412 functions by cognitive complexity (typescript; tests 
 
 ## sniff-patterns
 
-sniff-patterns: 23 findings, 4 of 16 rules matched in '.' (tests excluded)
+sniff-patterns: 23 findings, 4 of 22 rules matched in '.' (tests excluded)
 
 ### no-empty-catch (error): 2
 
@@ -166,7 +166,7 @@ toward.
 
 Full methodology, the per-question cost table, accuracy scoring, what sniff
 misses compared to an unaided read, and the caveats that come with a single-run
-measurement: [docs/benchmark.md](docs/benchmark.md).
+measurement: [docs/benchmark.md](https://github.com/ambervdberg/sniff/blob/main/docs/benchmark.md).
 
 ## Detectors vs pattern rules
 
@@ -299,7 +299,7 @@ warning.
 
 Want to contribute the rule to the global catalog? `sniff contribute <rule-id>` moves it upstream
 into this catalog; see
-[CONTRIBUTING.md](CONTRIBUTING.md#promoting-a-local-rule-from-a-project-that-uses-sniff)
+[CONTRIBUTING.md](https://github.com/ambervdberg/sniff/blob/main/CONTRIBUTING.md#promoting-a-local-rule-from-a-project-that-uses-sniff)
 for the fixtures it expects and the two backends it can use.
 
 ## Commands
@@ -335,8 +335,9 @@ The first two are the [CI mode](#ci-mode) pair; the third is covered under
 `sniff doctor` and `sniff diff` exit 1 on failure, so both can gate a
 build.
 
-A plain `sniff [DIR]` exits 0, findings or not: it reports, it does not judge.
-(The only exception: a `DIR` that does not exist exits 1.) Use `sniff diff` for the gate.
+A plain `sniff [DIR]` exits 0 however many findings it reports: it reports, it does not
+judge. It exits 1 only when the scan itself could not be trusted, meaning a `DIR` that
+does not exist or a detector that failed to run. Use `sniff diff` for the gate.
 
 ### Passing flags to one detector
 
@@ -365,7 +366,8 @@ it. Vendored/build directories and anything `.gitignore` excludes are skipped by
 and every detector skips test code unless you pass `--include-tests`.
 
 Full `.sniff.toml` syntax, the default skip list, and how to add local pattern rules or
-external detectors without forking sniff: [docs/configuration.md](docs/configuration.md).
+external detectors without forking sniff:
+[docs/configuration.md](https://github.com/ambervdberg/sniff/blob/main/docs/configuration.md).
 
 ## Language support
 
@@ -416,7 +418,7 @@ fails the job on any regression.
 ```
 
 The `--comment` output shape, and how to accept a regression deliberately:
-[docs/ci.md](docs/ci.md).
+[docs/ci.md](https://github.com/ambervdberg/sniff/blob/main/docs/ci.md).
 
 ## Hooks
 
@@ -449,9 +451,9 @@ Too chatty? Raise `SNIFF_MIN_CALLS`, or set `SNIFF_CREATE_NUDGE=0` to turn it of
 ## Contributing
 
 Bugs and ideas go to the [issue tracker](https://github.com/ambervdberg/sniff/issues).
-For code, [CONTRIBUTING.md](CONTRIBUTING.md) covers adding pattern rules and detectors,
-running the tests, and promoting a rule you wrote in your own project into the shared
-catalog.
+For code, [CONTRIBUTING.md](https://github.com/ambervdberg/sniff/blob/main/CONTRIBUTING.md)
+covers adding pattern rules and detectors, running the tests, and promoting a rule you
+wrote in your own project into the shared catalog.
 
 ## License
 

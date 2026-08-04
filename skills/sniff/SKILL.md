@@ -112,6 +112,8 @@ Exact names (case-sensitive) for use with `--only` / `--skip`:
 | `most-parameters` | Functions with most parameters |
 | `most-imports` | Files with most imports |
 | `no-duplicate-string` | Duplicate string literals |
+| `duplicate-code` | Copy-pasted blocks of code |
+| `self-admitted-debt` | TODO/FIXME/HACK/XXX markers in comments |
 | `sniff-patterns` | Pattern rule catalog (ast-grep rules) |
 | `large-inline-templates` | Oversized Angular inline templates |
 

@@ -115,14 +115,23 @@ def run_prime() -> None:
     lines.append("  [languages] is what that detector can read; sniff skips the rest.")
     lines.append("")
 
+    # Every user-facing subcommand belongs here, gate included: an agent that
+    # never sees `baseline`/`diff` in this block never learns sniff can gate a
+    # build. tests/test_cli.py holds the two lists together.
     lines.append("COMMON COMMANDS")
-    lines.append("  sniff [DIR]                       run all detectors")
+    lines.append("  sniff [DIR]                        run all detectors")
     lines.append("  sniff --only <name>[,<name>] [DIR] run specific detectors (see DETECTORS above)")
-    lines.append("  sniff --list                      list detectors as a markdown table")
+    lines.append("  sniff --skip <name>[,<name>] [DIR] run every detector except those")
+    lines.append("  sniff --all [DIR]                  explicit alias for the default full run")
+    lines.append("  sniff --list                       list detectors as a markdown table")
     lines.append("  sniff --list-patterns              list sniff-patterns rule catalog")
     lines.append("  sniff --json [DIR]                 machine-readable scan output")
     lines.append("  sniff --ignore <glob> [DIR]        exclude paths (repeatable; adds to .sniff.toml)")
+    lines.append("  sniff baseline write [DIR]         save finding fingerprints to .sniff/baseline.json")
+    lines.append("  sniff diff [DIR]                   re-scan against that baseline; exit 1 on regression")
+    lines.append("  sniff contribute <rule-id>         send a local pattern rule upstream")
     lines.append("  sniff doctor                       check prerequisites, exit 0/1")
+    lines.append("  sniff prime                        print this context block; never scans")
     lines.append("  sniff version                      print installed version")
     lines.append("")
 

@@ -6,6 +6,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -178,6 +179,24 @@ class SniffPrimeCommandTest(unittest.TestCase):
         self.assertIn("CAVEATS", proc.stdout)
         # No scan output (per-detector "## name" markdown sections) should appear.
         self.assertNotIn("## sniff-patterns", proc.stdout)
+
+    def test_prime_names_every_user_facing_subcommand(self):
+        """The COMMON COMMANDS block is the only place an agent learns what sniff
+        can do, so a subcommand missing from it is invisible in practice. Read the
+        names off the dispatcher rather than restating them, or this guard drifts
+        the same way the block it guards did.
+
+        `test-rules` is the one exception: it only ever works from a source
+        checkout and is deliberately kept out of user-facing help."""
+        with open(run_module.__file__, encoding="utf-8") as fh:
+            source = fh.read()
+        dispatched = set(re.findall(r'argv\[:1\] == \["([\w-]+)"\]', source))
+        self.assertIn("diff", dispatched, "dispatcher shape changed; this guard reads nothing")
+
+        proc = subprocess.run([*RUN, "prime"], capture_output=True, text=True, env=SUBPROCESS_ENV)
+        missing = [name for name in sorted(dispatched - {"test-rules"})
+                   if f"sniff {name}" not in proc.stdout]
+        self.assertEqual(missing, [])
 
 
 class SniffUpgradeCaveatTest(unittest.TestCase):
