@@ -2,9 +2,9 @@
 
 Turns `main()`'s parsed CLI flags plus `.sniff.toml` into the final detector
 list for a run: `select_with_config` narrows the discovered detectors by
---only/--skip and config, `_readable_here` drops anything that can't read
+--only/--skip and config, `readable_here` drops anything that can't read
 this repo's languages, and `apply_config_to_detector` folds per-detector
-config overrides into each survivor's args. `_run_selected` then executes
+config overrides into each survivor's args. `run_selected` then executes
 that list and prints the result, in JSON or markdown.
 """
 
@@ -21,7 +21,7 @@ from sniff import config, discovery
 from sniff.execution import _detector_failed, _render_detector_result, run_detector_json
 
 
-def _discover_with_warnings(scan_path: "str | None" = None) -> list[discovery.Detector]:
+def discover_with_warnings(scan_path: "str | None" = None) -> list[discovery.Detector]:
     """discovery.discover(scan_path), printing a warning per manifest error to stderr.
 
     Shared by the scan path, baseline write, and diff — each cares about the
@@ -62,7 +62,7 @@ def select_with_config(
     return select(detectors, only, skip | cfg.skip_detectors)
 
 
-def _readable_here(
+def readable_here(
     selected: list[discovery.Detector], present: "set[str]", only: set[str]
 ) -> list[discovery.Detector]:
     """Keep only the detectors that can read the languages this repo contains.
@@ -138,7 +138,7 @@ def apply_config_to_detector(detector: discovery.Detector, cfg: config.Config) -
     return replace(detector, args=args)
 
 
-def _reject_extras(parser: argparse.ArgumentParser, argv: list[str], extras: list[str]) -> None:
+def reject_extras(parser: argparse.ArgumentParser, argv: list[str], extras: list[str]) -> None:
     """Exit 2 because `extras` cannot be forwarded to a detector.
 
     Unknown trailing arguments are only meaningful when the run resolves to
@@ -156,7 +156,7 @@ def _reject_extras(parser: argparse.ArgumentParser, argv: list[str], extras: lis
     raise SystemExit(2)      # unreachable safety net if argparse ever accepts argv
 
 
-def _forward_extras(detectors: list[discovery.Detector], extras: list[str]) -> list[discovery.Detector]:
+def forward_extras(detectors: list[discovery.Detector], extras: list[str]) -> list[discovery.Detector]:
     """Append `extras` to the single selected detector's args, so CLI beats config.
 
     They land after the manifest- and `.sniff.toml`-derived args, and argparse's
@@ -170,7 +170,7 @@ def _forward_extras(detectors: list[discovery.Detector], extras: list[str]) -> l
 
 
 @contextlib.contextmanager
-def _exported_extra_ignore(globs: "list[str] | None"):
+def exported_extra_ignore(globs: "list[str] | None"):
     """Export SNIFF_EXTRA_IGNORE for the duration of the block, then restore it.
 
     main() may be called in-process (tests, embedding) more than once, so the
@@ -192,7 +192,7 @@ def _exported_extra_ignore(globs: "list[str] | None"):
             os.environ["SNIFF_EXTRA_IGNORE"] = previous
 
 
-def _run_selected(selected: list[discovery.Detector], args: argparse.Namespace) -> int:
+def run_selected(selected: list[discovery.Detector], args: argparse.Namespace) -> int:
     """Run every selected detector over args.path and print the result.
 
     JSON mode buffers every result before printing, since the payload is one

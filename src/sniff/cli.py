@@ -38,12 +38,12 @@ from sniff import config, contribute, discovery, harness, rules_testing
 from sniff.commands.baseline_diff import run_baseline, run_diff
 from sniff.commands.doctor import run_doctor, run_prime
 from sniff.commands.scan import (
-    _discover_with_warnings,
-    _exported_extra_ignore,
-    _forward_extras,
-    _readable_here,
-    _reject_extras,
-    _run_selected,
+    discover_with_warnings,
+    exported_extra_ignore,
+    forward_extras,
+    readable_here,
+    reject_extras,
+    run_selected,
     apply_config_to_detector,
     select_with_config,
 )
@@ -102,11 +102,11 @@ def main(argv: "list[str] | None" = None) -> int:
     # a detector at all, so they can reject extras right away.
     args, extras = parser.parse_known_args(argv)
     if extras and (args.list or args.list_patterns):
-        _reject_extras(parser, argv, extras)
+        reject_extras(parser, argv, extras)
 
     # --list/--list-patterns describe detectors in general, not a scan of `path`,
     # so they omit the scan path (matching doctor/prime, handled earlier above).
-    detectors = _discover_with_warnings(None if (args.list or args.list_patterns) else args.path)
+    detectors = discover_with_warnings(None if (args.list or args.list_patterns) else args.path)
 
     listing_result = _handle_listing_modes(args, detectors)
     if listing_result is not None:
@@ -141,14 +141,14 @@ def main(argv: "list[str] | None" = None) -> int:
         return selected
 
     selected = [apply_config_to_detector(d, cfg) for d in selected]
-    selected = _forward_extras(selected, extras)
+    selected = forward_extras(selected, extras)
 
     # Built-ins get the extra-ignore globs as --extra-ignore args (folded in by
     # apply_config_to_detector above); the env var is only needed for external,
     # manifest-based detectors, which inherit it through subprocess.run.
     needs_env = bool(cfg.extra_ignores) and any(d.module is None for d in selected)
-    with _exported_extra_ignore(cfg.extra_ignores if needs_env else None):
-        return _run_selected(selected, args)
+    with exported_extra_ignore(cfg.extra_ignores if needs_env else None):
+        return run_selected(selected, args)
 
 
 def _dispatch_subcommand(argv: list[str]) -> "int | None":
@@ -261,7 +261,7 @@ class _TrailingFlags:
     """The argparse state `_select_detectors` needs only to reject un-forwardable
     trailing flags.
 
-    `parser` and `argv` let `_reject_extras` re-run the strict parse so argparse
+    `parser` and `argv` let `reject_extras` re-run the strict parse so argparse
     prints its own "unrecognized arguments" error (and exit code); `extras` is
     the leftover, unrecognized flags themselves. Bundled together because the
     three always travel as a unit and this is their only consumer."""
@@ -294,7 +294,7 @@ def _select_detectors(
     # Checked against the resolved selection, not the raw --only names, so a typo'd
     # or fully skipped detector name cannot silently swallow the extras.
     if trailing.extras and len(selected) != 1:
-        _reject_extras(trailing.parser, trailing.argv, trailing.extras)
+        reject_extras(trailing.parser, trailing.argv, trailing.extras)
 
     if not selected:
         if args.json:
@@ -314,7 +314,7 @@ def _apply_language_filter(
     Returns the filtered list, or an int exit code (0) when nothing survives
     the filter, printing the same "nothing to scan" message in either JSON or
     markdown mode, telling `main` to return early."""
-    selected = _readable_here(selected, present, only)
+    selected = readable_here(selected, present, only)
     if selected:
         return selected
 
