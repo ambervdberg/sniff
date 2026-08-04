@@ -33,7 +33,6 @@ import os
 from dataclasses import dataclass
 import shutil  # noqa: F401  (re-export: tests patch run_module.shutil.which)
 import sys
-import urllib.request  # noqa: F401  (re-export: tests patch run_module.urllib.request.urlopen)
 
 from sniff import config, contribute, discovery, harness, rules_testing
 from sniff.commands.baseline_diff import run_baseline, run_diff
@@ -49,10 +48,6 @@ from sniff.commands.scan import (
     select_with_config,
 )
 from sniff.versioning import _REPO_ROOT, get_version
-# Re-exports: not called from this module, but tests patch these via sniff.cli.<name>,
-# and versioning.py itself reads _latest_released_version/_version_cache_path back
-# through this module so those patches take effect (see versioning.py's docstring).
-from sniff.versioning import _latest_released_version, _upgrade_available_caveat, _version_cache_path  # noqa: F401
 
 
 # Flags seen hallucinated in eval runs (gpt-5.4-nano, gpt-5.4-mini, sonnet-4-6).

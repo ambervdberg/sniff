@@ -7,13 +7,6 @@ below is a separate concern layered on top of that: `_upgrade_available_caveat`
 tells `prime` when the installed version has fallen behind the latest release,
 consulting a 4-hour on-disk cache before ever touching the network so a
 session-start check stays cheap and, on a slow or offline network, silent.
-
-A few functions here reach back into `sniff.cli` for a name they could just as
-well call directly (`_version_cache_path`, `_latest_released_version`). That
-indirection exists solely so `unittest.mock.patch.object(sniff.cli, "<name>",
-...)` in the test suite keeps working after the move: patching an attribute on
-the `cli` module only affects lookups that go through `cli`, not the original
-binding here, so the call is routed through `cli` on purpose.
 """
 
 from __future__ import annotations
@@ -114,9 +107,8 @@ def _cached_latest_version() -> object:
     example a hand-edited or half-written cache file) is corruption of the same
     kind, so it is rejected the same way rather than handed to callers that
     expect one of those two types."""
-    from sniff import cli  # local import; routes through cli so its test patches land, see module docstring
     try:
-        with open(cli._version_cache_path(), encoding="utf-8") as fh:
+        with open(_version_cache_path(), encoding="utf-8") as fh:
             cache = json.load(fh)
         age_seconds = time.time() - cache["checked_at"]
         if age_seconds >= _CACHE_TTL_SECONDS:
@@ -133,9 +125,8 @@ def _write_cached_latest_version(latest: str | None) -> None:
     Errors (read-only filesystem, missing permissions, races) are swallowed: the
     cache is a pure optimization, so failing to write it must never surface as an
     error the user has to read."""
-    from sniff import cli  # local import; routes through cli so its test patches land, see module docstring
     try:
-        path = cli._version_cache_path()
+        path = _version_cache_path()
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:
             json.dump({"checked_at": time.time(), "latest": latest}, fh)
@@ -199,8 +190,7 @@ def _upgrade_available_caveat(installed: str | None) -> str | None:
     if installed_key is None:
         return None
 
-    from sniff import cli  # local import; routes through cli so its test patches land, see module docstring
-    latest = cli._latest_released_version()
+    latest = _latest_released_version()
     if latest is None:
         return None
 

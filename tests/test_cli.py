@@ -17,6 +17,7 @@ import unittest.mock
 from sniff import cli as run_module
 from sniff import discovery
 from sniff import gate
+from sniff import versioning
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "..", "src")
@@ -184,8 +185,8 @@ class SniffUpgradeCaveatTest(unittest.TestCase):
 
     def _caveat(self, installed: str, latest: str | None) -> str | None:
         """Resolve the upgrade caveat with the PyPI lookup stubbed to `latest`."""
-        with unittest.mock.patch.object(run_module, "_latest_released_version", return_value=latest):
-            return run_module._upgrade_available_caveat(installed)
+        with unittest.mock.patch.object(versioning, "_latest_released_version", return_value=latest):
+            return versioning._upgrade_available_caveat(installed)
 
     def test_newer_release_names_version_and_upgrade_command(self):
         caveat = self._caveat("0.12.1", "0.13.0")
@@ -216,8 +217,8 @@ class SniffUpgradeCaveatTest(unittest.TestCase):
     def test_env_var_disables_the_network_call(self):
         """The opt-out short-circuits before any request, for offline and CI use."""
         with unittest.mock.patch.dict(os.environ, {"SNIFF_NO_VERSION_CHECK": "1"}), \
-                unittest.mock.patch.object(run_module.urllib.request, "urlopen") as urlopen:
-            self.assertIsNone(run_module._latest_released_version())
+                unittest.mock.patch.object(versioning.urllib.request, "urlopen") as urlopen:
+            self.assertIsNone(versioning._latest_released_version())
         urlopen.assert_not_called()
 
     def test_request_bypasses_the_cdn_cache(self):
@@ -229,12 +230,12 @@ class SniffUpgradeCaveatTest(unittest.TestCase):
             # miss regardless of what the dev machine's own cache happens to hold.
             cache = os.path.join(tmp, "version-cache.json")
             with unittest.mock.patch.dict(os.environ, {}, clear=False), \
-                    unittest.mock.patch.object(run_module, "_version_cache_path", return_value=cache):
+                    unittest.mock.patch.object(versioning, "_version_cache_path", return_value=cache):
                 os.environ.pop("SNIFF_NO_VERSION_CHECK", None)
                 with unittest.mock.patch.object(
-                    run_module.urllib.request, "urlopen", side_effect=OSError("offline")
+                    versioning.urllib.request, "urlopen", side_effect=OSError("offline")
                 ) as urlopen:
-                    run_module._latest_released_version()
+                    versioning._latest_released_version()
         request = urlopen.call_args.args[0]
         self.assertEqual(request.get_header("Cache-control"), "no-cache")
 
@@ -242,12 +243,12 @@ class SniffUpgradeCaveatTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             cache = os.path.join(tmp, "version-cache.json")
             with unittest.mock.patch.dict(os.environ, {}, clear=False), \
-                    unittest.mock.patch.object(run_module, "_version_cache_path", return_value=cache):
+                    unittest.mock.patch.object(versioning, "_version_cache_path", return_value=cache):
                 os.environ.pop("SNIFF_NO_VERSION_CHECK", None)
                 with unittest.mock.patch.object(
-                    run_module.urllib.request, "urlopen", side_effect=OSError("offline")
+                    versioning.urllib.request, "urlopen", side_effect=OSError("offline")
                 ):
-                    self.assertIsNone(run_module._latest_released_version())
+                    self.assertIsNone(versioning._latest_released_version())
 
     def test_version_check_uses_fresh_cache_without_network(self):
         """A cache written within the last 4 hours must short-circuit the network
@@ -256,12 +257,12 @@ class SniffUpgradeCaveatTest(unittest.TestCase):
             cache = os.path.join(tmp, "version-cache.json")
             with open(cache, "w", encoding="utf-8") as fh:
                 json.dump({"checked_at": time.time(), "latest": "9.9.9"}, fh)
-            with unittest.mock.patch.object(run_module, "_version_cache_path", return_value=cache), \
+            with unittest.mock.patch.object(versioning, "_version_cache_path", return_value=cache), \
                     unittest.mock.patch.object(
-                        run_module.urllib.request, "urlopen",
+                        versioning.urllib.request, "urlopen",
                         side_effect=AssertionError("network hit despite fresh cache"),
                     ):
-                self.assertEqual(run_module._latest_released_version(), "9.9.9")
+                self.assertEqual(versioning._latest_released_version(), "9.9.9")
 
     def test_version_check_refreshes_stale_cache(self):
         """A cache older than 4 hours must be treated as a miss: the network is
@@ -271,10 +272,10 @@ class SniffUpgradeCaveatTest(unittest.TestCase):
             with open(cache, "w", encoding="utf-8") as fh:
                 json.dump({"checked_at": 0, "latest": "0.0.1"}, fh)
             fake_response = io.BytesIO(json.dumps({"info": {"version": "9.9.9"}}).encode())
-            with unittest.mock.patch.object(run_module, "_version_cache_path", return_value=cache), \
-                    unittest.mock.patch.object(run_module.urllib.request, "urlopen") as urlopen:
+            with unittest.mock.patch.object(versioning, "_version_cache_path", return_value=cache), \
+                    unittest.mock.patch.object(versioning.urllib.request, "urlopen") as urlopen:
                 urlopen.return_value.__enter__.return_value = fake_response
-                self.assertEqual(run_module._latest_released_version(), "9.9.9")
+                self.assertEqual(versioning._latest_released_version(), "9.9.9")
             with open(cache, encoding="utf-8") as fh:
                 self.assertEqual(json.load(fh)["latest"], "9.9.9")
 
@@ -286,10 +287,10 @@ class SniffUpgradeCaveatTest(unittest.TestCase):
             with open(cache, "w", encoding="utf-8") as fh:
                 json.dump({"checked_at": time.time(), "latest": 123}, fh)
             fake_response = io.BytesIO(json.dumps({"info": {"version": "9.9.9"}}).encode())
-            with unittest.mock.patch.object(run_module, "_version_cache_path", return_value=cache), \
-                    unittest.mock.patch.object(run_module.urllib.request, "urlopen") as urlopen:
+            with unittest.mock.patch.object(versioning, "_version_cache_path", return_value=cache), \
+                    unittest.mock.patch.object(versioning.urllib.request, "urlopen") as urlopen:
                 urlopen.return_value.__enter__.return_value = fake_response
-                self.assertEqual(run_module._latest_released_version(), "9.9.9")
+                self.assertEqual(versioning._latest_released_version(), "9.9.9")
 
 
 class SniffBaselineDiffTest(unittest.TestCase):
