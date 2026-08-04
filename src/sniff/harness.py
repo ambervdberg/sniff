@@ -760,11 +760,3 @@ def print_table(
 
 def _fmt(value: object) -> str:
     return str(value)
-
-
-def _is_num(value: str) -> bool:
-    return value.lstrip("-").isdigit()
-
-
-def _align(value: str, width: int, right: bool) -> str:
-    return value.rjust(width) if right else value.ljust(width)
