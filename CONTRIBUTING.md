@@ -51,7 +51,6 @@ hooks/hooks.json     lifecycle hooks, and the single source for BOTH hosts, sinc
                      Code and Codex each auto-discover this exact path
 .claude-plugin/      plugin.json + marketplace.json (Claude Code)
 .codex-plugin/       plugin.json (Codex)
-action.yml           composite GitHub Action behind the README's CI mode
 scripts/             update_docs.py (PR checklist) and bump_version.py (releases only)
 evals/               agent-routing eval harness; see Evals below
 ```
@@ -255,7 +254,7 @@ Before opening a PR:
 ## Release
 
 Never hand-edit a version. `python scripts/bump_version.py <new-version>` rewrites all
-seven declarations together, and `tests/test_version_consistency.py` fails the build if any
+five declarations together, and `tests/test_version_consistency.py` fails the build if any
 of them drift apart:
 
 - `pyproject.toml`
@@ -263,9 +262,6 @@ of them drift apart:
 - `.codex-plugin/plugin.json`
 - every plugin entry in `.claude-plugin/marketplace.json`
 - `uv.lock`, refreshed by running `uv lock` itself
-- the `ambervdberg/sniff@v<version>` action pin in the README's CI-mode snippet, which
-  users copy verbatim into their own workflow
-- the same action pin in `docs/ci.md`
 
 After bumping, update `CHANGELOG.md`, commit, and tag `v<new-version>`.
 

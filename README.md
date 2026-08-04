@@ -25,8 +25,7 @@ question, and the agent reads almost no files. See
 [Detectors vs pattern rules](#detectors-vs-pattern-rules) · [The detectors](#the-detectors) ·
 [Pattern rules](#pattern-rules) · [Commands](#commands) ·
 [Configuration](#configuration) · [Language support](#language-support) ·
-[CI mode](#ci-mode) · [Hooks](#hooks) ·
-[Contributing](#contributing)
+[Hooks](#hooks) · [Contributing](#contributing)
 
 ## Install
 
@@ -324,10 +323,14 @@ Three more commands belong to a workflow of their own rather than to a one-off s
 | Command                       | What it does                                                                        |
 | ----------------------------- | ------------------------------------------------------------------------------------ |
 | `sniff baseline write [DIR]`  | Save today's per-detector finding fingerprints to `.sniff/baseline.json`. Commit that file. |
-| `sniff diff [DIR]`            | Re-scan and compare against that baseline; exits 1 if any detector regressed. Add `--comment` to format the result as a PR comment body. |
+| `sniff diff [DIR]`            | Re-scan and compare against that baseline; exits 1 if any detector regressed. Add `--comment` to format the result as a markdown table. |
 | `sniff contribute <rule-id>`  | Send one of your local pattern rules upstream into the shared catalog.              |
 
-The first two are the [CI mode](#ci-mode) pair; the third is covered under
+The first two are a pair: write a baseline once, then have `sniff diff` answer "did this
+change make the repo worse". Useful after an agent has edited a pile of files at once.
+When it goes red, either fix the regression or accept it by re-running
+`sniff baseline write` and committing the new `.sniff/baseline.json`: the baseline is a
+snapshot you own, not a target sniff enforces. The third command is covered under
 [Add a rule](#add-a-rule).
 
 **Exit codes.**
@@ -402,23 +405,6 @@ table: it covers whatever its rules declare, so see the [Pattern rules](#pattern
 `sniff --list` prints the same coverage per detector, including any your repo adds. It
 writes `all` where this table spells out fifteen language names; both mean the same
 thing, every file type sniff walks.
-
-## CI mode
-
-Gate PRs on code-smell regressions using the committed baseline: run
-`sniff baseline write` once, commit `.sniff/baseline.json`, then add this action to a
-workflow after a checkout step. It runs `sniff diff --comment` against that baseline and
-fails the job on any regression.
-
-```yaml
-- uses: actions/checkout@v4
-- uses: ambervdberg/sniff@v0.16.0
-  with:
-    path: .
-```
-
-The `--comment` output shape, and how to accept a regression deliberately:
-[docs/ci.md](https://github.com/ambervdberg/sniff/blob/main/docs/ci.md).
 
 ## Hooks
 

@@ -382,9 +382,9 @@ class SniffBaselineDiffTest(unittest.TestCase):
         self.assertIn("old format", proc.stderr)
 
     def test_diff_is_stable_across_path_spellings(self):
-        # sniff-6yh: a baseline written with the relative spelling '.' (what
-        # action.yml defaults to) must still match a diff run with the
-        # absolute path to that same, unchanged directory. Before the fix,
+        # A baseline written with the relative spelling '.' must still match a
+        # diff run with the absolute path to that same, unchanged directory.
+        # Both spellings are ordinary ways to invoke it. Before the fix,
         # fingerprints embedded the command-line spelling verbatim, so this
         # reported false regressions and improvements on a clean repo.
         self._run("baseline", "write", ".", cwd=self.repo)

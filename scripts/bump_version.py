@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Bump the version in pyproject.toml, .claude-plugin/plugin.json,
-.codex-plugin/plugin.json, every plugin entry in .claude-plugin/marketplace.json, and
-the GitHub Action pin the README and docs/ci.md tell users to copy, in lockstep, so
-`sniff doctor`'s drift check stays green, then refresh uv.lock so the version it
-records for sniff-smells matches (CI runs `uv sync --locked`, which fails on a stale
-lock).
+.codex-plugin/plugin.json and every plugin entry in .claude-plugin/marketplace.json, in
+lockstep, so `sniff doctor`'s drift check stays green, then refresh uv.lock so the
+version it records for sniff-smells matches (CI runs `uv sync --locked`, which fails on
+a stale lock).
 
 Usage: python scripts/bump_version.py <new-version>"""
 
@@ -17,11 +16,6 @@ import subprocess
 import sys
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
-
-# The README's CI-mode snippet pins the composite action by release tag. Users copy it
-# verbatim, so a stale pin here ships a wrong command to every reader. docs/ci.md
-# carries the same snippet for the agent-facing CI-mode walkthrough.
-ACTION_PIN_RE = re.compile(r"(ambervdberg/sniff@v)\d+\.\d+\.\d+")
 
 
 def _write_json(path: str, data: dict) -> None:
@@ -62,29 +56,13 @@ def bump(root: str, version: str) -> list[str]:
     _write_json(marketplace_path, marketplace)
     touched.append(marketplace_path)
 
-    readme_path = os.path.join(root, "README.md")
-    with open(readme_path, "r", encoding="utf-8") as fh:
-        readme = fh.read()
-    readme = ACTION_PIN_RE.sub(rf"\g<1>{version}", readme)
-    with open(readme_path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(readme)
-    touched.append(readme_path)
-
-    ci_doc_path = os.path.join(root, "docs", "ci.md")
-    with open(ci_doc_path, "r", encoding="utf-8") as fh:
-        ci_doc = fh.read()
-    ci_doc = ACTION_PIN_RE.sub(rf"\g<1>{version}", ci_doc)
-    with open(ci_doc_path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(ci_doc)
-    touched.append(ci_doc_path)
-
     return touched
 
 
 def relock(root: str) -> bool:
     """Re-resolve uv.lock so it records the version pyproject.toml now declares.
 
-    Never raises: the four files are already written, and losing them to a crash
+    Never raises: the manifest files are already written, and losing them to a crash
     because `uv` is missing or unhappy would be worse than a warning the user can act
     on. Returns whether the lockfile was refreshed."""
     try:
