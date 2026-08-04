@@ -858,6 +858,22 @@ def _exported_extra_ignore(globs: "list[str] | None"):
             os.environ["SNIFF_EXTRA_IGNORE"] = previous
 
 
+def _detector_failed(result: dict) -> bool:
+    """True when `result` (a `run_detector_json` dict) represents a detector
+    that failed to run, not one that merely reported findings.
+
+    Exit code is the sole authority: a non-zero `exit_code` is a failure, and
+    so is a launch failure (`exit_code` None with `error` set, external
+    detectors only). An external detector that exits 0 while writing
+    incidental text to stderr is NOT a failure, even though `error` is set on
+    its result: `_render_detector_result` renders that case as a clean
+    section, so the exit code must agree with what got printed."""
+    exit_code = result["exit_code"]
+    if exit_code is None:
+        return bool(result["error"])
+    return exit_code != 0
+
+
 def _run_selected(selected: list[discovery.Detector], args: argparse.Namespace) -> int:
     """Run every selected detector over args.path and print the result.
 
@@ -880,8 +896,7 @@ def _run_selected(selected: list[discovery.Detector], args: argparse.Namespace) 
             print(_render_detector_result(result))
             print()
 
-    detector_failed = any(r["error"] or r["exit_code"] not in (0, None) for r in results)
-    return 1 if detector_failed else 0
+    return 1 if any(_detector_failed(r) for r in results) else 0
 
 
 if __name__ == "__main__":

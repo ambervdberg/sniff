@@ -313,6 +313,22 @@ class SniffBaselineDiffTest(unittest.TestCase):
         proc = self._run("--only", "most-parameters", self.repo)
         self.assertEqual(proc.returncode, 0)
 
+    def test_scan_exit_stays_zero_when_external_detector_writes_stderr_but_exits_clean(self):
+        # exit_code is the sole failure authority. An external (manifest,
+        # subprocess) detector that exits 0 but writes incidental text to
+        # stderr is not a failure: the rendered section for it is clean, so
+        # the exit code must agree with what got printed.
+        detector_dir = os.path.join(self.repo, ".sniff", "detectors", "noisy-clean")
+        os.makedirs(detector_dir)
+        with open(os.path.join(detector_dir, "detector.yml"), "w", encoding="utf-8") as fh:
+            fh.write("name: noisy-clean\ntitle: Noisy but clean\nscript: noisy_clean.py\n")
+        with open(os.path.join(detector_dir, "noisy_clean.py"), "w", encoding="utf-8") as fh:
+            fh.write("import sys\nprint('ok')\nprint('warning: noisy', file=sys.stderr)\n")
+
+        proc = self._run("--only", "noisy-clean", self.repo)
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
 
 def test_diff_comment_renders_markdown(tmp_path, capsys, monkeypatch):
     (tmp_path / ".sniff").mkdir()
