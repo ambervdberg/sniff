@@ -7,7 +7,7 @@ Gate PRs on code-smell regressions using the committed baseline:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: ambervdberg/sniff@v0.16.0
+- uses: ambervdberg/sniff@v0.16.1
   with:
     path: .
 ```

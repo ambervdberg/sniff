@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 - The CI action no longer needs Node; ast-grep installs together with sniff.
+- The sniff skill again lists every detector, and skills no longer ask for ast-grep where it is not used.
 
 ## [0.16.0] - 2026-08-04
 

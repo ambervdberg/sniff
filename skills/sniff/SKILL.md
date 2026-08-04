@@ -14,8 +14,13 @@ description: >-
 
 Umbrella entry point that runs **all** detectors in one pass: `sniff-patterns`
 (pattern rule catalog) plus every node-metric and file-metric detector (complexity,
-nesting, parameters, method/class/file size, inline-template size). To run pattern
-rules only, invoke `sniff:sniff-patterns` directly.
+nesting, parameters, method/class/file size, inline-template size, duplication,
+self-admitted debt). To run pattern rules only, invoke `sniff:sniff-patterns` directly.
+
+Detectors run: `cognitive-complexity`, `cyclomatic-complexity`, `deepest-nesting`,
+`duplicate-code`, `large-classes`, `large-inline-templates`, `largest-files`,
+`largest-methods`, `most-imports`, `most-parameters`, `no-duplicate-string`,
+`self-admitted-debt`, `sniff-patterns`.
 
 ## Setup
 
