@@ -255,7 +255,7 @@ Before opening a PR:
 ## Release
 
 Never hand-edit a version. `python scripts/bump_version.py <new-version>` rewrites all
-six declarations together, and `tests/test_version_consistency.py` fails the build if any
+seven declarations together, and `tests/test_version_consistency.py` fails the build if any
 of them drift apart:
 
 - `pyproject.toml`
@@ -265,6 +265,7 @@ of them drift apart:
 - `uv.lock`, refreshed by running `uv lock` itself
 - the `ambervdberg/sniff@v<version>` action pin in the README's CI-mode snippet, which
   users copy verbatim into their own workflow
+- the same action pin in `docs/ci.md`
 
 After bumping, update `CHANGELOG.md`, commit, and tag `v<new-version>`.
 
