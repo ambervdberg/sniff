@@ -597,9 +597,10 @@ def run_diff(argv: list[str]) -> int:
     # is an improvement. Comparing on value, not presence alone, is what lets a
     # repeated duplicate-code block register even though its fingerprint (the
     # pair of files it spans) does not change between the two scans.
+    names = sorted(set(baseline_fps) | set(current))
     regressions: dict[str, list[str]] = {}
     improvements = 0
-    for name in sorted(set(baseline_fps) | set(current)):
+    for name in names:
         before, after = baseline_fps.get(name, {}), current.get(name, {})
         new = [fp for fp, v in after.items() if v > before.get(fp, 0)]
         improvements += sum(1 for fp in before if before[fp] > after.get(fp, 0))
@@ -607,7 +608,7 @@ def run_diff(argv: list[str]) -> int:
             regressions[name] = sorted(new)
 
     if comment:
-        return _print_diff_comment(sorted(set(baseline_fps) | set(current)), regressions)
+        return _print_diff_comment(names, regressions)
     return _print_diff_text(regressions, improvements)
 
 
