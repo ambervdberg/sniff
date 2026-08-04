@@ -10,10 +10,9 @@ runs:
     - uses: actions/setup-python@v5
       with:
         python-version: "3.14"
-    - name: Install ast-grep and sniff
+    - name: Install sniff
       shell: bash
       run: |
-        npm install -g @ast-grep/cli
         # Install this action's own checkout, not the consumer workspace that
         # composite run steps execute in.
         pip install "${{ github.action_path }}"

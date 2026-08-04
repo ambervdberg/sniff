@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- The CI action no longer needs Node; ast-grep installs together with sniff.
+
 ## [0.16.0] - 2026-08-04
 
 - `sniff diff` now flags only new or worsened violations, so adding clean code no longer fails the gate.
