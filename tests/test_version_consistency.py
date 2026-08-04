@@ -12,7 +12,8 @@ uv.lock counts too: CI runs `uv sync --locked`, which refuses to resolve when th
 lock records a different version for sniff-smells than pyproject.toml declares.
 
 So does the README: its CI-mode snippet pins the composite action by release tag, and
-readers copy that line verbatim into their own workflow.
+readers copy that line verbatim into their own workflow. docs/ci.md carries the same
+pin for the agent-facing CI-mode walkthrough.
 """
 
 import json
@@ -58,6 +59,17 @@ def _readme_action_pin():
     return pins.pop() if len(pins) == 1 else None
 
 
+def _ci_doc_action_pin():
+    """Version docs/ci.md's snippet pins the composite action to, or None.
+
+    Same disagreement handling as `_readme_action_pin`: two differing pins in the
+    file count as no single declared version, not as a pick-one."""
+    with open(os.path.join(REPO_ROOT, "docs", "ci.md"), "r", encoding="utf-8") as fh:
+        pins = set(re.findall(r"ambervdberg/sniff@v(\d+\.\d+\.\d+)", fh.read()))
+
+    return pins.pop() if len(pins) == 1 else None
+
+
 def declared_versions():
     """Map of human-readable source -> version string, one entry per declaration."""
     with open(os.path.join(REPO_ROOT, "pyproject.toml"), "r", encoding="utf-8") as fh:
@@ -73,6 +85,7 @@ def declared_versions():
 
     versions["uv.lock[sniff-smells]"] = _locked_version("sniff-smells")
     versions["README.md[action pin]"] = _readme_action_pin()
+    versions["docs/ci.md[action pin]"] = _ci_doc_action_pin()
 
     return versions
 
@@ -85,7 +98,7 @@ def test_all_declared_versions_agree():
 def test_every_manifest_declares_a_version():
     """A missing version is drift too: it would make the mismatch test pass on None."""
     versions = declared_versions()
-    assert len(versions) == 6, versions
+    assert len(versions) == 7, versions
     assert all(v is not None for v in versions.values()), versions
 
 

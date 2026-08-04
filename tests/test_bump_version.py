@@ -23,6 +23,13 @@ def _fake_repo(tmp_path):
         "- uses: ambervdberg/sniff@v0.9.5\n",
         encoding="utf-8",
     )
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "ci.md").write_text(
+        "# CI mode\n"
+        "\n"
+        "- uses: ambervdberg/sniff@v0.9.5\n",
+        encoding="utf-8",
+    )
     return tmp_path
 
 
@@ -54,3 +61,13 @@ def test_bump_rewrites_the_readme_action_pin(tmp_path):
     assert "0.9.5" not in readme
     # Plain repo links carry no version and must survive untouched.
     assert "https://github.com/ambervdberg/sniff for docs." in readme
+
+
+def test_bump_rewrites_the_ci_doc_action_pin(tmp_path):
+    """docs/ci.md carries the same composite-action snippet as the README's CI-mode
+    section, for the agent-facing walkthrough, and drifts the same way if missed."""
+    _fake_repo(tmp_path)
+    bump_version.bump(str(tmp_path), "1.0.0")
+    ci_doc = (tmp_path / "docs" / "ci.md").read_text(encoding="utf-8")
+    assert "ambervdberg/sniff@v1.0.0" in ci_doc
+    assert "0.9.5" not in ci_doc

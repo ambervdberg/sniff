@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Bump the version in pyproject.toml, .claude-plugin/plugin.json,
 .codex-plugin/plugin.json, every plugin entry in .claude-plugin/marketplace.json, and
-the GitHub Action pin the README tells users to copy, in lockstep, so `sniff doctor`'s
-drift check stays green, then refresh uv.lock so the version it records for
-sniff-smells matches (CI runs `uv sync --locked`, which fails on a stale lock).
+the GitHub Action pin the README and docs/ci.md tell users to copy, in lockstep, so
+`sniff doctor`'s drift check stays green, then refresh uv.lock so the version it
+records for sniff-smells matches (CI runs `uv sync --locked`, which fails on a stale
+lock).
 
 Usage: python scripts/bump_version.py <new-version>"""
 
@@ -18,7 +19,8 @@ import sys
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 # The README's CI-mode snippet pins the composite action by release tag. Users copy it
-# verbatim, so a stale pin here ships a wrong command to every reader.
+# verbatim, so a stale pin here ships a wrong command to every reader. docs/ci.md
+# carries the same snippet for the agent-facing CI-mode walkthrough.
 ACTION_PIN_RE = re.compile(r"(ambervdberg/sniff@v)\d+\.\d+\.\d+")
 
 
@@ -67,6 +69,14 @@ def bump(root: str, version: str) -> list[str]:
     with open(readme_path, "w", encoding="utf-8", newline="") as fh:
         fh.write(readme)
     touched.append(readme_path)
+
+    ci_doc_path = os.path.join(root, "docs", "ci.md")
+    with open(ci_doc_path, "r", encoding="utf-8") as fh:
+        ci_doc = fh.read()
+    ci_doc = ACTION_PIN_RE.sub(rf"\g<1>{version}", ci_doc)
+    with open(ci_doc_path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(ci_doc)
+    touched.append(ci_doc_path)
 
     return touched
 
