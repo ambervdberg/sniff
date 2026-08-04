@@ -32,21 +32,16 @@ question, and the agent reads almost no files. See
 
 ```bash
 uv tool install sniff-smells
-uv tool install ast-grep-cli
 ```
 
-Both lines are required. The first puts the `sniff` command on PATH via
-[uv](https://docs.astral.sh/uv/); the second installs
-[`ast-grep`](https://ast-grep.github.io), the parser 9 of the 13 detectors run on. Skip
-it and only `largest-files`, `no-duplicate-string`, `duplicate-code`, and
-`self-admitted-debt` still work; every other detector
-exits with `error: ast-grep is not installed or not on PATH`. One-time per machine, not
-per repo.
+One line installs the `sniff` command via [uv](https://docs.astral.sh/uv/), including
+[`ast-grep`](https://ast-grep.github.io), the parser 9 of the 13 detectors run on.
+One-time per machine, not per repo.
 
 Needs Python 3.10+ and works the same on Windows, macOS, and Linux. Run `sniff doctor`
-to confirm both pieces are present.
+to confirm everything is present.
 
-No `uv`? `pip install sniff-smells ast-grep-cli` works the same.
+No `uv`? `pip install sniff-smells` works the same.
 
 Upgrade later with `uv tool upgrade sniff-smells` (or `pip install -U sniff-smells`).
 
