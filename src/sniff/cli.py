@@ -34,6 +34,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.request
 from dataclasses import dataclass, replace
 
@@ -321,6 +322,65 @@ _PYPI_TIMEOUT_SECONDS = 1.5
 # never depend on network reachability.
 _SKIP_CHECK_ENV_VAR = "SNIFF_NO_VERSION_CHECK"
 
+# `prime` runs at every agent session start, so a naive implementation would hit
+# PyPI once per session. An on-disk cache turns that into at most once per 4
+# hours per machine, which is frequent enough to announce a release promptly and
+# rare enough that a busy day of sessions costs one request, not dozens.
+_CACHE_TTL_SECONDS = 4 * 60 * 60
+_CACHE_FILENAME = "version-cache.json"
+
+# Sentinel distinguishing "cache read, but stale or absent" from a cached value of
+# None (a prior check that genuinely found PyPI unreachable). A bare None cannot
+# serve as the miss marker because None is itself a valid cached answer.
+_CACHE_MISS = object()
+
+
+def _version_cache_path() -> str:
+    """Where the cached PyPI answer lives, one file per machine.
+
+    Windows has no XDG convention, so it gets its own branch pointed at
+    `%LOCALAPPDATA%`; everywhere else follows the XDG cache directory spec,
+    defaulting to `~/.cache` when `XDG_CACHE_HOME` is unset. A seam (rather than
+    a hardcoded path) so tests can redirect it into a temp directory instead of
+    touching the real machine cache."""
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    else:
+        base = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
+    return os.path.join(base, "sniff", _CACHE_FILENAME)
+
+
+def _cached_latest_version() -> object:
+    """The cached latest-version answer if it's still fresh, else `_CACHE_MISS`.
+
+    Any failure while reading (missing file, malformed JSON, missing keys) is
+    treated as a miss rather than an error: a corrupt cache must fall through to
+    the network, the same silent-failure posture the network call itself has."""
+    try:
+        with open(_version_cache_path(), encoding="utf-8") as fh:
+            cache = json.load(fh)
+        age_seconds = time.time() - cache["checked_at"]
+        if age_seconds >= _CACHE_TTL_SECONDS:
+            return _CACHE_MISS
+        return cache["latest"]
+    except Exception:
+        return _CACHE_MISS
+
+
+def _write_cached_latest_version(latest: str | None) -> None:
+    """Persist `latest` as this machine's answer, timestamped now.
+
+    Errors (read-only filesystem, missing permissions, races) are swallowed: the
+    cache is a pure optimization, so failing to write it must never surface as an
+    error the user has to read."""
+    try:
+        path = _version_cache_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({"checked_at": time.time(), "latest": latest}, fh)
+    except Exception:
+        pass
+
 
 def _version_key(version: str) -> tuple[int, ...] | None:
     """Leading numeric release segments of `version`, for ordering.
@@ -335,24 +395,37 @@ def _version_key(version: str) -> tuple[int, ...] | None:
 
 
 def _latest_released_version() -> str | None:
-    """Newest sniff-smells version on PyPI, or None if it can't be determined."""
+    """Newest sniff-smells version on PyPI, or None if it can't be determined.
+
+    Consults the on-disk cache first: a fresh answer (checked within the last 4
+    hours) is returned without touching the network at all. Only a stale or
+    missing cache reaches PyPI, and that fresh answer is written back afterward
+    so the next call within the window is free again."""
     if os.environ.get(_SKIP_CHECK_ENV_VAR):
         return None
+
+    cached = _cached_latest_version()
+    if cached is not _CACHE_MISS:
+        return cached
+
     # PyPI serves this endpoint through a CDN that can keep answering with the
     # previous release for a while after an upload. Revalidating costs nothing at
-    # one call per session and is the difference between warning right after a
-    # release and staying silent through it.
+    # one call per 4-hour window and is the difference between warning right
+    # after a release and staying silent through it.
     request = urllib.request.Request(_PYPI_RELEASE_URL, headers={"Cache-Control": "no-cache"})
     try:
         with urllib.request.urlopen(request, timeout=_PYPI_TIMEOUT_SECONDS) as response:
             payload = json.load(response)
         latest = payload["info"]["version"]
+        latest = latest if isinstance(latest, str) else None
     except Exception:
         # Deliberately broad: unreachable host, TLS failure, timeout, HTTP error,
         # malformed JSON and missing keys are all the same non-event here. An
         # optional courtesy check must never be able to break `sniff prime`.
-        return None
-    return latest if isinstance(latest, str) else None
+        latest = None
+
+    _write_cached_latest_version(latest)
+    return latest
 
 
 def _upgrade_available_caveat(installed: str | None) -> str | None:

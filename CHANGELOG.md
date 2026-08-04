@@ -11,6 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Baselines written by older versions must be refreshed with `sniff baseline write`.
 - A scan now exits non-zero when a detector fails to run.
 - Installing sniff now installs ast-grep automatically.
+- sniff prime now checks PyPI for updates at most once every 4 hours.
 
 ## [0.15.0] - 2026-08-03
 
