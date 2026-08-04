@@ -1,5 +1,5 @@
 name: sniff
-description: Fail the PR when code-smell counts regress against the committed baseline.
+description: Fail the PR when new code-smell violations appear against the committed baseline.
 inputs:
   path:
     description: Directory to scan

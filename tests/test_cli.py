@@ -278,6 +278,19 @@ class SniffUpgradeCaveatTest(unittest.TestCase):
             with open(cache, encoding="utf-8") as fh:
                 self.assertEqual(json.load(fh)["latest"], "9.9.9")
 
+    def test_cache_with_non_string_latest_falls_through_to_network(self):
+        """A corrupt cache (e.g. hand-edited to a non-string `latest`) must not crash
+        `sniff prime`; it must be treated as a miss so the network path still runs."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = os.path.join(tmp, "version-cache.json")
+            with open(cache, "w", encoding="utf-8") as fh:
+                json.dump({"checked_at": time.time(), "latest": 123}, fh)
+            fake_response = io.BytesIO(json.dumps({"info": {"version": "9.9.9"}}).encode())
+            with unittest.mock.patch.object(run_module, "_version_cache_path", return_value=cache), \
+                    unittest.mock.patch.object(run_module.urllib.request, "urlopen") as urlopen:
+                urlopen.return_value.__enter__.return_value = fake_response
+                self.assertEqual(run_module._latest_released_version(), "9.9.9")
+
 
 class SniffBaselineDiffTest(unittest.TestCase):
     """`sniff baseline write` saves fingerprints; `sniff diff` compares against them."""

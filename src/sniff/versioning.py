@@ -109,7 +109,11 @@ def _cached_latest_version() -> object:
 
     Any failure while reading (missing file, malformed JSON, missing keys) is
     treated as a miss rather than an error: a corrupt cache must fall through to
-    the network, the same silent-failure posture the network call itself has."""
+    the network, the same silent-failure posture the network call itself has. A
+    `latest` value that survived JSON parsing but isn't a string or None (for
+    example a hand-edited or half-written cache file) is corruption of the same
+    kind, so it is rejected the same way rather than handed to callers that
+    expect one of those two types."""
     from sniff import cli  # local import; routes through cli so its test patches land, see module docstring
     try:
         with open(cli._version_cache_path(), encoding="utf-8") as fh:
@@ -117,7 +121,8 @@ def _cached_latest_version() -> object:
         age_seconds = time.time() - cache["checked_at"]
         if age_seconds >= _CACHE_TTL_SECONDS:
             return _CACHE_MISS
-        return cache["latest"]
+        latest = cache["latest"]
+        return latest if isinstance(latest, (str, type(None))) else _CACHE_MISS
     except Exception:
         return _CACHE_MISS
 

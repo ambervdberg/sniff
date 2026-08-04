@@ -1,10 +1,7 @@
 """Tests for the harness findings sink used by baseline/diff."""
 
 import io
-import json
 import os
-import subprocess
-import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
