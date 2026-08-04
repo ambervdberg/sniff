@@ -10,6 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `sniff baseline` and `sniff diff` now fail with an error when any detector cannot run.
 - Baselines written by older versions must be refreshed with `sniff baseline write`.
 - A scan now exits non-zero when a detector fails to run.
+- Installing sniff now installs ast-grep automatically.
 
 ## [0.15.0] - 2026-08-03
 
