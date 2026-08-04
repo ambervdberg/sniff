@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from collections import Counter
 
-from sniff import harness
+from sniff import execution, harness
 
 # detector name -> (key holding the finding's value, lowest value that violates)
 GATE_THRESHOLDS: dict[str, tuple[str, int]] = {
@@ -102,14 +102,13 @@ def _fingerprint_of(finding: dict, detector_name: str) -> str:
 def _is_builtin(detector) -> bool:
     """True when the detector runs in-process, so its findings reach the sink.
 
-    Same test `cli.run_detector_json` uses to choose the in-process path; an
+    Same test `execution.run_detector_json` uses to choose the in-process path; an
     external detector is a script run in a subprocess, whose sink is its own."""
     return detector.module is not None
 
 
 def _run_one(detector, path: str) -> dict:
-    from sniff import cli  # local import; cli imports gate, avoid a cycle
-    return cli.run_detector_json(detector, path)
+    return execution.run_detector_json(detector, path)
 
 
 def scan_fingerprints(detectors, path: str) -> dict[str, dict[str, int]]:
