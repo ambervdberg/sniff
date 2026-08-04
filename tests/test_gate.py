@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from sniff import gate, harness
+from sniff import discovery, gate, harness
 
 
 def finding(file="src/a.py", name="fn", **metrics):
@@ -22,6 +22,20 @@ def fake_detector(name, builtin=True):
 
 def ok_result(name):
     return {"detector": name, "title": "t", "exit_code": 0, "output": "", "error": None}
+
+
+class ThresholdKeyTest(unittest.TestCase):
+    """GATE_THRESHOLDS keys are detector-name string literals.
+
+    Renaming a detector without touching this table silently un-gates it, so the
+    keys must always name detectors discovery actually finds.
+    """
+
+    def test_gate_thresholds_reference_real_detectors(self):
+        detectors, _ = discovery.discover()
+        names = {d.name for d in detectors}
+        self.assertLessEqual(set(gate.GATE_THRESHOLDS), names)
+        self.assertLessEqual(gate._FILE_LEVEL, set(gate.GATE_THRESHOLDS))
 
 
 class FingerprintTest(unittest.TestCase):
