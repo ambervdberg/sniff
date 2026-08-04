@@ -17,10 +17,11 @@ It complements linters and code checkers like ESLint, Ruff, or SonarQube. They j
 Same CLI for you and your agent. Small output means an agent learns the worst offenders for a few tokens.
 
 Measured against an agent working without it: **53% average cost reduction** per
-question, and the agent reads almost no files. See [Benchmark](#benchmark).
+question, and the agent reads almost no files. See
+[Initial case study](#initial-case-study).
 
 [Install](#install) · [Quickstart](#quickstart) ·
-[Use it from an agent](#use-it-from-an-agent) · [Benchmark](#benchmark) ·
+[Use it from an agent](#use-it-from-an-agent) · [Initial case study](#initial-case-study) ·
 [Detectors vs pattern rules](#detectors-vs-pattern-rules) · [The detectors](#the-detectors) ·
 [Pattern rules](#pattern-rules) · [Commands](#commands) ·
 [Configuration](#configuration) · [Language support](#language-support) ·
@@ -147,9 +148,13 @@ Add to your AGENTS.md:
 Or paste the live output of `sniff prime` into your agent's instructions file for the
 exact command list.
 
-## Benchmark
+## Initial case study
 
 ![average saved](https://img.shields.io/badge/average_cost_saved-53%25-brightgreen)
+
+**Scope, stated plainly:** 2 repositories, 8 question/repo pairs, 1 model, 1 run
+per condition, no variance data. This is one measurement, not an ongoing
+benchmark.
 
 **Repositories used**, pinned by commit:
 
@@ -158,31 +163,15 @@ exact command list.
 | excalidraw | TypeScript, TSX | `786ab26` | 654 | 188k |
 | scrapy | Python | `a499dc9` | 475 | 84k |
 
-API costs from Claude Code runs on Sonnet 5, once with sniff on `PATH` and once without.
-Snapshot of v0.14.0. Average **53% cost reduction** across 8 question/repo pairs
-(range 22% to 93%); 80% of total dollars, since the expensive vague questions dominate.
+API costs from Claude Code runs on Sonnet 5, once with sniff on `PATH` and once
+without. Average **53% cost reduction** across the 8 pairs (range 22% to 93%);
+the saving scales with how vague the question is, since a vague one like "find
+all code smells" has no natural stopping point for an unaided agent to read
+toward.
 
-| Question | Repo | Without sniff | With sniff | Saved |
-|---|---|---|---|---|
-| Find all code smells | scrapy | $3.07 | $0.22 | 93% |
-| Find all code smells | excalidraw | $2.09 | $0.24 | 89% |
-| Top 10 largest functions | excalidraw | $0.23 | $0.07 | 70% |
-| Where should I start refactoring | excalidraw | $0.31 | $0.14 | 56% |
-| Most complex parts | excalidraw | $0.30 | $0.19 | 38% |
-| Most complex parts | scrapy | $0.25 | $0.17 | 30% |
-| Where should I start refactoring | scrapy | $0.30 | $0.22 | 27% |
-| Top 10 largest functions | scrapy | $0.13 | $0.10 | 22% |
-| **Total** | | **$6.68** | **$1.35** | **80%** |
-
-The saving scales with how vague the question is. "Find all code smells" has no
-natural stopping point, so the unaided agent read 70 files and spent 124 tool
-calls on scrapy. sniff answered from one command. A precise question tells the
-agent where to stop on its own, and the gap narrows to 22%.
-
-Accuracy: of 504 checkable claims sniff made, 0 were wrong. It
-also made 3.4x more of them than the unaided agent, and matched 10 of 10 against
-an independent complexity ranking where the unaided agent matched 0, having
-answered at module level instead of naming functions.
+Full methodology, the per-question cost table, accuracy scoring, what sniff
+misses compared to an unaided read, and the caveats that come with a single-run
+measurement: [docs/benchmark.md](docs/benchmark.md).
 
 ## Detectors vs pattern rules
 
@@ -339,7 +328,7 @@ Three more commands belong to a workflow of their own rather than to a one-off s
 
 | Command                       | What it does                                                                        |
 | ----------------------------- | ------------------------------------------------------------------------------------ |
-| `sniff baseline write [DIR]`  | Save today's per-detector counts to `.sniff/baseline.json`. Commit that file.       |
+| `sniff baseline write [DIR]`  | Save today's per-detector finding fingerprints to `.sniff/baseline.json`. Commit that file. |
 | `sniff diff [DIR]`            | Re-scan and compare against that baseline; exits 1 if any detector regressed. Add `--comment` to format the result as a PR comment body. |
 | `sniff contribute <rule-id>`  | Send one of your local pattern rules upstream into the shared catalog.              |
 
@@ -376,83 +365,12 @@ run, set it in [`.sniff.toml`](#configuration).
 ## Configuration
 
 Drop a `.sniff.toml` in the root of the repo being scanned to turn rules off, re-grade
-severities, skip detectors, retune thresholds, and ignore paths. `sniff doctor` validates it.
+severities, skip detectors, retune thresholds, and ignore paths; `sniff doctor` validates
+it. Vendored/build directories and anything `.gitignore` excludes are skipped by default,
+and every detector skips test code unless you pass `--include-tests`.
 
-Scanning a subdirectory still picks it up: sniff looks in the directory you scan, then
-walks up to the repository root and uses the first file it finds. So `sniff packages/api`
-honours the repo's committed config, and a `packages/api/.sniff.toml` of its own would
-override it rather than merge with it.
-
-```toml
-[rules]                           # targets the sniff-patterns catalog only. Key is a rule id:
-no-console-log = false            # turn a pattern rule off
-no-explicit-any = "error"         # re-grade it (error | warning | info | hint)
-
-[detectors]
-skip = "most-imports,largest-files"   # comma-separated detector names
-largest-methods.top = 15              # <detector>.<arg> becomes --arg on that detector
-deepest-nesting.min-depth = 3
-
-[ignore]
-globs = ["docs/**", "**/*.generated.ts"]
-```
-
-Details worth knowing:
-
-- **Keep every value on one line.** sniff reads this file line by line rather than with a
-  full TOML parser, so an array split across lines is not understood. Write
-  `globs = ["docs/**", "**/*.generated.ts"]` on one line.
-- Note the two shapes above: `skip` takes one comma-separated **string**, `globs` takes a
-  **list**. `globs` also accepts a string (`globs = "docs/**,**/*.generated.ts"`); `skip`
-  does not accept a list.
-- `[rules]` only affects pattern rules. `[detectors]` affects the detectors, and each `<detector>.<arg>`
-  key becomes a `--arg` flag on that detector. Only flags that take a value work here, so
-  `--include-tests` cannot be set this way.
-- Ignore paths are matched from the root of the repo you scan.
-- A section or key that sniff does not recognize is a warning, not an error, so a typo does not stop a scan.
-  Run `sniff doctor` to see those warnings.
-
-### What gets skipped
-
-1. **Vendored and build directories**, always: `node_modules`, `dist`, `build`, `out`,
-   `coverage`, `target`, `vendor`, `.venv`, `venv`, `.git`, `.nx`, `.angular`, `.astro`,
-   `.next`, `.svelte-kit`, `.nuxt`, `.turbo`, `__pycache__`, `.claude`.
-2. **Anything `.gitignore` excludes**, when the scanned directory is a git repo. Your
-   `.git/info/exclude` and global ignore file count too, since sniff asks git rather than
-   parsing the ignore files itself. Outside a git repo this layer is simply absent.
-3. **Your own globs**: `[ignore] globs` in `.sniff.toml`, plus any `--ignore` flags.
-
-Every detector also skips test code, so the tables describe the source you ship.
-That means `*.test.*` and `*.spec.*` files in any language, `test_*.py`, `*_test.py`,
-`conftest.py`, `*_test.go`, and anything inside a `tests/`, `test/`, `__tests__/`,
-`spec/`, or `specs/` directory.
-
-To rank test code too, add `--include-tests` to a single detector (see
-[Passing flags to one detector](#passing-flags-to-one-detector)). There is no whole-repo
-equivalent, so scan the detectors you care about one at a time:
-
-```bash
-sniff --only largest-methods . --include-tests
-```
-
-`--ignore` is the one exclusion you can pass to a whole scan. It is repeatable, and it
-adds to the repo's committed globs rather than replacing them:
-
-```bash
-sniff --ignore "docs/**" --ignore "**/*.generated.ts" .
-```
-
-### Custom checks, without forking sniff
-
- Two ways to teach sniff your repo's conventions:
-
-- **Local pattern rules.** Drop a `.yml` in `.sniff/rules/` and it runs in the same pass
-  as the catalog. See [Add a rule](#add-a-rule).
-- **External detectors.** Drop a `detector.yml` manifest under `.sniff/detectors/<name>/`
-  and `sniff --list` picks it up alongside the built-ins.
-
-Either way `sniff-create` picks the engine for you; [CONTRIBUTING.md](CONTRIBUTING.md#engines)
-lists all five if you want to choose by hand.
+Full `.sniff.toml` syntax, the default skip list, and how to add local pattern rules or
+external detectors without forking sniff: [docs/configuration.md](docs/configuration.md).
 
 ## Language support
 
@@ -490,10 +408,10 @@ thing, every file type sniff walks.
 
 ## CI mode
 
-Gate PRs on code-smell regressions using the committed baseline:
-
-1. Run `sniff baseline write` once and commit the resulting `.sniff/baseline.json`.
-2. Add this action to a workflow, after a checkout step:
+Gate PRs on code-smell regressions using the committed baseline: run
+`sniff baseline write` once, commit `.sniff/baseline.json`, then add this action to a
+workflow after a checkout step. It runs `sniff diff --comment` against that baseline and
+fails the job on any regression.
 
 ```yaml
 - uses: actions/checkout@v4
@@ -502,22 +420,8 @@ Gate PRs on code-smell regressions using the committed baseline:
     path: .
 ```
 
-The action installs `ast-grep` and `sniff`, then runs `sniff diff --comment` against the
-committed baseline, failing the job if any detector regressed. It needs the checkout: on
-its own it would scan an empty workspace and find nothing to compare.
-
-`--comment` only *formats* the result as a PR comment body; the action saves it to
-`sniff-diff.md` in the workspace. (Running `sniff diff --comment` yourself just prints
-it.) Nothing is posted for you. To get a comment on the PR, add a step that posts that
-file.
-
-Pin a release tag, as above, so a push to this repo cannot change what runs in your CI.
-`@main` tracks the latest instead, at that cost.
-
-**When the gate goes red.** Either fix the regression, or accept it: re-run
-`sniff baseline write` and commit the updated `.sniff/baseline.json` in the same PR. The
-baseline is a snapshot you own, not a target sniff enforces, so raising it deliberately
-is a normal move. What it buys you is that the next PR cannot raise it by accident.
+The `--comment` output shape, and how to accept a regression deliberately:
+[docs/ci.md](docs/ci.md).
 
 ## Hooks
 

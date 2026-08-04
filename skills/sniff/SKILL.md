@@ -72,7 +72,7 @@ sniff --ignore <glob> [DIR]          # exclude paths; repeatable, adds to .sniff
 sniff version                        # print installed version
 sniff doctor                         # check prerequisites, exit 0/1
 sniff prime                          # agent-optimized context, never scans
-sniff baseline write [DIR]           # save per-detector counts to .sniff/baseline.json
+sniff baseline write [DIR]           # save per-detector finding fingerprints to .sniff/baseline.json
 sniff diff [DIR]                     # compare current scan to the saved baseline
 sniff diff --comment [DIR]           # same, as a markdown table to paste in a PR
 sniff contribute <rule-id>           # upstream a local .sniff/rules/ rule
