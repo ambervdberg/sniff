@@ -30,7 +30,7 @@ import contextlib
 import io
 import json
 import os
-import shutil
+import shutil  # noqa: F401  (re-export: tests patch run_module.shutil.which)
 import sys
 import urllib.request  # noqa: F401  (re-export: tests patch run_module.urllib.request.urlopen)
 
