@@ -15,11 +15,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import textwrap
 import unittest
 from contextlib import redirect_stdout
 
-from conftest import tool_available
+from conftest import tool_available, write_tree_file
 
 from sniff import harness as h
 
@@ -181,10 +180,7 @@ class ScanIntegrationTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def _write(self, rel, body):
-        path = os.path.join(self.root, rel)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(textwrap.dedent(body).lstrip("\n"))
+        return write_tree_file(self.root, rel, body.lstrip("\n"))
 
     def test_detect_languages_skips_ignored_dirs(self):
         langs = h.detect_languages(self.root)
@@ -226,10 +222,7 @@ class FileMetricTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def _write(self, rel, body):
-        path = os.path.join(self.root, rel)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(body)
+        return write_tree_file(self.root, rel, body)
 
     def test_iter_excludes_vendor_generated_and_unknown(self):
         files = h.iter_source_files(self.root, include_tests=True)
@@ -320,10 +313,7 @@ class GitignoreAwarenessTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def _write(self, rel, body):
-        path = os.path.join(self.root, rel)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(body)
+        return write_tree_file(self.root, rel, body)
 
     def _git(self, *args, cwd=None):
         """Run one git command, failing the test on a non-zero exit.

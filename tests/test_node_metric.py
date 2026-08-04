@@ -7,12 +7,11 @@ Skips cleanly if ast-grep is not on PATH.
 
 from __future__ import annotations
 
-import os
 import shutil
 import tempfile
 import unittest
 
-from conftest import tool_available
+from conftest import tool_available, write_tree_file
 
 from sniff import node_metric as nm
 
@@ -28,8 +27,7 @@ class NestingDepthTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def _write(self, name: str, src: str) -> None:
-        with open(os.path.join(self.root, name), "w", encoding="utf-8") as fh:
-            fh.write(src)
+        write_tree_file(self.root, name, src)
 
     def _depths(self) -> dict[str, int]:
         return {m.name: m.metrics["depth"] for m in nm.nesting_depth(self.root)}

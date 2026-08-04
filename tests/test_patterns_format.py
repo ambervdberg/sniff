@@ -15,7 +15,7 @@ import sys
 import tempfile
 import unittest
 
-from conftest import tool_available
+from conftest import tool_available, write_tree_file
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
@@ -42,8 +42,7 @@ class CatalogTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def _write(self, rel, body):
-        with open(os.path.join(self.root, rel), "w", encoding="utf-8") as fh:
-            fh.write(body)
+        write_tree_file(self.root, rel, body)
 
     def _run(self, *extra):
         proc = subprocess.run([sys.executable, FORMAT, self.root, *extra],

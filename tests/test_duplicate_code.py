@@ -7,10 +7,11 @@ No ast-grep needed: this detector tokenises with a regex, it does not parse.
 
 from __future__ import annotations
 
-import os
 import shutil
 import tempfile
 import unittest
+
+from conftest import write_tree_file
 
 from sniff.detectors import duplicate_code as dc
 
@@ -69,10 +70,7 @@ class DuplicateCodeTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def _write(self, name: str, source: str) -> str:
-        path = os.path.join(self.root, name).replace("\\", "/")
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(source)
-        return path
+        return write_tree_file(self.root, name, source).replace("\\", "/")
 
     def _clones(self, *paths: str, min_tokens: int = dc.DEFAULT_MIN_TOKENS,
                 min_lines: int = dc.DEFAULT_MIN_LINES) -> "list[dc.Clone]":

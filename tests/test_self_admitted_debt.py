@@ -8,11 +8,12 @@ No ast-grep needed: this detector scans comments, it does not parse.
 from __future__ import annotations
 
 import io
-import os
 import contextlib
 import shutil
 import tempfile
 import unittest
+
+from conftest import write_tree_file
 
 from sniff.detectors import self_admitted_debt as sad
 
@@ -25,10 +26,7 @@ class MarkerCountingTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def _write(self, name: str, source: str) -> str:
-        path = os.path.join(self.root, name).replace("\\", "/")
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(source)
-        return path
+        return write_tree_file(self.root, name, source).replace("\\", "/")
 
     def _count(self, name: str, source: str, markers=sad.DEFAULT_MARKERS):
         return sad.count_markers(self._write(name, source), markers)
@@ -73,10 +71,7 @@ class ReportingTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def _write(self, name: str, source: str) -> None:
-        path = os.path.join(self.root, name)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(source)
+        write_tree_file(self.root, name, source)
 
     def _run(self, *argv: str) -> str:
         out = io.StringIO()
