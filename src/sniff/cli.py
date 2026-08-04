@@ -88,8 +88,78 @@ def _split_csv(value: str | None) -> set[str]:
 def main(argv: "list[str] | None" = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
 
-    # version/doctor are subcommands, not detector flags, so they're handled before
-    # the DIR-positional parser below would otherwise treat "doctor" as a path.
+    # version/doctor/prime/etc. are subcommands, not detector flags, so they're
+    # handled before the DIR-positional parser would otherwise treat "doctor" as
+    # a path. `_dispatch_subcommand` returns None when argv names none of them,
+    # meaning this is an ordinary scan invocation that falls through below.
+    subcommand_result = _dispatch_subcommand(argv)
+    if subcommand_result is not None:
+        return subcommand_result
+
+    parser = _build_parser()
+    warn_hallucinated_flags(argv)
+
+    # parse_known_args (not parse_args) so unknown trailing flags can be forwarded
+    # to a single --only detector; anything else still errors out below.
+    # Whether extras are forwardable depends on how many detectors the run actually
+    # resolves to, which is only known after selection; the listing modes never run
+    # a detector at all, so they can reject extras right away.
+    args, extras = parser.parse_known_args(argv)
+    if extras and (args.list or args.list_patterns):
+        _reject_extras(parser, argv, extras)
+
+    # --list/--list-patterns describe detectors in general, not a scan of `path`,
+    # so they omit the scan path (matching doctor/prime, handled earlier above).
+    detectors = _discover_with_warnings(None if (args.list or args.list_patterns) else args.path)
+
+    listing_result = _handle_listing_modes(args, detectors)
+    if listing_result is not None:
+        return listing_result
+
+    if not detectors:
+        print("No detectors found (empty built-in registry and no .sniff/detectors/*/detector.yml manifests).")
+        return 0
+
+    if not os.path.isdir(args.path):
+        print(f"error: {args.path!r} is not a directory. Check the path and try again.", file=sys.stderr)
+        return 1
+
+    cfg = config.load(args.path)
+
+    # `--ignore` adds to the scanned repo's `[ignore] globs` instead of replacing
+    # them: a one-off exclusion on the command line should not silently discard the
+    # exclusions that repo already committed. Folding it into cfg here means every
+    # downstream consumer (per-detector --extra-ignore args and the
+    # SNIFF_EXTRA_IGNORE export for external detectors) picks it up for free.
+    cfg.extra_ignores = [*cfg.extra_ignores, *args.ignore]
+
+    only = _split_csv(args.only)
+    selected = _select_detectors(detectors, only, args, cfg, parser, argv, extras)
+    if isinstance(selected, int):
+        return selected
+
+    present = harness.detect_languages(args.path, cfg.extra_ignores)
+    selected = _apply_language_filter(selected, present, only, args)
+    if isinstance(selected, int):
+        return selected
+
+    selected = [apply_config_to_detector(d, cfg) for d in selected]
+    selected = _forward_extras(selected, extras)
+
+    # Built-ins get the extra-ignore globs as --extra-ignore args (folded in by
+    # apply_config_to_detector above); the env var is only needed for external,
+    # manifest-based detectors, which inherit it through subprocess.run.
+    needs_env = bool(cfg.extra_ignores) and any(d.module is None for d in selected)
+    with _exported_extra_ignore(cfg.extra_ignores if needs_env else None):
+        return _run_selected(selected, args)
+
+
+def _dispatch_subcommand(argv: list[str]) -> "int | None":
+    """Handle the non-scan subcommands (version/doctor/prime/baseline/diff/...).
+
+    Returns the process exit code for a recognized subcommand, or None when
+    `argv` names none of them, telling the caller to fall through to the
+    ordinary `sniff [DIR]` scan flow instead."""
     if argv[:1] == ["version"]:
         print(f"sniff {get_version()}")
         return 0
@@ -112,7 +182,14 @@ def main(argv: "list[str] | None" = None) -> int:
         p.add_argument("--dry-run", action="store_true")
         a = p.parse_args(argv[1:])
         return contribute.run_contribute(a.rule_id, a.dir, a.dry_run)
+    return None
 
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the argparse parser for the default `sniff [DIR]` scan flow.
+
+    Only reached once `_dispatch_subcommand` has ruled out every other
+    subcommand, so this parser only ever needs to understand scan flags."""
     parser = argparse.ArgumentParser(
         prog="sniff",
         description="Run every code-smell detector over a repo in one pass.",
@@ -148,22 +225,15 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument("--json", action="store_true", help="emit JSON instead of markdown (works with scan and --list)")
     parser.add_argument("--ignore", action="append", default=[], metavar="GLOB",
                         help="glob to exclude, relative to DIR (repeatable); adds to .sniff.toml [ignore] globs")
+    return parser
 
-    warn_hallucinated_flags(argv)
 
-    # parse_known_args (not parse_args) so unknown trailing flags can be forwarded
-    # to a single --only detector; anything else still errors out below.
-    # Whether extras are forwardable depends on how many detectors the run actually
-    # resolves to, which is only known after selection; the listing modes never run
-    # a detector at all, so they can reject extras right away.
-    args, extras = parser.parse_known_args(argv)
-    if extras and (args.list or args.list_patterns):
-        _reject_extras(parser, argv, extras)
+def _handle_listing_modes(args: argparse.Namespace, detectors: list[discovery.Detector]) -> "int | None":
+    """Handle --list and --list-patterns, the two flags that describe detectors
+    instead of running them.
 
-    # --list/--list-patterns describe detectors in general, not a scan of `path`,
-    # so they omit the scan path (matching doctor/prime, handled earlier above).
-    detectors = _discover_with_warnings(None if (args.list or args.list_patterns) else args.path)
-
+    Returns an exit code when one of these modes fired, or None when neither
+    flag was passed, telling the caller to continue into the scan flow."""
     if args.list:
         if args.json:
             print(json.dumps([
@@ -186,24 +256,23 @@ def main(argv: "list[str] | None" = None) -> int:
         print(buf.getvalue().strip())
         return code if isinstance(code, int) else 0
 
-    if not detectors:
-        print("No detectors found (empty built-in registry and no .sniff/detectors/*/detector.yml manifests).")
-        return 0
+    return None
 
-    if not os.path.isdir(args.path):
-        print(f"error: {args.path!r} is not a directory. Check the path and try again.", file=sys.stderr)
-        return 1
 
-    cfg = config.load(args.path)
+def _select_detectors(
+    detectors: list[discovery.Detector],
+    only: set[str],
+    args: argparse.Namespace,
+    cfg: config.Config,
+    parser: argparse.ArgumentParser,
+    argv: list[str],
+    extras: list[str],
+) -> "list[discovery.Detector] | int":
+    """Apply --only/--skip/config to `detectors`, warn on typos, and gate extras.
 
-    # `--ignore` adds to the scanned repo's `[ignore] globs` instead of replacing
-    # them: a one-off exclusion on the command line should not silently discard the
-    # exclusions that repo already committed. Folding it into cfg here means every
-    # downstream consumer (per-detector --extra-ignore args and the
-    # SNIFF_EXTRA_IGNORE export for external detectors) picks it up for free.
-    cfg.extra_ignores = [*cfg.extra_ignores, *args.ignore]
-
-    only = _split_csv(args.only)
+    Returns the narrowed detector list on success, or an int exit code when the
+    selection is empty (nothing left to run) or extras can't be forwarded
+    (resolves to more than one detector), telling `main` to return early."""
     selected, unknown = select_with_config(detectors, only, _split_csv(args.skip), cfg)
     for name in unknown:
         import difflib
@@ -224,28 +293,29 @@ def main(argv: "list[str] | None" = None) -> int:
             print("No detectors selected after --only/--skip.")
         return 0
 
-    present = harness.detect_languages(args.path, cfg.extra_ignores)
+    return selected
+
+
+def _apply_language_filter(
+    selected: list[discovery.Detector], present: "set[str]", only: set[str], args: argparse.Namespace
+) -> "list[discovery.Detector] | int":
+    """Drop detectors that can't read any language this repo contains.
+
+    Returns the filtered list, or an int exit code (0) when nothing survives
+    the filter, printing the same "nothing to scan" message in either JSON or
+    markdown mode, telling `main` to return early."""
     selected = _readable_here(selected, present, only)
+    if selected:
+        return selected
 
-    if not selected:
-        found = ", ".join(sorted(present)) or "no supported source files"
-        message = (f"No detector covers {found}. "
-                   f"Run `sniff --list` to see what each detector reads.")
-        if args.json:
-            print(json.dumps({"path": args.path, "detectors": []}, indent=2))
-        else:
-            print(message)
-        return 0
-
-    selected = [apply_config_to_detector(d, cfg) for d in selected]
-    selected = _forward_extras(selected, extras)
-
-    # Built-ins get the extra-ignore globs as --extra-ignore args (folded in by
-    # apply_config_to_detector above); the env var is only needed for external,
-    # manifest-based detectors, which inherit it through subprocess.run.
-    needs_env = bool(cfg.extra_ignores) and any(d.module is None for d in selected)
-    with _exported_extra_ignore(cfg.extra_ignores if needs_env else None):
-        return _run_selected(selected, args)
+    found = ", ".join(sorted(present)) or "no supported source files"
+    message = (f"No detector covers {found}. "
+               f"Run `sniff --list` to see what each detector reads.")
+    if args.json:
+        print(json.dumps({"path": args.path, "detectors": []}, indent=2))
+    else:
+        print(message)
+    return 0
 
 
 if __name__ == "__main__":
