@@ -15,10 +15,9 @@ file extensions present unless --lang is given (repeatable).
 
 from __future__ import annotations
 
-import argparse
 import sys
 
-from sniff import harness as h
+from sniff.detectors import _node_metric_cli as cli
 
 NAME = "largest-methods"
 TITLE = "Longest methods"
@@ -52,50 +51,22 @@ LANGUAGES = sorted(LANG_KINDS)
 
 
 def main(argv: "list[str] | None" = None) -> int:
-    parser = argparse.ArgumentParser(description="Rank the largest methods/functions by line count.")
-    parser.add_argument("path", nargs="?", default=".", help="directory to scan (default: .)")
-    parser.add_argument("--top", type=int, default=10, help="how many to show (default: 10)")
-    parser.add_argument("--lang", action="append", help="force a language (repeatable); skips auto-detect")
-    parser.add_argument("--include-tests", action="store_true", help="include *.spec.* / *.test.* files")
-    parser.add_argument("--extra-ignore", action="append", default=[],
-                        help="glob to exclude, relative to PATH (repeatable)")
+    parser = cli.new_parser("Rank the largest methods/functions by line count.")
+    cli.finish_parser(parser)
     args = parser.parse_args(argv)
 
-    present = sorted(set(args.lang)) if args.lang else sorted(h.detect_languages(args.path, args.extra_ignore))
-    if not present:
-        sys.exit(f"No supported source files found under {args.path!r}.")
-
-    langs = h.covered_languages(present, LANGUAGES)
-    if not langs:
-        print(h.not_applicable(present, LANGUAGES))
+    langs = cli.detect_and_gate(args, LANGUAGES)
+    if langs is None:
         return 0
 
-    matches = h.run(LANG_KINDS, args.path, lang=langs, include_tests=args.include_tests,
-                     extra_ignores=args.extra_ignore)
-    matches = h.fold_nested(matches)
-
-    if not matches:
-        print("No methods or functions matched.")
-        return 0
-
-    header = (
-        f"Largest {min(args.top, len(matches))} of {len(matches)} methods/functions "
-        f"({', '.join(langs)}; tests {'included' if args.include_tests else 'excluded'}; "
-        f"nested closures folded into their parent):"
+    return cli.run_size_main(
+        args, langs, LANG_KINDS,
+        header=lambda shown, total, langs_str, tests_str: (
+            f"Largest {shown} of {total} methods/functions "
+            f"({langs_str}; tests {tests_str}; nested closures folded into their parent):"
+        ),
+        empty_message="No methods or functions matched.",
     )
-
-    h.print_table(
-        matches,
-        columns=[
-            ("LINES", lambda m: m.lines),
-            ("NAME", lambda m: m.name),
-            ("LOCATION", lambda m: m.location),
-        ],
-        sort_key=lambda m: m.lines,
-        top=args.top,
-        header=header,
-    )
-    return 0
 
 
 if __name__ == "__main__":
