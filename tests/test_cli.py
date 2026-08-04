@@ -254,6 +254,11 @@ class SniffBaselineDiffTest(unittest.TestCase):
         self.assertEqual(data["version"], 2)
         self.assertIn("most-parameters", data["fingerprints"])
 
+    def test_diff_without_baseline_errors(self):
+        proc = self._run("diff", self.repo)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("no baseline", proc.stderr)
+
     def test_diff_clean_growth_is_not_a_regression(self):
         # THE core fix: adding a small clean function must not trip the gate.
         self._run("baseline", "write", self.repo)
