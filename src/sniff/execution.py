@@ -19,6 +19,16 @@ import sys
 
 from sniff import discovery
 
+# An external detector is someone else's script; a wedged one would otherwise hang
+# the scan, and with it any CI job that gates on `sniff diff`. Generous enough that
+# no honest detector on a large repo trips it, short enough to fail a build in
+# minutes rather than at the runner's own timeout.
+DETECTOR_TIMEOUT_SECONDS = 300
+
+# Conventional shell exit code for "killed by a timeout" (`timeout(1)` uses it).
+# Any non-zero code would do here; a recognizable one reads better in a scan section.
+TIMED_OUT_EXIT_CODE = 124
+
 
 def _run_module_detector(detector: discovery.Detector, path: str) -> "tuple[str, int, str | None]":
     """Run a built-in detector's module.main() in-process, capturing its stdout.
@@ -65,7 +75,19 @@ def run_detector_json(detector: discovery.Detector, path: str) -> dict:
 
     cmd = [sys.executable, detector.script, path, *detector.args]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=DETECTOR_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as exc:
+        # A timeout is a detector that ran and failed, not one that never launched,
+        # so it gets a non-zero exit code rather than None: that is what makes
+        # `_detector_failed` flip the scan's exit code instead of silently dropping
+        # the section. Whatever the detector managed to print is kept.
+        return {
+            "detector": detector.name,
+            "title": detector.title,
+            "exit_code": TIMED_OUT_EXIT_CODE,
+            "output": (exc.stdout or "").strip() if isinstance(exc.stdout, str) else None,
+            "error": f"timed out after {DETECTOR_TIMEOUT_SECONDS} seconds",
+        }
     except OSError as exc:
         return {
             "detector": detector.name,

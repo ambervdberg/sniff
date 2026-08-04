@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import unittest
@@ -105,6 +106,30 @@ class SingleHookSourceTest(unittest.TestCase):
             self.assertNotRegex(command, r"\$\{?PLUGIN_ROOT")
             if "PLUGIN_ROOT" in command:
                 self.assertIn("${CLAUDE_PLUGIN_ROOT}", command)
+
+    def test_hook_commands_try_both_interpreter_names(self):
+        """No single interpreter name is portable: most Linux and macOS boxes
+        ship only `python3`, while a python.org install on Windows gives only
+        `python`. Naming one of them strands every hook on the other platform,
+        silently, because a hook that cannot start looks the same as one with
+        nothing to say. `||` fires the second name only when the first is not a
+        command, which holds in sh, cmd and PowerShell alike."""
+        for command in self._hook_commands():
+            self.assertIn("||", command)
+            self.assertTrue(command.startswith("python3 "), command)
+            self.assertIn("|| python ", command)
+
+    def test_hook_scripts_always_exit_zero(self):
+        """What makes the `||` chain safe: the fallback must mean "the first
+        interpreter does not exist", never "the script ran and failed". A hook
+        script that can exit non-zero would be run twice, and the SessionStart
+        block would land in the session twice over."""
+        for command in self._hook_commands():
+            script = re.search(r"\$\{CLAUDE_PLUGIN_ROOT\}(\S+\.py)", command).group(1)
+            path = os.path.join(PLUGIN_ROOT, script.lstrip("/").replace("/", os.sep))
+            proc = subprocess.run([sys.executable, path], cwd=PLUGIN_ROOT,
+                                  capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, f"{script}: {proc.stderr}")
 
 
 class CodexHooksWiringTest(unittest.TestCase):

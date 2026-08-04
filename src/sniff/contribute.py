@@ -68,14 +68,42 @@ def run_contribute(rule_id: str, project_dir: str, dry_run: bool = False) -> int
         print(f"dry-run: would contribute {rule_id!r} via {backend}")
         return 0
     if checkout:
-        return _contribute_to_checkout(rule_id, project_dir, checkout)   # Task 8
-    return _contribute_via_gh(rule_id, project_dir)                       # Task 9
+        return _contribute_to_checkout(rule_id, project_dir, checkout)
+    return _contribute_via_gh(rule_id, project_dir)
 
 
 def _core_rule_ids() -> "set[str]":
     """Rule ids shipped in this install's catalog."""
     from sniff.patterns import rules_dir
     return {os.path.splitext(n)[0] for n in os.listdir(rules_dir()) if n.endswith((".yml", ".yaml"))}
+
+
+def _current_branch(checkout: str) -> "str | None":
+    """The branch `checkout` is on, or None when git cannot say (detached HEAD,
+    not a repo). None means there is nothing safe to return to, so cleanup will
+    leave the checkout alone rather than guess."""
+    proc = subprocess.run(["git", "-C", checkout, "symbolic-ref", "--quiet", "--short", "HEAD"],
+                          capture_output=True, text=True)
+    return proc.stdout.strip() or None if proc.returncode == 0 else None
+
+
+def _undo_staged_rule(checkout: str, branch: str, previous: "str | None", copied: "list[str]") -> None:
+    """Put `checkout` back the way it was found: copies deleted, index reset,
+    original branch checked out, the rule branch deleted.
+
+    This runs when the contribution failed, so the user's own checkout is not
+    left parked on a half-built branch with someone else's files staged in it.
+    Best-effort on purpose: every step ignores its exit code, because a cleanup
+    that fails must not mask the real error the caller is about to print."""
+    for path in copied:
+        if os.path.exists(path):
+            os.remove(path)
+    subprocess.run(["git", "-C", checkout, "reset", "--quiet", "HEAD", "--", "src/sniff/patterns"],
+                   check=False, capture_output=True)
+    if previous is None:
+        return
+    subprocess.run(["git", "-C", checkout, "checkout", "--quiet", previous], check=False, capture_output=True)
+    subprocess.run(["git", "-C", checkout, "branch", "-D", branch], check=False, capture_output=True)
 
 
 def _contribute_to_checkout(rule_id: str, project_dir: str, checkout: str) -> int:
@@ -85,16 +113,20 @@ def _contribute_to_checkout(rule_id: str, project_dir: str, checkout: str) -> in
         return 1
 
     branch = f"rule/{rule_id}"
+    previous = _current_branch(checkout)
     if subprocess.run(["git", "-C", checkout, "checkout", "-b", branch]).returncode != 0:
         print(f"error: could not create branch {branch} (dirty checkout?)", file=sys.stderr)
         return 1
 
     rule_src, fixture_src = local_paths(rule_id, project_dir)
-    shutil.copy2(rule_src, os.path.join(patterns, "rules", rule_id + ".yml"))
-    shutil.copy2(fixture_src, os.path.join(patterns, "rule-tests", rule_id + ".yml"))
+    copied = [os.path.join(patterns, "rules", rule_id + ".yml"),
+              os.path.join(patterns, "rule-tests", rule_id + ".yml")]
+    shutil.copy2(rule_src, copied[0])
+    shutil.copy2(fixture_src, copied[1])
     subprocess.run(["git", "-C", checkout, "add", "src/sniff/patterns"], check=False)
 
     if rules_testing.run_test_rules(checkout) != 0:
+        _undo_staged_rule(checkout, branch, previous, copied)
         print("error: fixture tests failed in the checkout; fix before PR", file=sys.stderr)
         return 1
 

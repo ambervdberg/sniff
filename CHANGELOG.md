@@ -14,6 +14,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - sniff prime now checks PyPI for updates at most once every 4 hours.
 - The CI action no longer needs Node; ast-grep installs together with sniff.
 - The sniff skill again lists every detector, and skills no longer ask for ast-grep where it is not used.
+- `sniff prime` now lists the gate commands (`baseline`, `diff`) and `--skip`, `--all`, `contribute`.
+- Plugin hooks now run on systems where only `python3` exists.
+- An external detector that hangs is killed after 5 minutes instead of stalling the scan.
+- `sniff contribute` leaves your checkout on its original branch when the fixture tests reject the rule.
+- README links to the docs now work from the PyPI page.
 
 ## [0.15.0] - 2026-08-03
 
