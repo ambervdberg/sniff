@@ -30,6 +30,7 @@ import contextlib
 import io
 import json
 import os
+from dataclasses import dataclass
 import shutil  # noqa: F401  (re-export: tests patch run_module.shutil.which)
 import sys
 import urllib.request  # noqa: F401  (re-export: tests patch run_module.urllib.request.urlopen)
@@ -134,7 +135,8 @@ def main(argv: "list[str] | None" = None) -> int:
     cfg.extra_ignores = [*cfg.extra_ignores, *args.ignore]
 
     only = _split_csv(args.only)
-    selected = _select_detectors(detectors, only, args, cfg, parser, argv, extras)
+    trailing = _TrailingFlags(parser, argv, extras)
+    selected = _select_detectors(detectors, args, cfg, trailing)
     if isinstance(selected, int):
         return selected
 
@@ -259,20 +261,33 @@ def _handle_listing_modes(args: argparse.Namespace, detectors: list[discovery.De
     return None
 
 
+@dataclass(frozen=True)
+class _TrailingFlags:
+    """The argparse state `_select_detectors` needs only to reject un-forwardable
+    trailing flags.
+
+    `parser` and `argv` let `_reject_extras` re-run the strict parse so argparse
+    prints its own "unrecognized arguments" error (and exit code); `extras` is
+    the leftover, unrecognized flags themselves. Bundled together because the
+    three always travel as a unit and this is their only consumer."""
+
+    parser: argparse.ArgumentParser
+    argv: list[str]
+    extras: list[str]
+
+
 def _select_detectors(
     detectors: list[discovery.Detector],
-    only: set[str],
     args: argparse.Namespace,
     cfg: config.Config,
-    parser: argparse.ArgumentParser,
-    argv: list[str],
-    extras: list[str],
+    trailing: _TrailingFlags,
 ) -> "list[discovery.Detector] | int":
     """Apply --only/--skip/config to `detectors`, warn on typos, and gate extras.
 
     Returns the narrowed detector list on success, or an int exit code when the
     selection is empty (nothing left to run) or extras can't be forwarded
     (resolves to more than one detector), telling `main` to return early."""
+    only = _split_csv(args.only)
     selected, unknown = select_with_config(detectors, only, _split_csv(args.skip), cfg)
     for name in unknown:
         import difflib
@@ -283,8 +298,8 @@ def _select_detectors(
 
     # Checked against the resolved selection, not the raw --only names, so a typo'd
     # or fully skipped detector name cannot silently swallow the extras.
-    if extras and len(selected) != 1:
-        _reject_extras(parser, argv, extras)
+    if trailing.extras and len(selected) != 1:
+        _reject_extras(trailing.parser, trailing.argv, trailing.extras)
 
     if not selected:
         if args.json:
