@@ -76,7 +76,7 @@ snippet (must be flagged) and one valid snippet (must stay clean). `no-empty-cat
 and `no-explicit-any.yml` are the ones to copy.
 
 A rule with no fixture file fails `sniff test-rules` by name. The one exception is a rule
-implemented in Python inside `patterns/format.py` rather than as ast-grep YAML, which
+implemented in Python inside `patterns/scan.py` rather than as ast-grep YAML, which
 `ast-grep test` cannot run: those are listed in `PYTHON_RULES` in
 `src/sniff/rules_testing.py` and skipped. Adding to that set means giving up fixture
 coverage, so treat it as a last resort.

@@ -14,7 +14,7 @@ import sys
 
 from sniff.harness import ast_grep_exe
 
-# Rules implemented in Python inside format.py, not as ast-grep rules.
+# Rules implemented in Python inside patterns/scan.py, not as ast-grep rules.
 PYTHON_RULES = {"no-multiline-single-comment"}
 
 
