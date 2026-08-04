@@ -74,9 +74,12 @@ class CallSiteTest(unittest.TestCase):
         self.assertEqual(argv0, SENTINEL)
 
     def test_harness_scan_uses_resolved_path(self):
+        # The scan submodule owns the subprocess call; the package only re-exports it.
+        from sniff.harness import scan as harness_scan
+
         argv0 = self._argv0_of(
-            harness,
-            lambda: harness._scan(REPO_ROOT, "python", "id: x\nlanguage: python\nrule:\n  kind: module\n"),
+            harness_scan,
+            lambda: harness_scan._scan(REPO_ROOT, "python", "id: x\nlanguage: python\nrule:\n  kind: module\n"),
         )
         self.assertEqual(argv0, SENTINEL)
 
