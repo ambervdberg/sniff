@@ -16,8 +16,12 @@ Run: python -m pytest tests/test_sdist_contents.py
 from __future__ import annotations
 
 import os
-import tomllib
 import unittest
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib  # type: ignore
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLUGIN_ROOT = os.path.normpath(os.path.join(HERE, ".."))
