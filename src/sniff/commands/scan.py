@@ -195,23 +195,29 @@ def _exported_extra_ignore(globs: "list[str] | None"):
 def _run_selected(selected: list[discovery.Detector], args: argparse.Namespace) -> int:
     """Run every selected detector over args.path and print the result.
 
-    JSON mode emits one machine-readable object; markdown mode prints a header
-    line plus one `## <detector>` section each. Both modes render the same
-    `run_detector_json` results, so a detector that fails to run (crash,
-    launch failure, non-zero exit) flips the process exit code to 1 in either
-    mode. Findings alone (a detector that ran cleanly and reported smells)
-    are not a failure and leave the exit code at 0."""
-    results = [run_detector_json(d, args.path) for d in selected]
-
+    JSON mode buffers every result before printing, since the payload is one
+    machine-readable object and can't be emitted until the whole thing exists.
+    Markdown mode instead streams: it prints a header line, then each
+    `## <detector>` section as that detector finishes, rather than waiting for
+    every detector to run before the first line of output appears. Both modes
+    render the same `run_detector_json` results, so a detector that fails to
+    run (crash, launch failure, non-zero exit) flips the process exit code to
+    1 in either mode. Findings alone (a detector that ran cleanly and reported
+    smells) are not a failure and leave the exit code at 0."""
     if args.json:
+        results = [run_detector_json(d, args.path) for d in selected]
         print(json.dumps({"path": args.path, "detectors": results}, indent=2))
-    else:
-        names = ", ".join(d.name for d in selected)
-        print(f"sniff: {len(selected)} detectors over {args.path!r}: {names}\n")
+        return 1 if any(_detector_failed(r) for r in results) else 0
 
-        for detector, result in zip(selected, results):
-            print(f"## {detector.name}\n")
-            print(_render_detector_result(result))
-            print()
+    names = ", ".join(d.name for d in selected)
+    print(f"sniff: {len(selected)} detectors over {args.path!r}: {names}\n")
 
-    return 1 if any(_detector_failed(r) for r in results) else 0
+    failed = False
+    for detector in selected:
+        result = run_detector_json(detector, args.path)
+        print(f"## {detector.name}\n")
+        print(_render_detector_result(result))
+        print()
+        failed |= _detector_failed(result)
+
+    return 1 if failed else 0
