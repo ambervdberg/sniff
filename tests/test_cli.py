@@ -24,6 +24,16 @@ RUN = [sys.executable, "-m", "sniff.cli"]
 SUBPROCESS_ENV = {**os.environ, "PYTHONPATH": SRC, "SNIFF_NO_VERSION_CHECK": "1"}
 
 
+def _path_without_astgrep() -> str:
+    """PATH with every directory containing an `ast-grep` executable removed.
+
+    Shared by any test that needs an ast-grep-backed detector to fail to launch
+    (rather than run and report zero findings), so the failure path itself gets
+    exercised."""
+    dirs = os.environ.get("PATH", "").split(os.pathsep)
+    return os.pathsep.join(d for d in dirs if not shutil.which("ast-grep", path=d))
+
+
 class SniffCliHelpTest(unittest.TestCase):
     """Verify LLM-facing sniff CLI help stays explicit."""
 
@@ -241,11 +251,6 @@ class SniffBaselineDiffTest(unittest.TestCase):
     def _run(self, *args: str, env: dict | None = None) -> subprocess.CompletedProcess:
         return subprocess.run([*RUN, *args], capture_output=True, text=True, env=env or SUBPROCESS_ENV)
 
-    def _path_without_astgrep(self) -> str:
-        """PATH with every directory containing an `ast-grep` executable removed."""
-        dirs = os.environ.get("PATH", "").split(os.pathsep)
-        return os.pathsep.join(d for d in dirs if not shutil.which("ast-grep", path=d))
-
     def test_baseline_write_saves_v2_fingerprints(self):
         proc = self._run("baseline", "write", self.repo)
         self.assertEqual(proc.returncode, 0)
@@ -290,10 +295,23 @@ class SniffBaselineDiffTest(unittest.TestCase):
         # PATH so ast-grep-backed detectors error. Exit must be 1, output
         # must name the failure, and must NOT say "same or better".
         self._run("baseline", "write", self.repo)
-        env = {**SUBPROCESS_ENV, "PATH": self._path_without_astgrep()}
+        env = {**SUBPROCESS_ENV, "PATH": _path_without_astgrep()}
         proc = self._run("diff", self.repo, env=env)
         self.assertEqual(proc.returncode, 1)
         self.assertNotIn("same or better", proc.stdout + proc.stderr)
+
+    def test_scan_exit_code_reflects_detector_failure(self):
+        # An ast-grep-backed detector that cannot launch must flip the scan's
+        # exit code to 1: a broken detector is a failure, not a clean report.
+        env = {**SUBPROCESS_ENV, "PATH": _path_without_astgrep()}
+        proc = self._run("--only", "largest-methods", self.repo, env=env)
+        self.assertEqual(proc.returncode, 1)
+
+    def test_scan_with_findings_still_exits_zero(self):
+        # A detector that runs fine and reports smells is not a failure;
+        # findings alone must not flip the exit code.
+        proc = self._run("--only", "most-parameters", self.repo)
+        self.assertEqual(proc.returncode, 0)
 
 
 def test_diff_comment_renders_markdown(tmp_path, capsys, monkeypatch):

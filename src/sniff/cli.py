@@ -195,7 +195,7 @@ def _run_module_detector(detector: discovery.Detector, path: str) -> "tuple[str,
     error message). Detectors call `sys.exit("some message")` on a usage error
     (e.g. no supported source files); in-process that raises SystemExit with a
     string `.code` instead of printing to stderr and exiting, so it is caught
-    here and folded into the same shape run_detector/_json already expect."""
+    here and folded into the same shape run_detector_json already expects."""
     buf = io.StringIO()
     error: "str | None" = None
     try:
@@ -213,30 +213,22 @@ def _run_module_detector(detector: discovery.Detector, path: str) -> "tuple[str,
     return buf.getvalue(), code, error
 
 
-def run_detector(detector: discovery.Detector, path: str) -> str:
-    """Run one detector over `path`, return its stdout (or an error note).
+def _render_detector_result(result: dict) -> str:
+    """Render a `run_detector_json` result as the markdown scan section body.
 
-    Built-ins (`detector.module` set) run in-process; external detectors still
-    shell out to their script. A detector that fails (non-zero exit, crash)
-    yields an error section instead of aborting the whole run, so one broken
-    detector cannot suppress the others."""
-    if detector.module is not None:
-        out, code, error = _run_module_detector(detector, path)
-        out = out.strip()
-        if code != 0:
-            err = error or f"exit code {code}"
-            return f"{out}\n\n_detector exited non-zero: {err}_".strip()
-        return out or "_no output_"
+    Mirrors the text the old in-process `run_detector` produced byte-for-byte,
+    so switching the markdown render path onto the same JSON results the
+    `--json` branch already computes cannot change what a plain `sniff` scan
+    prints. A detector that never launched (`exit_code` is None, external
+    detectors only) gets the "failed to launch" note; a detector that ran but
+    exited non-zero gets the "exited non-zero" note; a clean run prints its
+    output, or a placeholder when it produced none."""
+    if result["exit_code"] is None:
+        return f"_detector failed to launch: {result['error']}_"
 
-    cmd = [sys.executable, detector.script, path, *detector.args]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-    except OSError as exc:
-        return f"_detector failed to launch: {exc}_"
-
-    out = proc.stdout.strip()
-    if proc.returncode != 0:
-        err = proc.stderr.strip() or f"exit code {proc.returncode}"
+    out = (result["output"] or "").strip()
+    if result["exit_code"] != 0:
+        err = result["error"] or f"exit code {result['exit_code']}"
         return f"{out}\n\n_detector exited non-zero: {err}_".strip()
     return out or "_no output_"
 
@@ -244,10 +236,11 @@ def run_detector(detector: discovery.Detector, path: str) -> str:
 def run_detector_json(detector: discovery.Detector, path: str) -> dict:
     """Run one detector over `path`, return a JSON-serializable result.
 
-    Mirrors run_detector's handling (in-process for built-ins, subprocess for
-    external) but keeps stdout/stderr/exit_code structured instead of folding
-    them into a markdown string, so `--json` output stays machine-parseable
-    (e.g. by evals/scorer.py)."""
+    Runs in-process for built-ins, subprocess for external detectors, and
+    keeps stdout/stderr/exit_code structured instead of folding them into a
+    markdown string, so `--json` output stays machine-parseable (e.g. by
+    evals/scorer.py). `_render_detector_result` folds this same structured
+    result into the markdown scan's per-detector section text."""
     if detector.module is not None:
         out, code, error = _run_module_detector(detector, path)
         return {
@@ -869,21 +862,26 @@ def _run_selected(selected: list[discovery.Detector], args: argparse.Namespace) 
     """Run every selected detector over args.path and print the result.
 
     JSON mode emits one machine-readable object; markdown mode prints a header
-    line plus one `## <detector>` section each."""
+    line plus one `## <detector>` section each. Both modes render the same
+    `run_detector_json` results, so a detector that fails to run (crash,
+    launch failure, non-zero exit) flips the process exit code to 1 in either
+    mode. Findings alone (a detector that ran cleanly and reported smells)
+    are not a failure and leave the exit code at 0."""
+    results = [run_detector_json(d, args.path) for d in selected]
+
     if args.json:
-        results = [run_detector_json(d, args.path) for d in selected]
         print(json.dumps({"path": args.path, "detectors": results}, indent=2))
-        return 0
+    else:
+        names = ", ".join(d.name for d in selected)
+        print(f"sniff: {len(selected)} detectors over {args.path!r}: {names}\n")
 
-    names = ", ".join(d.name for d in selected)
-    print(f"sniff: {len(selected)} detectors over {args.path!r}: {names}\n")
+        for detector, result in zip(selected, results):
+            print(f"## {detector.name}\n")
+            print(_render_detector_result(result))
+            print()
 
-    for detector in selected:
-        print(f"## {detector.name}\n")
-        print(run_detector(detector, args.path))
-        print()
-
-    return 0
+    detector_failed = any(r["error"] or r["exit_code"] not in (0, None) for r in results)
+    return 1 if detector_failed else 0
 
 
 if __name__ == "__main__":
