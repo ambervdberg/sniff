@@ -42,11 +42,10 @@ def main(argv: "list[str] | None" = None) -> int:
     if langs is None:
         return 0
 
-    return cli.run_metric_main(
-        args, langs,
+    spec = cli.MetricSpec(
         scorer=nm.cyclomatic,
         metric_key="cyclomatic",
-        minimum=args.minimum,
+        minimum_attr="minimum",
         column="COMPLEXITY",
         header=lambda shown, total, langs_str, tests_str: (
             f"Most complex {shown} of {total} functions by cyclomatic complexity "
@@ -54,6 +53,7 @@ def main(argv: "list[str] | None" = None) -> int:
         ),
         empty_message=lambda langs_str: f"No functions at cyclomatic >= {args.minimum} (scanned: {langs_str}).",
     )
+    return cli.run_metric_main(args, langs, spec)
 
 
 if __name__ == "__main__":

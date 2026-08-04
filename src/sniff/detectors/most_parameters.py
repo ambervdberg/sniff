@@ -41,11 +41,10 @@ def main(argv: "list[str] | None" = None) -> int:
     if langs is None:
         return 0
 
-    return cli.run_metric_main(
-        args, langs,
+    spec = cli.MetricSpec(
         scorer=nm.params,
         metric_key="params",
-        minimum=args.minimum,
+        minimum_attr="minimum",
         column="PARAMS",
         header=lambda shown, total, langs_str, tests_str: (
             f"Most parameters: {shown} of {total} functions "
@@ -53,6 +52,7 @@ def main(argv: "list[str] | None" = None) -> int:
         ),
         empty_message=lambda langs_str: f"No functions with >= {args.minimum} params (scanned: {langs_str}).",
     )
+    return cli.run_metric_main(args, langs, spec)
 
 
 if __name__ == "__main__":

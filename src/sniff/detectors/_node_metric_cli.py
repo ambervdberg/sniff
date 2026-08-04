@@ -16,18 +16,29 @@ call, its table columns, and its own wording. Like `harness.py`, it is a plain
 importable module, not a triggerable skill: no SKILL.md names it, so a skill
 loader never surfaces it on its own.
 
+Each tail used to take its per-detector wording and callables as a fistful of
+loose keyword arguments (nine for the metric tail, six for the size tail). That
+long parameter list was itself a smell: the four/two callers were passing the
+same bundle of "who am I" facts every time, just with different values. The
+MetricSpec/SizeSpec dataclasses below carry that bundle as one object instead,
+so each detector builds its spec once and the runners take only (args, langs,
+spec).
+
 Public API:
     new_parser(description)                    -> parser with path/--top/--lang
     finish_parser(parser)                       -> adds --include-tests/--extra-ignore
     detect_and_gate(args, languages)            -> langs to scan, or None (caller returns 0)
-    run_metric_main(...)                        -> shared tail for the four node_metric detectors
-    run_size_main(...)                          -> shared tail for largest-methods/largest-classes
+    MetricSpec                                  -> per-detector identity for run_metric_main
+    SizeSpec                                    -> per-detector identity for run_size_main
+    run_metric_main(args, langs, spec)          -> shared tail for the four node_metric detectors
+    run_size_main(args, langs, spec)            -> shared tail for largest-methods/largest-classes
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import dataclass
 from typing import Callable
 
 from sniff import harness as h
@@ -83,71 +94,101 @@ def _tests_word(include_tests: bool) -> str:
     return "included" if include_tests else "excluded"
 
 
-def run_metric_main(
-    args: argparse.Namespace,
-    langs: "list[str]",
-    scorer: Scorer,
-    metric_key: str,
-    minimum: int,
-    column: str,
-    header: "Callable[[int, int, str, str], str]",
-    empty_message: "Callable[[str], str]",
-) -> int:
+@dataclass(frozen=True)
+class MetricSpec:
+    """Everything that makes one node_metric detector different from the other
+    three, bundled into a single value instead of five loose parameters.
+
+    scorer         one of node_metric's per-metric functions (nm.cognitive,
+                   nm.cyclomatic, nm.nesting_depth, nm.params); it must return
+                   Matches with `metric_key` set in `.metrics`.
+    metric_key     the key that scorer writes into each Match's `.metrics`
+                   dict, e.g. "cognitive" or "params".
+    minimum_attr   the argparse dest holding the detector's threshold flag
+                   (e.g. "minimum" for --min, "min_depth" for --min-depth).
+                   Reading it by name here means each detector keeps choosing
+                   its own flag spelling without run_metric_main needing to
+                   know it.
+    column         the table's left-hand header, e.g. "COGNITIVE", "PARAMS".
+    header         called with (shown, total, langs_str, tests_str) once the
+                   threshold filter is known; each detector phrases this
+                   differently, so it stays a callable rather than a template
+                   string built here.
+    empty_message  called with just langs_str when nothing cleared the
+                   threshold.
+    """
+
+    scorer: Scorer
+    metric_key: str
+    minimum_attr: str
+    column: str
+    header: "Callable[[int, int, str, str], str]"
+    empty_message: "Callable[[str], str]"
+
+
+def run_metric_main(args: argparse.Namespace, langs: "list[str]", spec: MetricSpec) -> int:
     """Shared tail of a node_metric detector's main(): score, threshold, print.
 
-    `scorer` is one of node_metric's per-metric functions; it must return
-    Matches with `metric_key` set in `.metrics`. `header` and `empty_message`
-    are the calling detector's own wording: `header` is called with (shown,
-    total, langs_str, tests_str) once the threshold filter is known,
-    `empty_message` with just langs_str. Keeping those as callables (rather
-    than plain strings built here) is what lets four detectors with four
-    different phrasings share this one function."""
+    Everything that varies between the four callers (cognitive/cyclomatic
+    complexity, nesting depth, parameter count) lives on `spec`; this function
+    only knows the shape all four share."""
     langs_str = ", ".join(langs)
+    minimum = getattr(args, spec.minimum_attr)
 
-    scored = scorer(args.path, langs=langs, include_tests=args.include_tests,
-                     extra_ignores=args.extra_ignore)
-    scored = [m for m in scored if m.metrics.get(metric_key, 0) >= minimum]
+    scored = spec.scorer(args.path, langs=langs, include_tests=args.include_tests,
+                          extra_ignores=args.extra_ignore)
+    scored = [m for m in scored if m.metrics.get(spec.metric_key, 0) >= minimum]
 
     if not scored:
-        print(empty_message(langs_str))
+        print(spec.empty_message(langs_str))
         return 0
 
     h.print_table(
         scored,
         columns=[
-            (column, lambda m: m.metrics[metric_key]),
+            (spec.column, lambda m: m.metrics[spec.metric_key]),
             ("NAME", lambda m: m.name),
             ("LOCATION", lambda m: m.location),
         ],
-        sort_key=lambda m: m.metrics[metric_key],
+        sort_key=lambda m: m.metrics[spec.metric_key],
         top=args.top,
-        header=header(min(args.top, len(scored)), len(scored), langs_str, _tests_word(args.include_tests)),
+        header=spec.header(min(args.top, len(scored)), len(scored), langs_str, _tests_word(args.include_tests)),
     )
     return 0
 
 
-def run_size_main(
-    args: argparse.Namespace,
-    langs: "list[str]",
-    rule: "dict[str, list[str]]",
-    header: "Callable[[int, int, str, str], str]",
-    empty_message: str,
-) -> int:
+@dataclass(frozen=True)
+class SizeSpec:
+    """Everything that makes one line-count detector different from the other
+    (largest-methods vs largest-classes), bundled into a single value.
+
+    rule           the {language: [node kinds]} map (or ast-grep pattern) that
+                   tells the harness what counts as a match.
+    header         called with (shown, total, langs_str, tests_str) once the
+                   match count is known; each detector phrases this
+                   differently, so it stays a callable rather than a template
+                   string built here.
+    empty_message  a plain string, since neither detector's "nothing found"
+                   line varies with anything computed here.
+    """
+
+    rule: "dict[str, list[str]]"
+    header: "Callable[[int, int, str, str], str]"
+    empty_message: str
+
+
+def run_size_main(args: argparse.Namespace, langs: "list[str]", spec: SizeSpec) -> int:
     """Shared tail for the two line-count detectors (largest-methods,
     largest-classes): scan structurally, fold nested matches into their outer
     one, and print the LINES/NAME/LOCATION table. There is no threshold flag
     here, unlike `run_metric_main`, so every match found is eligible for
-    display up to --top.
-
-    `header` is called with (shown, total, langs_str, tests_str) once the
-    match count is known; `empty_message` is a plain string since neither
-    detector's "nothing found" line varies with anything computed here."""
-    matches = h.run(rule, args.path, lang=langs, include_tests=args.include_tests,
+    display up to --top."""
+    matches = h.run(spec.rule, args.path, lang=langs, include_tests=args.include_tests,
                      extra_ignores=args.extra_ignore)
     matches = h.fold_nested(matches)
 
     if not matches:
-        print(empty_message)
+        print(spec.empty_message)
         return 0
 
     h.print_table(
@@ -159,7 +200,7 @@ def run_size_main(
         ],
         sort_key=lambda m: m.lines,
         top=args.top,
-        header=header(min(args.top, len(matches)), len(matches),
-                       ", ".join(langs), _tests_word(args.include_tests)),
+        header=spec.header(min(args.top, len(matches)), len(matches),
+                            ", ".join(langs), _tests_word(args.include_tests)),
     )
     return 0

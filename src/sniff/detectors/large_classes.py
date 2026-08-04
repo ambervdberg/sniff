@@ -47,14 +47,15 @@ def main(argv: "list[str] | None" = None) -> int:
     if langs is None:
         return 0
 
-    return cli.run_size_main(
-        args, langs, RULE,
+    spec = cli.SizeSpec(
+        rule=RULE,
         header=lambda shown, total, langs_str, tests_str: (
             f"Largest {shown} of {total} {NOUN} "
             f"({langs_str}; tests {tests_str}; nested matches folded into their parent):"
         ),
         empty_message=f"No {NOUN} matched.",
     )
+    return cli.run_size_main(args, langs, spec)
 
 
 if __name__ == "__main__":

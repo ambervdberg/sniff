@@ -42,11 +42,10 @@ def main(argv: "list[str] | None" = None) -> int:
     if langs is None:
         return 0
 
-    return cli.run_metric_main(
-        args, langs,
+    spec = cli.MetricSpec(
         scorer=nm.nesting_depth,
         metric_key="depth",
-        minimum=args.min_depth,
+        minimum_attr="min_depth",
         column="DEPTH",
         header=lambda shown, total, langs_str, tests_str: (
             f"Deepest {shown} of {total} functions by nesting depth "
@@ -54,6 +53,7 @@ def main(argv: "list[str] | None" = None) -> int:
         ),
         empty_message=lambda langs_str: f"No functions at nesting depth >= {args.min_depth} (scanned: {langs_str}).",
     )
+    return cli.run_metric_main(args, langs, spec)
 
 
 if __name__ == "__main__":

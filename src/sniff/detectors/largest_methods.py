@@ -59,14 +59,15 @@ def main(argv: "list[str] | None" = None) -> int:
     if langs is None:
         return 0
 
-    return cli.run_size_main(
-        args, langs, LANG_KINDS,
+    spec = cli.SizeSpec(
+        rule=LANG_KINDS,
         header=lambda shown, total, langs_str, tests_str: (
             f"Largest {shown} of {total} methods/functions "
             f"({langs_str}; tests {tests_str}; nested closures folded into their parent):"
         ),
         empty_message="No methods or functions matched.",
     )
+    return cli.run_size_main(args, langs, spec)
 
 
 if __name__ == "__main__":
