@@ -415,7 +415,7 @@ fails the job on any regression.
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: ambervdberg/sniff@v0.15.0
+- uses: ambervdberg/sniff@v0.16.0
   with:
     path: .
 ```

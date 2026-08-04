@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-08-04
+
 - `sniff diff` now flags only new or worsened violations, so adding clean code no longer fails the gate.
 - `sniff baseline` and `sniff diff` now fail with an error when any detector cannot run.
 - Baselines written by older versions must be refreshed with `sniff baseline write`.

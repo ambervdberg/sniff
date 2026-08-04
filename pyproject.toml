@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sniff-smells"
-version = "0.15.0"
+version = "0.16.0"
 description = "Token-efficient code-smell detection for AI agents"
 readme = "README.md"
 license = "MIT"
