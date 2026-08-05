@@ -24,6 +24,37 @@ from sniff.commands.scan import (
 )
 
 
+# -h/--help text for the two subcommands. Printed directly (not via argparse)
+# because argv here is hand-parsed, same as the rest of this module; keeping
+# the help text as plain strings avoids pulling in a parser for two flags.
+BASELINE_HELP = """usage: sniff baseline write [DIR]
+
+Scan DIR and save each detector's current fingerprints to
+<DIR>/.sniff/baseline.json, so a later `sniff diff` can compare against it.
+
+positional arguments:
+  DIR         directory to scan (default: current directory)
+
+options:
+  -h, --help  show this help message and exit
+"""
+
+DIFF_HELP = """usage: sniff diff [DIR] [--comment]
+
+Compare a fresh scan of DIR against its saved baseline. Exits 0 if nothing
+regressed (same or better), 1 if any detector has a new or worsened
+fingerprint.
+
+positional arguments:
+  DIR         directory to scan (default: current directory)
+
+options:
+  --comment   emit the result as a markdown table with a bold verdict line,
+              suitable to paste as a PR comment
+  -h, --help  show this help message and exit
+"""
+
+
 def _configured_detectors(path: str) -> list:
     """Discovered detectors, narrowed and configured exactly as a normal scan does.
 
@@ -48,6 +79,14 @@ def run_baseline(argv: list[str]) -> int:
 
     Saved to <DIR>/.sniff/baseline.json so a later `sniff diff` can compare
     against it. Returns 0 on success, 1 on a usage, path, or detector error."""
+    # Checked before the "write" subcommand check below: `sniff baseline --help`
+    # (no "write") and `sniff baseline write --help` must both print usage and
+    # exit 0. Before this check, "--help" fell through to the path check and
+    # was rejected as "'--help' is not a directory" (exit 1).
+    if "-h" in argv or "--help" in argv:
+        print(BASELINE_HELP)
+        return 0
+
     if not argv or argv[0] != "write":
         print("usage: sniff baseline write [DIR]", file=sys.stderr)
         return 1
@@ -86,6 +125,13 @@ def run_diff(argv: list[str]) -> int:
 
     --comment switches the table to markdown with a bold verdict line, suitable
     to paste as a PR comment."""
+    # Same reasoning as run_baseline above: -h/--help must short-circuit before
+    # --comment is stripped and DIR is validated, else "sniff diff --help" hit
+    # isdir("--help") and exited 1 instead of printing usage.
+    if "-h" in argv or "--help" in argv:
+        print(DIFF_HELP)
+        return 0
+
     comment = "--comment" in argv
     argv = [a for a in argv if a != "--comment"]
     path = argv[0] if argv else "."

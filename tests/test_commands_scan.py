@@ -390,6 +390,23 @@ class RunSelectedTest(unittest.TestCase):
                 code = scan.run_selected(detectors, self._args(json_mode=True))
         self.assertEqual(code, 1)
 
+    def test_json_mode_carries_each_detectors_structured_findings_through_unchanged(self):
+        # run_selected must not reshape a detector result on its way into the
+        # payload: whatever run_detector_json put under "findings" (the
+        # execution.py-side threading of harness's structured rows) has to
+        # reach the printed JSON exactly as-is, since scan.py itself never
+        # builds or edits that array.
+        detectors = [make_detector("alpha")]
+        row = {"file": "app.py", "line": 3, "name": "widget", "lines": 0, "count": 0, "metrics": {}}
+        result_with_findings = {**self._clean_result("alpha"), "findings": [row]}
+        with mock.patch.object(scan, "run_detector_json", return_value=result_with_findings):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                scan.run_selected(detectors, self._args(json_mode=True))
+
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["detectors"][0]["findings"], [row])
+
     def test_findings_alone_are_not_a_failure(self):
         # A detector that ran cleanly and reported smells is exit 0, not 1:
         # only a detector that failed to run flips the exit code.

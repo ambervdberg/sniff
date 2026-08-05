@@ -223,6 +223,33 @@ class DiffFailClosedTest(unittest.TestCase):
         self.assertNotIn("same or better", out)
 
 
+class HelpFlagTest(unittest.TestCase):
+    """-h/--help on both subcommands must print usage and exit 0, instead of
+    falling through to the DIR validation below them. Before the fix, that
+    validation rejected the literal "--help" token as a bad directory."""
+
+    def test_baseline_help_without_write_exits_zero(self):
+        code, out, _err = run(baseline_diff.run_baseline, "--help")
+        self.assertEqual(code, 0)
+        self.assertIn("usage: sniff baseline write", out)
+
+    def test_baseline_write_help_exits_zero(self):
+        code, out, _err = run(baseline_diff.run_baseline, "write", "-h")
+        self.assertEqual(code, 0)
+        self.assertIn("usage: sniff baseline write", out)
+
+    def test_diff_help_lists_comment_flag(self):
+        code, out, _err = run(baseline_diff.run_diff, "--help")
+        self.assertEqual(code, 0)
+        self.assertIn("usage: sniff diff", out)
+        self.assertIn("--comment", out)
+
+    def test_diff_short_help_flag_exits_zero(self):
+        code, out, _err = run(baseline_diff.run_diff, "-h")
+        self.assertEqual(code, 0)
+        self.assertIn("usage: sniff diff", out)
+
+
 class DiffCommentTest(unittest.TestCase):
     """`--comment` renders the same verdict as markdown."""
 

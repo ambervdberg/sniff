@@ -38,7 +38,7 @@ def ast_grep_exe() -> str:
 
 def _require_ast_grep() -> None:
     if not shutil.which("ast-grep"):
-        sys.exit("error: ast-grep is not installed or not on PATH. See https://ast-grep.github.io")
+        sys.exit("error: ast-grep is not installed or not on PATH. Install it with: pip install ast-grep-cli")
 
 
 def _yaml_single_quoted(path: str) -> str:

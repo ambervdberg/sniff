@@ -9,6 +9,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - most-parameters no longer counts a trailing comma as an extra parameter.
 - no-duplicate-string now skips idiom strings (dunders, encodings, argparse actions, quoted type annotations) and reports file:line locations.
 - `sniff prime` and the sniff skill now explain the baseline/diff agent loop.
+- `sniff diff --help` and `sniff baseline --help` now print usage instead of failing.
+- New `sniff --version` flag, alias for `sniff version`.
+- A rejected scan path now hints that detector flags need an explicit DIR before them.
+- `sniff --json` now includes each detector's findings as structured rows, alongside the markdown table.
+- The ast-grep install hints now name the pip package `ast-grep-cli`.
 - `sniff diff` now flags only new or worsened violations, so adding clean code no longer fails the gate.
 - `sniff baseline` and `sniff diff` now fail with an error naming every detector that could not run.
 - Baselines written by older versions must be refreshed with `sniff baseline write`.

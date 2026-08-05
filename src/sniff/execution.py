@@ -8,6 +8,14 @@ result. `_render_detector_result` and `_detector_failed` are the two ways that
 result gets interpreted afterward: one turns it into the text a markdown scan
 section prints, the other decides whether it should flip the process exit
 code.
+
+A built-in detector's structured rows (the same `_sink_entry`-shaped dicts
+`harness.print_table` already builds for `sniff baseline`/`sniff diff`) ride
+along in the result too, under `"findings"`, so a `--json` reader gets
+machine-shaped rows and not just a markdown table it would have to re-parse.
+An external (subprocess) detector has no in-process sink to read, so its
+`"findings"` is always an empty list; that is a fact about the process
+boundary, not a smaller set of findings.
 """
 
 from __future__ import annotations
@@ -17,7 +25,7 @@ import io
 import subprocess
 import sys
 
-from sniff import discovery
+from sniff import discovery, harness
 
 # An external detector is someone else's script; a wedged one would otherwise hang
 # the scan, and with it any CI job that gates on `sniff diff`. Generous enough that
@@ -30,14 +38,34 @@ DETECTOR_TIMEOUT_SECONDS = 300
 TIMED_OUT_EXIT_CODE = 124
 
 
-def _run_module_detector(detector: discovery.Detector, path: str) -> "tuple[str, int, str | None]":
-    """Run a built-in detector's module.main() in-process, capturing its stdout.
+def _run_module_detector(
+    detector: discovery.Detector, path: str
+) -> "tuple[str, int, str | None, list[dict]]":
+    """Run a built-in detector's module.main() in-process, capturing its stdout
+    and the structured rows it hands to `harness.print_table` along the way.
 
     Mirrors what the subprocess path gets from a script: (stdout text, exit code,
-    error message). Detectors call `sys.exit("some message")` on a usage error
-    (e.g. no supported source files); in-process that raises SystemExit with a
-    string `.code` instead of printing to stderr and exiting, so it is caught
-    here and folded into the same shape run_detector_json already expects."""
+    error message), plus the findings list a subprocess has no way to hand back.
+    Detectors call `sys.exit("some message")` on a usage error (e.g. no
+    supported source files); in-process that raises SystemExit with a string
+    `.code` instead of printing to stderr and exiting, so it is caught here and
+    folded into the same shape run_detector_json already expects. Whatever rows
+    were recorded before that exit are kept: a usage error partway through a
+    detector is not a reason to discard findings it already produced.
+
+    The sink swap nests rather than clobbers: `sniff baseline`/`sniff diff`
+    (see `gate._collect`) already install their own `harness.FINDINGS_SINK`
+    list around this same call, to gate on the full finding set. Installing a
+    fresh list here unconditionally, the way a naive "set it, read it, reset to
+    None" would, works standalone but throws away the caller's list the moment
+    it is nested inside one. Saving whatever was installed first and merging
+    into it afterward keeps both call shapes correct: standalone (nothing was
+    installed, so restore None), and nested inside a gate run (extend the
+    caller's list, then restore the caller's own object) alike."""
+    previous_sink = harness.FINDINGS_SINK
+    findings: list[dict] = []
+    harness.FINDINGS_SINK = findings
+
     buf = io.StringIO()
     error: "str | None" = None
     try:
@@ -52,7 +80,12 @@ def _run_module_detector(detector: discovery.Detector, path: str) -> "tuple[str,
         else:
             code = 1
             error = str(exc.code)
-    return buf.getvalue(), code, error
+    finally:
+        harness.FINDINGS_SINK = previous_sink
+        if previous_sink is not None:
+            previous_sink.extend(findings)
+
+    return buf.getvalue(), code, error, findings
 
 
 def run_detector_json(detector: discovery.Detector, path: str) -> dict:
@@ -62,15 +95,24 @@ def run_detector_json(detector: discovery.Detector, path: str) -> dict:
     keeps stdout/stderr/exit_code structured instead of folding them into a
     markdown string, so `--json` output stays machine-parseable (e.g. by
     evals/scorer.py). `_render_detector_result` folds this same structured
-    result into the markdown scan's per-detector section text."""
+    result into the markdown scan's per-detector section text.
+
+    `findings` carries the same rows in structured (dict) form alongside the
+    markdown `output` string, for a `--json` caller that wants to read a row's
+    fields directly instead of re-parsing a table it already has as text. A
+    built-in's rows come from `_run_module_detector`'s sink capture; an
+    external detector's process boundary means there is no sink to read from
+    it, so its findings are always an empty list, same as a run that produced
+    no rows at all."""
     if detector.module is not None:
-        out, code, error = _run_module_detector(detector, path)
+        out, code, error, findings = _run_module_detector(detector, path)
         return {
             "detector": detector.name,
             "title": detector.title,
             "exit_code": code,
             "output": out.strip(),
             "error": error,
+            "findings": findings,
         }
 
     cmd = [sys.executable, detector.script, path, *detector.args]
@@ -87,6 +129,7 @@ def run_detector_json(detector: discovery.Detector, path: str) -> dict:
             "exit_code": TIMED_OUT_EXIT_CODE,
             "output": (exc.stdout or "").strip() if isinstance(exc.stdout, str) else None,
             "error": f"timed out after {DETECTOR_TIMEOUT_SECONDS} seconds",
+            "findings": [],
         }
     except OSError as exc:
         return {
@@ -95,6 +138,7 @@ def run_detector_json(detector: discovery.Detector, path: str) -> dict:
             "exit_code": None,
             "output": None,
             "error": str(exc),
+            "findings": [],
         }
     return {
         "detector": detector.name,
@@ -102,6 +146,7 @@ def run_detector_json(detector: discovery.Detector, path: str) -> dict:
         "exit_code": proc.returncode,
         "output": proc.stdout.strip(),
         "error": proc.stderr.strip() or None,
+        "findings": [],
     }
 
 

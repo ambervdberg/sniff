@@ -94,13 +94,15 @@ Pattern
 rule sections are the opposite: every row is one concrete mistake with a severity, and a
 clean repo prints none.
 
-Want more or fewer rows? `--top` is a per-detector flag, so `sniff . --top 25` is
-rejected. Either run that one detector on its own, or set it for every scan in
-[`.sniff.toml`](#configuration):
+Want more or fewer rows? Run one detector on its own and pass `--top`:
 
 ```bash
 sniff --only cognitive-complexity . --top 25
 ```
+
+Or set it for every scan in [`.sniff.toml`](#configuration). `--top` is a
+per-detector flag, so it needs `--only`; see
+[Passing flags to one detector](#passing-flags-to-one-detector).
 
 ## Use it from an agent
 

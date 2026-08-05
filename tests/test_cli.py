@@ -93,6 +93,16 @@ class SniffVersionCommandTest(unittest.TestCase):
         self.assertRegex(proc.stdout.strip(), r"^sniff \S+$")
 
 
+class SniffVersionFlagTest(unittest.TestCase):
+    """`sniff --version` is a top-level alias for the `sniff version` subcommand."""
+
+    def test_version_flag_matches_version_subcommand(self):
+        flag = subprocess.run([*RUN, "--version"], capture_output=True, text=True, env=SUBPROCESS_ENV)
+        subcommand = subprocess.run([*RUN, "version"], capture_output=True, text=True, env=SUBPROCESS_ENV)
+        self.assertEqual(flag.returncode, 0)
+        self.assertEqual(flag.stdout, subcommand.stdout)
+
+
 class SniffDoctorCommandTest(unittest.TestCase):
     """`sniff doctor` checks prerequisites and exits 0/1 based on the result."""
 
@@ -464,6 +474,21 @@ class SniffBaselineDiffTest(unittest.TestCase):
         proc = self._run("--only", "most-parameters", self.repo)
         self.assertEqual(proc.returncode, 0)
 
+    def test_baseline_help_exits_zero_without_write(self):
+        # `sniff baseline --help` (no "write") used to fall through to the
+        # "write" subcommand check, print the usage-error message, and exit 1.
+        proc = self._run("baseline", "--help")
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("usage: sniff baseline write", proc.stdout)
+
+    def test_diff_help_exits_zero_and_lists_comment_flag(self):
+        # `sniff diff --help` used to try isdir("--help") and reject it as a
+        # bad directory (exit 1) instead of printing usage.
+        proc = self._run("diff", "--help")
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("usage: sniff diff", proc.stdout)
+        self.assertIn("--comment", proc.stdout)
+
     def test_scan_exit_stays_zero_when_external_detector_writes_stderr_but_exits_clean(self):
         # exit_code is the sole failure authority. An external (manifest,
         # subprocess) detector that exits 0 but writes incidental text to
@@ -775,6 +800,24 @@ class SniffMissingDirTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 1)
         self.assertIn("is not a directory", proc.stderr)
         self.assertNotIn("## ", proc.stdout)
+
+    def test_plain_bad_dir_gets_no_recovery_hint(self):
+        # No detector passthrough flags involved, so there is nothing to hint at.
+        proc = subprocess.run([*RUN, "/no/such/dir"], capture_output=True, text=True, env=SUBPROCESS_ENV)
+        self.assertNotIn("hint:", proc.stderr)
+
+    def test_bad_dir_alongside_detector_flags_gets_a_recovery_hint(self):
+        # `sniff --only <name> --top 3` (forgetting DIR): argparse's optional
+        # positional greedily swallows "3" as the path, leaving "--top" behind
+        # as an unforwardable extra. The bare rejection gave no way out.
+        proc = subprocess.run(
+            [*RUN, "--only", "largest-methods", "--top", "3"],
+            capture_output=True, text=True, env=SUBPROCESS_ENV,
+        )
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("'3' is not a directory", proc.stderr)
+        self.assertIn("hint: detector flags need an explicit DIR before them", proc.stderr)
+        self.assertIn("sniff --only <name> . --top 3", proc.stderr)
 
 
 if __name__ == "__main__":

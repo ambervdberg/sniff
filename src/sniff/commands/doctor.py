@@ -58,7 +58,7 @@ def run_doctor() -> int:
 
     lines.append(
         f"{'PASS' if facts.has_ast_grep else 'FAIL'} ast-grep "
-        + ("found on PATH" if facts.has_ast_grep else "not found on PATH (see https://ast-grep.github.io)")
+        + ("found on PATH" if facts.has_ast_grep else "not found on PATH (pip install ast-grep-cli)")
     )
     ok &= facts.has_ast_grep
 
@@ -105,7 +105,7 @@ def run_prime() -> None:
 
     lines.append("PREREQUISITES")
     lines.append(f"  python {'.'.join(str(p) for p in sys.version_info[:3])}")
-    lines.append(f"  ast-grep: {'found on PATH' if facts.has_ast_grep else 'MISSING (see https://ast-grep.github.io)'}")
+    lines.append(f"  ast-grep: {'found on PATH' if facts.has_ast_grep else 'MISSING (pip install ast-grep-cli)'}")
     lines.append("")
 
     lines.append(f"DETECTORS ({len(facts.detectors)})")

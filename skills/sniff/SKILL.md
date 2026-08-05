@@ -85,6 +85,18 @@ sniff contribute <rule-id>           # upstream a local .sniff/rules/ rule
 
 `DIR` defaults to the current directory.
 
+## JSON output shape
+
+`sniff --json [DIR]` prints one object: `path` (the scanned directory),
+`config_warnings` (array, `.sniff.toml` problems, empty when there are none),
+and `detectors` (array, one entry per detector that ran).
+
+Each detector entry has `detector`, `title`, `exit_code`, `error`, `output`
+(the same markdown table a plain scan prints, as one string), and `findings`:
+an array of structured rows, one object per finding, each row's keys are its
+column names mapped to that row's values. A detector that errored or found
+nothing gets `findings: []`, never a missing key.
+
 ## Gate: check your own edits
 
 Agent loop: run `sniff baseline write` before editing, `sniff diff` after.

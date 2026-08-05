@@ -20,7 +20,7 @@ import tempfile
 import unittest
 import unittest.mock
 
-from sniff import discovery, execution
+from sniff import discovery, execution, harness
 from sniff.detectors import self_admitted_debt
 
 from conftest import write_tree_file
@@ -57,6 +57,11 @@ class ExternalDetectorTimeoutTest(unittest.TestCase):
         """It must flip the scan's exit code: a detector that never answered is
         not a detector that found nothing."""
         self.assertTrue(execution._detector_failed(self._run_with_short_timeout()))
+
+    def test_a_timed_out_detector_has_an_empty_findings_list(self):
+        # A subprocess (whether it timed out or not) has no in-process sink for
+        # its structured rows to land in, so findings is always empty for it.
+        self.assertEqual(self._run_with_short_timeout()["findings"], [])
 
 
 def _todo_file_tree(root: str) -> str:
@@ -140,6 +145,32 @@ class BuiltinDetectorInProcessTest(unittest.TestCase):
         self.assertIn(os.path.basename(self.todo_file), result["output"])
         self.assertIsNone(result["error"])
 
+    def test_a_builtin_detectors_findings_are_the_same_rows_the_sink_would_record(self):
+        # `findings` must be the structured (_sink_entry-shaped) rows behind the
+        # markdown `output` table, not a duplicate summary of it: the file this
+        # detector found the TODO in has to appear on one of the dict rows.
+        result = execution.run_detector_json(self._detector(), self.tmp.name)
+
+        self.assertEqual(len(result["findings"]), 1)
+        entry = result["findings"][0]
+        self.assertIn(os.path.basename(self.todo_file), entry["file"])
+        self.assertEqual(entry["count"], 1)
+
+    def test_a_builtin_detector_with_no_findings_gets_an_empty_findings_list(self):
+        # A clean run (no debt markers) never calls print_table's sink-recording
+        # path at all, so findings must default to empty rather than error out
+        # on a sink nobody appended to.
+        clean_dir = self.tmp.name
+        write_tree_file(clean_dir, "clean.py", "def stub():\n    pass\n")
+        # Remove the TODO-carrying file this class's setUp already created, so
+        # the only file left in the tree is the clean one.
+        os.remove(self.todo_file)
+
+        result = execution.run_detector_json(self._detector(), clean_dir)
+
+        self.assertEqual(result["exit_code"], 0)
+        self.assertEqual(result["findings"], [])
+
     def test_a_builtin_detector_that_calls_sys_exit_with_a_message_is_reported_as_failed(self):
         # An empty --markers list is a usage error the detector reports via
         # `sys.exit("error: ...")`. In-process that raises SystemExit with a
@@ -205,6 +236,14 @@ class ExternalDetectorSubprocessTest(unittest.TestCase):
         self.assertIn("scanned", result["output"])
         self.assertIn(self.tmp.name, result["output"])
 
+    def test_an_external_detectors_findings_are_always_empty(self):
+        # An external detector runs in its own process; there is no in-process
+        # sink `run_detector_json` could read its rows back out of, clean run
+        # or not, so `findings` is always [] for it, never missing.
+        detector = _echoing_detector(self.tmp.name)
+        result = execution.run_detector_json(detector, self.tmp.name)
+        self.assertEqual(result["findings"], [])
+
     def test_an_external_detector_that_exits_non_zero_is_reported_as_failed(self):
         # A crash must not vanish from the scan: its exit code has to flip
         # `_detector_failed` rather than being treated as "found nothing".
@@ -234,6 +273,61 @@ class ExternalDetectorLaunchFailureTest(unittest.TestCase):
         # None exit code, it falls back to "did launching leave an error
         # message behind", and that fallback is what this asserts on.
         self.assertTrue(execution._detector_failed(result))
+        # A process that never launched certainly never handed anything to a
+        # sink; findings stays [], the same as every other external result.
+        self.assertEqual(result["findings"], [])
+
+
+class ModuleDetectorFindingsSinkNestingTest(unittest.TestCase):
+    """`_run_module_detector` installs its own sink around one detector call,
+    but `sniff baseline`/`sniff diff` (gate._collect) already install one of
+    their own around a whole run, so the two have to nest rather than one
+    clobbering the other.
+
+    Simulates that outer install directly (rather than going through gate.py)
+    so this stays a unit test of execution.py's own nesting contract."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.todo_file = _todo_file_tree(self.tmp.name)
+        self.addCleanup(setattr, harness, "FINDINGS_SINK", None)
+
+    def _detector(self) -> discovery.Detector:
+        return discovery.Detector(name="self-admitted-debt", title="x", module=self_admitted_debt)
+
+    def test_an_already_installed_outer_sink_is_extended_not_replaced(self):
+        outer_sink = []
+        harness.FINDINGS_SINK = outer_sink
+
+        result = execution.run_detector_json(self._detector(), self.tmp.name)
+
+        # The gate's own list must end up holding the same rows the result's
+        # `findings` carries, exactly once each: neither dropped (which would
+        # break the gate's fingerprinting) nor duplicated (which would double
+        # its counted violations).
+        self.assertEqual(outer_sink, result["findings"])
+
+    def test_the_outer_sinks_own_list_object_is_restored_after_the_call(self):
+        # Identity, not just equality: gate._collect reads `harness.FINDINGS_SINK`
+        # back out by reference after this call returns, so a same-content but
+        # different list would still be a bug (the gate would see its own outer
+        # variable diverge from the package attribute).
+        outer_sink = []
+        harness.FINDINGS_SINK = outer_sink
+
+        execution.run_detector_json(self._detector(), self.tmp.name)
+
+        self.assertIs(harness.FINDINGS_SINK, outer_sink)
+
+    def test_no_outer_sink_leaves_the_package_attribute_as_none_afterward(self):
+        # The standalone (non-gate) case: nothing was installed beforehand, so
+        # nothing should be left behind afterward either.
+        harness.FINDINGS_SINK = None
+
+        execution.run_detector_json(self._detector(), self.tmp.name)
+
+        self.assertIsNone(harness.FINDINGS_SINK)
 
 
 if __name__ == "__main__":

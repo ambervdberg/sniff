@@ -25,7 +25,7 @@ def ast_grep_exe() -> str:
 def _require_ast_grep() -> None:
     """Fail fast with a clear message if the ast-grep binary is missing."""
     if not shutil.which("ast-grep"):
-        sys.exit("error: ast-grep is not installed or not on PATH. See https://ast-grep.github.io")
+        sys.exit("error: ast-grep is not installed or not on PATH. Install it with: pip install ast-grep-cli")
 
 
 def _kinds_rule(lang: str, kinds: Sequence[str]) -> str:

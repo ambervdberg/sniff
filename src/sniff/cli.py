@@ -17,6 +17,7 @@ run always agree.
 Usage:
     sniff [DIR] [--only a,b] [--skip a,b] [--ignore GLOB ...] [--list]
     sniff version
+    sniff --version   # alias for `sniff version`
     sniff doctor
     sniff prime
     sniff baseline write [DIR]
@@ -102,6 +103,15 @@ def main(argv: "list[str] | None" = None) -> int:
     # resolves to, which is only known after selection; the listing modes never run
     # a detector at all, so they can reject extras right away.
     args, extras = parser.parse_known_args(argv)
+
+    # `--version` is an alias for the `sniff version` subcommand, not a scan
+    # flag, so it's handled here, before extras/listing/scan logic, the same
+    # way `_dispatch_subcommand` short-circuits the `version` subcommand
+    # earlier above. Prints the identical output so both spellings agree.
+    if args.version:
+        print(f"sniff {get_version()}")
+        return 0
+
     if extras and (args.list or args.list_patterns):
         reject_extras(parser, argv, extras)
 
@@ -119,6 +129,19 @@ def main(argv: "list[str] | None" = None) -> int:
 
     if not os.path.isdir(args.path):
         print(f"error: {args.path!r} is not a directory. Check the path and try again.", file=sys.stderr)
+        # `extras` here means detector passthrough flags (e.g. --top) survived
+        # parse_known_args, which happens when no DIR was given: argparse's
+        # optional positional greedily swallows the first bare value after the
+        # unrecognized flag (e.g. `--top 3` leaves extras=['--top'] and
+        # args.path='3'). Rejecting '3' as a directory with no further hint
+        # left no recovery path, so point at the fix: an explicit DIR ahead of
+        # the detector flags.
+        if extras:
+            print(
+                "hint: detector flags need an explicit DIR before them, "
+                "example `sniff --only <name> . --top 3`.",
+                file=sys.stderr,
+            )
         return 1
 
     cfg = config.load(args.path)
@@ -202,6 +225,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  sniff --skip sniff-patterns  # skip pattern rules\n"
             "  sniff --ignore \"docs/**\"      # exclude paths (repeatable)\n"
             "  sniff version                # print installed version\n"
+            "  sniff --version              # alias for `sniff version`\n"
             "  sniff doctor                 # check prerequisites and exit 0/1\n"
             "  sniff prime                  # agent-optimized context (no scan)\n"
             "  sniff baseline write [DIR]   # save per-detector fingerprints to .sniff/baseline.json\n"
@@ -214,6 +238,7 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("path", nargs="?", default=".", metavar="DIR", help="directory to scan (default: current directory)")
+    parser.add_argument("--version", action="store_true", help="print installed version and exit (alias for `sniff version`)")
     parser.add_argument("--only", help="comma-separated detector names to run (default: all)")
     parser.add_argument("--skip", help="comma-separated detector names to skip")
     parser.add_argument("--all", action="store_true", help="run all detectors (default behaviour; alias for no flags)")
