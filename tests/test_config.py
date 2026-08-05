@@ -25,6 +25,16 @@ def test_unknown_section_warns_not_raises(tmp_path):
     assert any("nonsense" in w for w in cfg.warnings)
 
 
+def test_bare_top_sets_the_global_top(tmp_path):
+    cfg = _write(tmp_path, "[detectors]\ntop = 5\n")
+    assert cfg.global_top == "5"
+
+
+def test_bare_top_does_not_warn_as_an_unknown_key(tmp_path):
+    cfg = _write(tmp_path, "[detectors]\ntop = 5\n")
+    assert cfg.warnings == []
+
+
 def _repo(tmp_path, config_text):
     """A git repo whose root carries `.sniff.toml`, with a `src/` subdirectory."""
     (tmp_path / ".git").mkdir()

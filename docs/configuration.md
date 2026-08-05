@@ -34,6 +34,8 @@ Details worth knowing:
 - `[rules]` only affects pattern rules. `[detectors]` affects the detectors, and each `<detector>.<arg>`
   key becomes a `--arg` flag on that detector. Only flags that take a value work here, so
   `--include-tests` cannot be set this way.
+- The bare `top` key caps every detector's table at that many rows. A detector-specific
+  `<name>.top` still wins for that one detector.
 - Ignore paths are matched from the root of the repo you scan.
 - A section or key that sniff does not recognize is a warning, not an error, so a typo does not stop a scan.
   Run `sniff doctor` to see those warnings.

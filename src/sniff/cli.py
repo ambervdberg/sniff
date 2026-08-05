@@ -46,6 +46,7 @@ from sniff.commands.scan import (
     run_selected,
     apply_config_to_detector,
     select_with_config,
+    warn_config,
 )
 from sniff.versioning import _REPO_ROOT, get_version
 
@@ -148,7 +149,7 @@ def main(argv: "list[str] | None" = None) -> int:
     # manifest-based detectors, which inherit it through subprocess.run.
     needs_env = bool(cfg.extra_ignores) and any(d.module is None for d in selected)
     with exported_extra_ignore(cfg.extra_ignores if needs_env else None):
-        return run_selected(selected, args)
+        return run_selected(selected, args, cfg.warnings)
 
 
 def _dispatch_subcommand(argv: list[str]) -> "int | None":

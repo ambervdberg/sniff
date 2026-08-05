@@ -10,6 +10,24 @@ import functools
 import os
 import subprocess
 
+def _normalize_ignore_pattern(pattern: str) -> str:
+    """Expand gitignore-style directory syntax into a glob fnmatch understands.
+
+    A pattern ending in "/" (`docs/`) means "the whole directory" in .gitignore
+    and, by extension, in .sniff.toml's `[ignore] globs`. fnmatch has no such
+    directory-only syntax, though: `fnmatch.fnmatch("docs/x.md", "docs/")` is
+    False, so a trailing-slash entry copied straight out of a .gitignore
+    silently excluded nothing. Appending "**" turns it into a glob fnmatch
+    already handles, since fnmatch's "*" crosses "/" (see
+    `_matches_extra_ignore`'s docstring below).
+
+    A bare `docs` (no trailing slash) is left untouched on purpose: that is
+    today's literal/exact-match pattern, not directory syntax, and expanding
+    it too would start excluding any file merely named "docs" alongside real
+    directories, which nothing asked for."""
+    return f"{pattern}**" if pattern.endswith("/") else pattern
+
+
 def _extra_ignore_patterns(extra_ignores: "list[str] | None" = None) -> list[str]:
     """Glob patterns to exclude, comma-separated where applicable.
 
@@ -17,11 +35,16 @@ def _extra_ignore_patterns(extra_ignores: "list[str] | None" = None) -> list[str
     collected from argparse; when given (even an empty list), it wins outright.
     Only when it is absent (None) does this fall back to SNIFF_EXTRA_IGNORE (set
     by cli.py around subprocess/external detectors, from .sniff.toml's
-    `[ignore] globs = "..."`)."""
+    `[ignore] globs = "..."`).
+
+    Every pattern passes through `_normalize_ignore_pattern` here, the one
+    choke point both the `--extra-ignore` and the SNIFF_EXTRA_IGNORE path flow
+    through, so a trailing-slash pattern behaves the same regardless of which
+    one supplied it."""
     if extra_ignores is not None:
-        return [p.strip() for p in extra_ignores if p.strip()]
+        return [_normalize_ignore_pattern(p.strip()) for p in extra_ignores if p.strip()]
     raw = os.environ.get("SNIFF_EXTRA_IGNORE", "")
-    return [p.strip() for p in raw.split(",") if p.strip()]
+    return [_normalize_ignore_pattern(p.strip()) for p in raw.split(",") if p.strip()]
 
 
 def _matches_extra_ignore(rel: str, patterns: "list[str]") -> bool:

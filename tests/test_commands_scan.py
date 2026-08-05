@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import io
+import json
 import os
 import types
 import unittest
@@ -182,6 +183,28 @@ class ApplyConfigToDetectorTest(unittest.TestCase):
     def test_extra_ignores_are_left_off_an_external_script_detector(self):
         external = discovery.Detector(name="alpha", title="alpha", module=None, script="/some/script.py", args=[])
         cfg = config.Config(extra_ignores=["docs/**"])
+        result = scan.apply_config_to_detector(external, cfg)
+        self.assertIs(result, external)
+
+    def test_global_top_caps_a_builtin_detectors_table(self):
+        builtin = discovery.Detector(name="largest-methods", title="x",
+                                      module=types.ModuleType("fake"), args=["--top", "20"])
+        cfg = config.Config(global_top="5")
+        result = scan.apply_config_to_detector(builtin, cfg)
+        self.assertEqual(result.args, ["--top", "5"])
+
+    def test_per_detector_top_wins_over_global_top(self):
+        builtin = discovery.Detector(name="largest-methods", title="x",
+                                      module=types.ModuleType("fake"), args=["--top", "20"])
+        cfg = config.Config(global_top="5", thresholds={"largest-methods": {"top": "15"}})
+        result = scan.apply_config_to_detector(builtin, cfg)
+        self.assertEqual(result.args, ["--top", "15"])
+
+    def test_global_top_is_not_applied_to_an_external_script_detector(self):
+        # An external detector's own argparse may not accept --top at all; forcing
+        # it on would crash that detector's run instead of quietly doing nothing.
+        external = discovery.Detector(name="alpha", title="alpha", module=None, script="/some/script.py", args=[])
+        cfg = config.Config(global_top="5")
         result = scan.apply_config_to_detector(external, cfg)
         self.assertIs(result, external)
 
@@ -377,6 +400,61 @@ class RunSelectedTest(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 code = scan.run_selected(detectors, self._args(json_mode=False))
         self.assertEqual(code, 0)
+
+    def test_markdown_mode_prints_config_warnings_to_stderr_before_the_header(self):
+        # sniff-i9x: a plain scan used to swallow `.sniff.toml` warnings; only
+        # `sniff doctor` printed them. run_selected must surface them too.
+        detectors = [make_detector("alpha")]
+        with mock.patch.object(scan, "run_detector_json", return_value=self._clean_result("alpha")):
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = scan.run_selected(
+                    detectors, self._args(json_mode=False), config_warnings=[".sniff.toml:2: unknown section [nope]"]
+                )
+        self.assertEqual(code, 0)
+        self.assertEqual(err.getvalue(), "warning: .sniff.toml:2: unknown section [nope]\n")
+        self.assertNotIn("warning:", out.getvalue())
+
+    def test_json_mode_adds_config_warnings_array_without_touching_stdout_shape(self):
+        detectors = [make_detector("alpha")]
+        with mock.patch.object(scan, "run_detector_json", return_value=self._clean_result("alpha")):
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = scan.run_selected(
+                    detectors, self._args(json_mode=True), config_warnings=[".sniff.toml:1: cannot parse line"]
+                )
+        self.assertEqual(code, 0)
+        self.assertIn("warning: .sniff.toml:1: cannot parse line", err.getvalue())
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["config_warnings"], [".sniff.toml:1: cannot parse line"])
+        self.assertEqual(payload["path"], "/some/repo")
+
+    def test_no_config_warnings_gives_an_empty_array_not_a_missing_key(self):
+        detectors = [make_detector("alpha")]
+        with mock.patch.object(scan, "run_detector_json", return_value=self._clean_result("alpha")):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                scan.run_selected(detectors, self._args(json_mode=True))
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["config_warnings"], [])
+
+
+class WarnConfigTest(unittest.TestCase):
+    """warn_config(): one `warning: <msg>` line per cfg.warnings entry, to stderr."""
+
+    def test_prints_one_warning_line_per_entry(self):
+        cfg = config.Config(warnings=[".sniff.toml:1: bad", ".sniff.toml:3: also bad"])
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            scan.warn_config(cfg)
+        self.assertEqual(err.getvalue(), "warning: .sniff.toml:1: bad\nwarning: .sniff.toml:3: also bad\n")
+
+    def test_no_warnings_prints_nothing(self):
+        cfg = config.Config()
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            scan.warn_config(cfg)
+        self.assertEqual(err.getvalue(), "")
 
 
 if __name__ == "__main__":

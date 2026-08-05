@@ -35,6 +35,25 @@ def discover_with_warnings(scan_path: "str | None" = None) -> list[discovery.Det
     return detectors
 
 
+def _print_warnings(warnings: "list[str]") -> None:
+    """One `warning: <msg>` stderr line per entry, matching
+    `discover_with_warnings`' style for manifest errors."""
+    for warning in warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+
+
+def warn_config(cfg: config.Config) -> None:
+    """Print each `.sniff.toml` config warning to stderr.
+
+    `config.load` collects unknown sections, unparsable lines and unknown keys
+    into `cfg.warnings` instead of raising, so nothing prints them unless a
+    caller asks. Before this, only `sniff doctor` did; a plain `sniff DIR` scan
+    silently ran with a config it could not fully parse. Shared by the scan
+    path and baseline/diff (both load the same config), so a bad line surfaces
+    on every path that reads it."""
+    _print_warnings(cfg.warnings)
+
+
 def select(detectors: list[discovery.Detector], only: set[str], skip: set[str]
            ) -> tuple[list[discovery.Detector], list[str]]:
     """Apply --only / --skip to the discovered detectors.
@@ -111,8 +130,13 @@ def apply_config_to_detector(detector: discovery.Detector, cfg: config.Config) -
     """Fold .sniff.toml overrides that target one detector into its args.
 
     Config can change what a selected detector's own run sees:
-    `[detectors] <name>.<arg> = value` overrides that detector's CLI args;
-    `[rules] <id> = false` (sniff-patterns only) becomes `--disable <ids>` so the
+    `[detectors] top = N` caps every built-in (module) detector's table at N rows,
+    and `[detectors] <name>.<arg> = value` overrides one detector's own args on top
+    of that, so a per-detector `top` always wins over the global one. The global
+    cap is skipped for an external (script) detector: unlike the built-ins, an
+    external detector's own argparse is not known to accept --top at all, and
+    forcing the flag on would crash that detector's run instead of quietly doing
+    nothing. `[rules] <id> = false` (sniff-patterns only) becomes `--disable <ids>` so the
     pattern catalog skips those rules; `[rules] <id> = "<severity>"`
     (sniff-patterns only) becomes `--severity-override <id>=<severity>`; and
     `[ignore] globs = "..."` becomes repeated `--extra-ignore <glob>` args for a
@@ -122,7 +146,10 @@ def apply_config_to_detector(detector: discovery.Detector, cfg: config.Config) -
     unchanged (same object) when none applies, so callers can skip work for the
     common no-config case."""
     args = detector.args
-    overrides = cfg.thresholds.get(detector.name)
+    overrides = {}
+    if cfg.global_top is not None and detector.module is not None:
+        overrides["top"] = cfg.global_top
+    overrides.update(cfg.thresholds.get(detector.name, {}))
     if overrides:
         args = _override_args(args, overrides)
     if detector.name == "sniff-patterns" and cfg.disabled_rules:
@@ -192,8 +219,20 @@ def exported_extra_ignore(globs: "list[str] | None"):
             os.environ["SNIFF_EXTRA_IGNORE"] = previous
 
 
-def run_selected(selected: list[discovery.Detector], args: argparse.Namespace) -> int:
+def run_selected(
+    selected: list[discovery.Detector],
+    args: argparse.Namespace,
+    config_warnings: "list[str] | None" = None,
+) -> int:
     """Run every selected detector over args.path and print the result.
+
+    `config_warnings` (the `.sniff.toml` warnings `main()` already loaded via
+    `config.load`) prints to stderr before any detector output, in both
+    modes, so a plain scan surfaces them the same way `sniff doctor` always
+    has. JSON mode also echoes them into the payload's `config_warnings`
+    array (always present, empty when there are none) so a machine reader
+    doesn't have to scrape stderr for something already in the object it
+    parsed.
 
     JSON mode buffers every result before printing, since the payload is one
     machine-readable object and can't be emitted until the whole thing exists.
@@ -204,9 +243,13 @@ def run_selected(selected: list[discovery.Detector], args: argparse.Namespace) -
     run (crash, launch failure, non-zero exit) flips the process exit code to
     1 in either mode. Findings alone (a detector that ran cleanly and reported
     smells) are not a failure and leave the exit code at 0."""
+    config_warnings = config_warnings or []
+    _print_warnings(config_warnings)
+
     if args.json:
         results = [run_detector_json(d, args.path) for d in selected]
-        print(json.dumps({"path": args.path, "detectors": results}, indent=2))
+        payload = {"path": args.path, "detectors": results, "config_warnings": config_warnings}
+        print(json.dumps(payload, indent=2))
         return 1 if any(_detector_failed(r) for r in results) else 0
 
     names = ", ".join(d.name for d in selected)

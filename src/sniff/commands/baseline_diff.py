@@ -15,7 +15,13 @@ import os
 import sys
 
 from sniff import config, gate, harness
-from sniff.commands.scan import discover_with_warnings, readable_here, apply_config_to_detector, select_with_config
+from sniff.commands.scan import (
+    discover_with_warnings,
+    readable_here,
+    apply_config_to_detector,
+    select_with_config,
+    warn_config,
+)
 
 
 def _configured_detectors(path: str) -> list:
@@ -29,6 +35,7 @@ def _configured_detectors(path: str) -> list:
     readable_here, apply_config_to_detector) so both paths see the same
     detector list a plain `sniff PATH` run would."""
     cfg = config.load(path)
+    warn_config(cfg)  # sniff-i9x: baseline/diff must surface a bad .sniff.toml too, not just a scan.
     detectors = discover_with_warnings(path)
     selected, _unknown = select_with_config(detectors, set(), set(), cfg)
     present = harness.detect_languages(path, cfg.extra_ignores)

@@ -19,6 +19,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - An external detector that hangs is killed after 5 minutes instead of stalling the scan.
 - `sniff contribute` leaves your checkout on its original branch when the fixture tests reject the rule.
 - README links to the docs now work from the PyPI page.
+- Ignore globs ending in / now exclude the whole directory.
+- New .sniff.toml setting: [detectors] top = N caps every detector table at N rows.
+- A scan now prints .sniff.toml warnings instead of only sniff doctor.
 
 ## [0.15.0] - 2026-08-03
 

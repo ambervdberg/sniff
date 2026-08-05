@@ -431,6 +431,16 @@ class SniffBaselineDiffTest(unittest.TestCase):
         params_fps = data["fingerprints"].get("most-parameters", {})
         self.assertFalse(any("generated" in fp for fp in params_fps), params_fps)
 
+    def test_baseline_write_warns_on_bad_sniff_toml(self):
+        # sniff-i9x: baseline write/diff load .sniff.toml exactly like a scan
+        # does, so a bad config line must surface here too.
+        with open(os.path.join(self.repo, ".sniff.toml"), "w", encoding="utf-8") as fh:
+            fh.write("[detectors]\nbogus = 1\n")
+        proc = self._run("baseline", "write", self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("warning: .sniff.toml", proc.stderr)
+        self.assertIn("unknown detectors key", proc.stderr)
+
     def test_diff_fails_when_detector_errors(self):
         # Point the gate at a detector that cannot run: strip ast-grep from
         # PATH so ast-grep-backed detectors error. Exit must be 1, output
@@ -573,6 +583,55 @@ class SniffIgnoreFlagTest(unittest.TestCase):
             self.assertIn("src/app.py", proc.stdout)
             self.assertNotIn("gen/built.py", proc.stdout)      # from --ignore
             self.assertNotIn("docs/sample.py", proc.stdout)    # from .sniff.toml, still applied
+
+
+class ScanConfigWarningsTest(unittest.TestCase):
+    """sniff-i9x: a plain `sniff DIR` scan must surface `.sniff.toml` config
+    warnings too, not only `sniff doctor`."""
+
+    def _tree(self, root: str, files: "dict[str, str]") -> None:
+        for rel, text in files.items():
+            path = os.path.join(root, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(text)
+
+    def test_markdown_scan_prints_config_warning_to_stderr(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._tree(root, {".sniff.toml": "[detectors]\nbogus = 1\n", "a.py": "x = 1\n"})
+
+            proc = subprocess.run(
+                [*RUN, "--only", "sniff-patterns", root],
+                capture_output=True, text=True, env=SUBPROCESS_ENV,
+            )
+
+            self.assertIn("warning: .sniff.toml", proc.stderr)
+            self.assertIn("unknown detectors key", proc.stderr)
+
+    def test_json_scan_stdout_still_parses_while_warning_goes_to_stderr(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._tree(root, {".sniff.toml": "[detectors]\nbogus = 1\n", "a.py": "x = 1\n"})
+
+            proc = subprocess.run(
+                [*RUN, "--json", "--only", "sniff-patterns", root],
+                capture_output=True, text=True, env=SUBPROCESS_ENV,
+            )
+
+            self.assertIn("warning: .sniff.toml", proc.stderr)
+            data = json.loads(proc.stdout)
+            self.assertEqual(data["path"], root)
+            self.assertTrue(any("unknown detectors key" in w for w in data["config_warnings"]))
+
+    def test_clean_sniff_toml_gives_no_warning(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._tree(root, {".sniff.toml": "[detectors]\ntop = 5\n", "a.py": "x = 1\n"})
+
+            proc = subprocess.run(
+                [*RUN, "--only", "sniff-patterns", root],
+                capture_output=True, text=True, env=SUBPROCESS_ENV,
+            )
+
+            self.assertNotIn("warning: .sniff.toml", proc.stderr)
 
 
 class DetectorFlagPassthroughTest(unittest.TestCase):

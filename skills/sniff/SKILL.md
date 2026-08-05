@@ -90,7 +90,8 @@ sniff contribute <rule-id>           # upstream a local .sniff/rules/ rule
 A consumer repo can drop a `.sniff.toml` beside its sources to tune every run:
 
 - `[rules]` disable a pattern rule (`<rule-id> = false`) or change its severity (`<rule-id> = "warning"`).
-- `[detectors]` skip detectors (`skip = "..."`) or override a detector's threshold (`<name>.top = 15`).
+- `[detectors]` skip detectors (`skip = "..."`), cap every detector's table (`top = 5`), or
+  override one detector's threshold (`<name>.top = 15`, which wins over the global `top`).
 - `[ignore]` extra path globs to exclude (`globs = ["gen/**"]`).
 
 With `--only <one detector>`, extra CLI flags are forwarded to that detector and win over `.sniff.toml`.
