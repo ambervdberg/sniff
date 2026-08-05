@@ -85,6 +85,11 @@ sniff contribute <rule-id>           # upstream a local .sniff/rules/ rule
 
 `DIR` defaults to the current directory.
 
+## Gate: check your own edits
+
+Agent loop: run `sniff baseline write` before editing, `sniff diff` after.
+Exit 1 means the repo got worse; the output names each regressed detector.
+
 ## Project config
 
 A consumer repo can drop a `.sniff.toml` beside its sources to tune every run:

@@ -129,6 +129,7 @@ def run_prime() -> None:
     lines.append("  sniff --ignore <glob> [DIR]        exclude paths (repeatable; adds to .sniff.toml)")
     lines.append("  sniff baseline write [DIR]         save finding fingerprints to .sniff/baseline.json")
     lines.append("  sniff diff [DIR]                   re-scan against that baseline; exit 1 on regression")
+    lines.append("    agent loop: `sniff baseline write` before editing, `sniff diff` after; exit 1 means the repo got worse")
     lines.append("  sniff contribute <rule-id>         send a local pattern rule upstream")
     lines.append("  sniff doctor                       check prerequisites, exit 0/1")
     lines.append("  sniff prime                        print this context block; never scans")
