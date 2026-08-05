@@ -75,11 +75,12 @@ def print_table(
     top: "int | None" = None,
     header: "str | None" = None,
 ) -> None:
-    """Print matches as a compact, aligned table and nothing else.
+    """Print matches as a compact markdown table and nothing else.
 
     This is the only thing the calling agent should ever see. Never print raw
-    matches or AST JSON alongside it. Numeric columns are right-aligned; the
-    first column is sized to its content, the rest to their widest cell."""
+    matches or AST JSON alongside it. Cells are not column-aligned or padded:
+    each row is a plain '| a | b |' line, left for a markdown renderer (or the
+    calling agent, when relaying it as-is) to lay out."""
     sink = _findings_sink()
     if sink is not None:
         sink.extend(_sink_entry(m) for m in matches)
