@@ -36,7 +36,7 @@ Run the detector through the installed sniff CLI:
 1. Ensure sniff is installed. Try `sniff version`. If it fails, install it:
    `uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
    and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
-2. Run: `sniff --only sniff-patterns [DIR] [--severity error|warning|info|hint]
+2. Run: `sniff --only sniff-patterns DIR [--severity error|warning|info|hint]
    [--rule ID] [--top-locs N]`, or `sniff --list-patterns` to see the catalog.
 3. Report the findings; do not paste raw rule files.
 

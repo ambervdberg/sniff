@@ -6,6 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [0.16.0] - Unreleased
 
+- most-parameters no longer counts a trailing comma as an extra parameter.
 - `sniff diff` now flags only new or worsened violations, so adding clean code no longer fails the gate.
 - `sniff baseline` and `sniff diff` now fail with an error naming every detector that could not run.
 - Baselines written by older versions must be refreshed with `sniff baseline write`.
