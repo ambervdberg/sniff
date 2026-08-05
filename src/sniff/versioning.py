@@ -200,5 +200,5 @@ def _upgrade_available_caveat(installed: str | None) -> str | None:
 
     return (
         f"sniff {latest} is available (installed: {installed}); "
-        "upgrade with `uv tool upgrade sniff-smells`"
+        "upgrade with `uv tool upgrade sniff-smells` (or `pip install -U sniff-smells`)"
     )

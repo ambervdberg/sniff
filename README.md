@@ -34,7 +34,7 @@ uv tool install sniff-smells
 ```
 
 One line installs the `sniff` command via [uv](https://docs.astral.sh/uv/), including
-[`ast-grep`](https://ast-grep.github.io), the parser 9 of the 13 detectors run on.
+[`ast-grep`](https://ast-grep.github.io), the parser that 9 of the 13 detectors use.
 One-time per machine, not per repo.
 
 Needs Python 3.10+ and works the same on Windows, macOS, and Linux. Run `sniff doctor`
@@ -317,7 +317,7 @@ for the fixtures it expects and the two backends it can use.
 | `sniff --ignore GLOB [DIR]` | Exclude paths matching `GLOB`; repeatable, and adds to whatever `.sniff.toml` already excludes. |
 | `sniff version`             | Print the installed version.                                                     |
 | `sniff doctor`              | Check prerequisites (Python, ast-grep, manifests, `.sniff.toml`); exits 0/1.     |
-| `sniff prime`               | Agent-optimized context (version, detectors, prereqs, usage hints);         |
+| `sniff prime`               | Agent-optimized context (version, detectors, prereqs, usage hints).              |
 | `sniff --help`              | Show usage and examples.                                                         |
 
 Three more commands belong to a workflow of their own rather than to a one-off scan:

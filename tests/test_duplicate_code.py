@@ -7,6 +7,8 @@ No ast-grep needed: this detector tokenises with a regex, it does not parse.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import shutil
 import tempfile
 import unittest
@@ -211,6 +213,19 @@ class DuplicateCodeTest(unittest.TestCase):
         second = self._write("b.py", comment + "\nother = 2\n")
 
         self.assertEqual(self._clones(first, second), [])
+
+    def test_header_states_ranges_are_normalised(self):
+        # A user diffing the reported ranges sees identifiers/strings differ
+        # (it's a type-2 clone), so the header must say so up front or the
+        # finding reads as wrong.
+        self._write("a.py", HANDLER)
+        self._write("b.py", RENAMED_HANDLER)
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            dc.main([self.root])
+
+        self.assertIn("identifier/string-normalised", out.getvalue())
 
 
 class TokenizerTest(unittest.TestCase):

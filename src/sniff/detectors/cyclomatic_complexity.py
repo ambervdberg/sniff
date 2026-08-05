@@ -48,8 +48,8 @@ def main(argv: "list[str] | None" = None) -> int:
         minimum_attr="minimum",
         column="COMPLEXITY",
         header=lambda shown, total, langs_str, tests_str: (
-            f"Most complex {shown} of {total} functions by cyclomatic complexity "
-            f"({langs_str}; tests {tests_str}):"
+            f"Most complex {shown} of {total} functions with cyclomatic complexity "
+            f">= {args.minimum} ({langs_str}; tests {tests_str}):"
         ),
         empty_message=lambda langs_str: f"No functions at cyclomatic >= {args.minimum} (scanned: {langs_str}).",
     )

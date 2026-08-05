@@ -158,6 +158,23 @@ class SniffTomlCheckTest(DoctorTestCase):
         self.assertIn("WARN", out)
         self.assertIn("cannot parse line", out)
 
+    def test_sniff_toml_in_repo_root_is_found_from_a_subdirectory_cwd(self):
+        # A scan walks up to the repo root to find .sniff.toml (config.config_path);
+        # doctor must see the exact same file, not just one sitting in its own cwd.
+        os.mkdir(".git")  # marks this tmp dir as the repo root the walk-up stops at
+        with open(".sniff.toml", "w", encoding="utf-8") as fh:
+            fh.write('[detectors]\nskip = "largest-files"\n')
+
+        subdir = os.path.join(self.tmp.name, "packages", "api")
+        os.makedirs(subdir)
+        os.chdir(subdir)
+
+        with mock.patch.object(doctor.shutil, "which", return_value="/usr/bin/ast-grep"):
+            code, out = self.run_doctor()
+
+        self.assertEqual(code, 0)
+        self.assertIn("PASS .sniff.toml valid", out)
+
 
 if __name__ == "__main__":
     unittest.main()

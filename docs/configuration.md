@@ -17,7 +17,7 @@ no-explicit-any = "error"         # re-grade it (error | warning | info | hint)
 skip = "most-imports,largest-files"   # comma-separated detector names
 largest-methods.top = 15              # <detector>.<arg> becomes --arg on that detector
 deepest-nesting.min-depth = 3         
-top = 5                               # all detectors except for overrides.
+top = 5                               # default row cap for every detector; a <name>.top overrides it
 
 [ignore]
 globs = ["docs/**", "**/*.generated.ts"]

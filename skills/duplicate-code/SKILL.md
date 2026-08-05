@@ -26,8 +26,7 @@ ast-grep needed.
 
 Run the detector through the installed sniff CLI:
 
-1. Ensure sniff is installed. Try `sniff version`. If it fails, install it:
-   `uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`).
+1. If `sniff version` fails: `uv tool install sniff-smells`.
 2. Run: `sniff --only duplicate-code DIR [--min-tokens N] [--min-lines N]
    [--top N] [--include-tests]`
 3. Report the table; do not paste raw file contents.

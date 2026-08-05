@@ -14,6 +14,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A rejected scan path now hints that detector flags need an explicit DIR before them.
 - `sniff --json` now includes each detector's findings as structured rows, alongside the markdown table.
 - The ast-grep install hints now name the pip package `ast-grep-cli`.
+- `sniff --list --json` now returns `{"detectors": [...]}` instead of a bare array.
+- `sniff doctor` now validates the same `.sniff.toml` a scan would use, walking up to the repo root.
+- The upgrade hint now also mentions `pip install -U sniff-smells`, and `sniff --help` now mentions `.sniff.toml`.
 - `sniff diff` now flags only new or worsened violations, so adding clean code no longer fails the gate.
 - `sniff baseline` and `sniff diff` now fail with an error naming every detector that could not run.
 - Baselines written by older versions must be refreshed with `sniff baseline write`.

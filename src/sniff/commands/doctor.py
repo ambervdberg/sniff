@@ -85,8 +85,10 @@ def run_doctor() -> int:
         for rule_id in sorted(local_ids & core_ids):
             lines.append(f"WARN local rule {rule_id!r} shadows core rule; contributed already? delete the local copy")
 
-    sniff_toml = os.path.join(os.getcwd(), ".sniff.toml")
-    if os.path.isfile(sniff_toml):
+    # Same walk-up lookup a scan uses (config.config_path), so doctor validates
+    # the exact .sniff.toml a scan from this cwd would honour, not just one
+    # sitting directly in the cwd.
+    if config.config_path(os.getcwd()) is not None:
         cfg = config.load(os.getcwd())
         for warning in cfg.warnings:
             lines.append(f"WARN {warning}")

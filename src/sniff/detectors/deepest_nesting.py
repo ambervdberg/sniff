@@ -48,8 +48,8 @@ def main(argv: "list[str] | None" = None) -> int:
         minimum_attr="min_depth",
         column="DEPTH",
         header=lambda shown, total, langs_str, tests_str: (
-            f"Deepest {shown} of {total} functions by nesting depth "
-            f"({langs_str}; tests {tests_str}):"
+            f"Deepest {shown} of {total} functions with nesting depth "
+            f">= {args.min_depth} ({langs_str}; tests {tests_str}):"
         ),
         empty_message=lambda langs_str: f"No functions at nesting depth >= {args.min_depth} (scanned: {langs_str}).",
     )

@@ -47,7 +47,7 @@ def main(argv: "list[str] | None" = None) -> int:
         minimum_attr="minimum",
         column="PARAMS",
         header=lambda shown, total, langs_str, tests_str: (
-            f"Most parameters: {shown} of {total} functions "
+            f"Most parameters: {shown} of {total} functions with >= {args.minimum} params "
             f"({langs_str}; tests {tests_str}):"
         ),
         empty_message=lambda langs_str: f"No functions with >= {args.minimum} params (scanned: {langs_str}).",

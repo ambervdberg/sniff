@@ -24,9 +24,7 @@ Detectors run: `cognitive-complexity`, `cyclomatic-complexity`, `deepest-nesting
 
 ## Setup
 
-Ensure sniff is installed. Try `sniff version`. If it fails, install it:
-`uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
-and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
+If `sniff version` fails: `uv tool install sniff-smells` (and `uv tool install ast-grep-cli` if `ast-grep` is missing).
 
 ## Quick start
 

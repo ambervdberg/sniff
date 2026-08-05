@@ -22,6 +22,7 @@ from conftest import tool_available, write_tree_file
 from sniff.detectors import (
     cognitive_complexity,
     cyclomatic_complexity,
+    deepest_nesting,
     largest_methods,
     most_parameters,
 )
@@ -95,6 +96,41 @@ class NodeMetricRankingTest(unittest.TestCase):
             """)
         table = self._run(cognitive_complexity)
         self.assertLess(table.index("tangled"), table.index("plain"))
+
+
+@unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
+class ThresholdHeaderPhrasingTest(unittest.TestCase):
+    """The denominator in each header must name the threshold it was filtered
+    by, not read like an unfiltered total (docs/local/2026-08-05-usability-review.md,
+    P2 "Denominator phrasing")."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def _header(self, module) -> str:
+        out = io.StringIO()
+        with redirect_stdout(out):
+            module.main([self.root])
+        return out.getvalue().splitlines()[0]
+
+    def test_most_parameters_header_names_the_param_threshold(self):
+        write_tree_file(self.root, "params.py", "def many(a, b, c, d):\n    pass\n")
+        self.assertIn("functions with >= 3 params", self._header(most_parameters))
+
+    def test_cognitive_header_names_the_cognitive_threshold(self):
+        write_tree_file(self.root, "nested.py", "def f(x):\n    if x:\n        return 1\n")
+        self.assertIn("functions with cognitive complexity >= 1", self._header(cognitive_complexity))
+
+    def test_cyclomatic_header_names_the_cyclomatic_threshold(self):
+        write_tree_file(self.root, "plain.py", "def f(x):\n    return x\n")
+        self.assertIn("functions with cyclomatic complexity >= 1", self._header(cyclomatic_complexity))
+
+    def test_deepest_nesting_header_names_the_depth_threshold(self):
+        write_tree_file(self.root, "nested.py", "def f(x):\n    if x:\n        return 1\n")
+        self.assertIn("functions with nesting depth >= 1", self._header(deepest_nesting))
 
 
 if __name__ == "__main__":

@@ -33,9 +33,7 @@ rules" or is "new/empty", the line already names the rules that ran; trust it.
 
 Run the detector through the installed sniff CLI:
 
-1. Ensure sniff is installed. Try `sniff version`. If it fails, install it:
-   `uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
-   and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
+1. If `sniff version` fails: `uv tool install sniff-smells` (and `uv tool install ast-grep-cli` if `ast-grep` is missing).
 2. Run: `sniff --only sniff-patterns DIR [--severity error|warning|info|hint]
    [--rule ID] [--top-locs N]`, or `sniff --list-patterns` to see the catalog.
 3. Report the findings; do not paste raw rule files.
@@ -53,15 +51,6 @@ rule, or `--top-locs N --rule <id>` to expand one rule.
 Use `sniff-create` (rule mode) to add a rule, or drop a standard ast-grep rule file
 into `rules/`. Each rule file needs `id`, `language`, `severity`, `message`, `rule`.
 Prerequisites: `ast-grep` on PATH, Python 3.
-
-## Future: custom-ranking rules (dormant seam)
-
-A rule that needs a *computed score* (nesting depth, complexity) rather than a plain
-match cannot be expressed as a pattern. The planned hook: such a rule carries an
-`x-harness: <script>` meta key, and a future runner routes it through
-`src/sniff/harness.py` for scoring instead of plain `scan`. The current runner
-ignores `x-harness`, so the seam is designed-in but inert. Until then, score-based
-smells are standalone node-metric skills, not catalog rules.
 
 ## Caveats
 

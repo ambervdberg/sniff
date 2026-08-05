@@ -48,8 +48,8 @@ def main(argv: "list[str] | None" = None) -> int:
         minimum_attr="minimum",
         column="COGNITIVE",
         header=lambda shown, total, langs_str, tests_str: (
-            f"Hardest to read: {shown} of {total} functions by cognitive complexity "
-            f"({langs_str}; tests {tests_str}):"
+            f"Hardest to read: {shown} of {total} functions with cognitive complexity "
+            f">= {args.minimum} ({langs_str}; tests {tests_str}):"
         ),
         empty_message=lambda langs_str: f"No functions at cognitive >= {args.minimum} (scanned: {langs_str}).",
     )

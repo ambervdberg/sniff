@@ -52,6 +52,11 @@ class SniffCliHelpTest(unittest.TestCase):
         self.assertIn("Default: `sniff [DIR]` runs all detectors; `--all` is accepted as an explicit alias.", out)
         self.assertIn("Pattern rules only:  sniff --only sniff-patterns [DIR]", out)
 
+    def test_help_mentions_sniff_toml(self):
+        """.sniff.toml is otherwise undiscoverable from the CLI alone."""
+        out = self._run("--help")
+        self.assertIn(".sniff.toml", out)
+
     def test_list_shows_run_command_for_each_detector(self):
         """Detector list includes copyable run commands for routing."""
         out = self._run("--list")
@@ -150,10 +155,11 @@ class SniffJsonOutputTest(unittest.TestCase):
             [*RUN, "--list", "--json"], capture_output=True, text=True, check=True, env=SUBPROCESS_ENV,
         )
         data = json.loads(proc.stdout)
-        self.assertIsInstance(data, list)
-        names = {d["name"] for d in data}
+        self.assertIsInstance(data, dict)
+        detectors = data["detectors"]
+        names = {d["name"] for d in detectors}
         self.assertIn("sniff-patterns", names)
-        self.assertIn("script", data[0])
+        self.assertIn("script", detectors[0])
 
     def test_scan_json_is_parseable_per_detector(self):
         proc = subprocess.run(

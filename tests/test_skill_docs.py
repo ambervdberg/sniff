@@ -29,8 +29,8 @@ SNIFF_SKILL = os.path.join(REPO_ROOT, "skills", "sniff", "SKILL.md")
 
 # The install instruction, from its first word to whichever clause ends it.
 INSTALL_RE = re.compile(
-    r"Ensure sniff is installed.*?(?:ast-grep-cli`\.|sniff-smells`\)\.)", re.DOTALL)
-AST_GREP_CLAUSE = "and if `ast-grep` is missing"
+    r"If `sniff version` fails.*?(?:is missing\)\.|`uv tool install sniff-smells`\.)", re.DOTALL)
+AST_GREP_CLAUSE = "and `uv tool install ast-grep-cli` if `ast-grep` is missing"
 
 
 def _read(path: str) -> str:

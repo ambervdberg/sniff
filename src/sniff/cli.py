@@ -234,6 +234,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "\n"
             "Pattern rules only:  sniff --only sniff-patterns [DIR]\n"
             "List pattern rules:  sniff --list-patterns\n"
+            "\n"
+            "Drop a .sniff.toml in the repo root to turn off rules, skip detectors,\n"
+            "retune thresholds, or ignore paths.\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -259,11 +262,11 @@ def _handle_listing_modes(args: argparse.Namespace, detectors: list[discovery.De
     flag was passed, telling the caller to continue into the scan flow."""
     if args.list:
         if args.json:
-            print(json.dumps([
+            print(json.dumps({"detectors": [
                 {"name": d.name, "title": d.title, "script": d.script, "args": d.args,
                  "languages": d.languages}
                 for d in detectors
-            ], indent=2))
+            ]}, indent=2))
         else:
             print(discovery.render_list(detectors))
         return 0

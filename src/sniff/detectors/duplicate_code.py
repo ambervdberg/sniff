@@ -531,8 +531,8 @@ def main(argv: "list[str] | None" = None) -> int:
 
     header = (
         f"Duplicated code blocks, largest first "
-        f"({len(clones)} found; min {args.min_lines} lines / {args.min_tokens} tokens; "
-        f"tests {'included' if args.include_tests else 'excluded'}):"
+        f"({len(clones)} found; min {args.min_lines} lines / {args.min_tokens} tokens, "
+        f"identifier/string-normalised; tests {'included' if args.include_tests else 'excluded'}):"
     )
     if any(clone.capped for clone in clones[:args.top]):
         header += (

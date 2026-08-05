@@ -91,6 +91,15 @@ uv run sniff test-rules
 checkout and nowhere else. That is why it is absent from `sniff --help` and from the
 README's command table, and why it always runs through `uv run` here.
 
+### Future: custom-ranking rules (dormant seam)
+
+A rule that needs a *computed score* (nesting depth, complexity) rather than a plain
+match cannot be expressed as a pattern. The planned hook: such a rule carries an
+`x-harness: <script>` meta key, and a future runner routes it through
+`src/sniff/harness.py` for scoring instead of plain `scan`. The current runner
+ignores `x-harness`, so the seam is designed-in but inert. Until then, score-based
+smells are standalone node-metric skills, not catalog rules.
+
 ## Promoting a local rule from a project that uses sniff
 
 This section is for a *different* repo: one where you installed the sniff CLI
