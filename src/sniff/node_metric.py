@@ -167,6 +167,13 @@ def count_params(list_text: str) -> int:
     if not text.strip():
         return 0
 
+    # A trailing comma (common in multi-line signatures) marks the end of the
+    # last parameter, not a separator introducing another one, so drop it
+    # before counting.
+    text = text.rstrip()
+    if text.endswith(","):
+        text = text[:-1]
+
     depth = 0
     params = 1
     for ch in text:

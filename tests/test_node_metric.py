@@ -149,6 +149,14 @@ class NestingDepthTest(unittest.TestCase):
         self.assertEqual(nm.count_params("(a, b: Map<x, y>)"), 2)
         self.assertEqual(nm.count_params("(a = {x, y}, b)"), 2)
 
+    def test_count_params_trailing_comma(self):
+        # A trailing comma in a multi-line signature ends the last parameter;
+        # it must not be counted as a separator introducing an extra one.
+        self.assertEqual(nm.count_params("(\n    a,\n    b,\n    c,\n)"), 3)
+        self.assertEqual(nm.count_params("(a, b, c)"), 3)
+        self.assertEqual(nm.count_params("()"), 0)
+        self.assertEqual(nm.count_params("(a,)"), 1)
+
     def _cognitive(self) -> dict[str, int]:
         return {m.name: m.metrics["cognitive"] for m in nm.cognitive(self.root)}
 
