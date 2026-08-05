@@ -13,7 +13,9 @@ requires-python = ">=3.10"
 dependencies = ["ast-grep-cli"]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+# tomli: tests/test_sdist_contents.py parses pyproject.toml, and 3.10 has no
+# stdlib tomllib. Declared rather than leaned on as a transitive pytest dep.
+dev = ["pytest", "tomli; python_version < '3.11'"]
 
 [project.scripts]
 sniff = "sniff.cli:main"

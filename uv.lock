@@ -103,12 +103,14 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "pytest" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "ast-grep-cli" },
     { name = "pytest", marker = "extra == 'dev'" },
+    { name = "tomli", marker = "python_full_version < '3.11' and extra == 'dev'" },
 ]
 provides-extras = ["dev"]
 
