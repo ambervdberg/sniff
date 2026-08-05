@@ -131,6 +131,41 @@ class ScanFailClosedTest(unittest.TestCase):
                 gate.scan_fingerprints([det], ".")
         self.assertIn("exit code 2", str(ctx.exception))
 
+    def test_every_failure_is_reported_not_just_the_first(self):
+        # Stopping at the first failure would cost one `sniff diff` run per
+        # broken detector to diagnose a broken environment.
+        results = {
+            "largest-methods": {"detector": "largest-methods", "title": "t",
+                                "exit_code": 1, "output": "", "error": "no ast-grep"},
+            "most-imports": {"detector": "most-imports", "title": "t",
+                             "exit_code": 3, "output": "", "error": None},
+        }
+        detectors = [fake_detector(name) for name in results]
+
+        with mock.patch("sniff.gate._run_one", side_effect=lambda d, _p: results[d.name]):
+            with self.assertRaises(gate.DetectorFailure) as ctx:
+                gate.scan_fingerprints(detectors, ".")
+
+        self.assertIn("no ast-grep", str(ctx.exception))
+        self.assertIn("exit code 3", str(ctx.exception))
+
+    def test_a_detector_after_a_failing_one_still_runs(self):
+        bad = fake_detector("largest-methods")
+        good = fake_detector("most-parameters")
+
+        def run(detector, _path):
+            if detector.name == "largest-methods":
+                return {"detector": detector.name, "title": "t",
+                        "exit_code": 1, "output": "", "error": "boom"}
+            harness.FINDINGS_SINK.append(finding(name="wide", params=9))
+            return ok_result(detector.name)
+
+        with mock.patch("sniff.gate._run_one", side_effect=run) as ran:
+            with self.assertRaises(gate.DetectorFailure):
+                gate.scan_fingerprints([bad, good], ".")
+
+        self.assertEqual(ran.call_count, 2)
+
     def test_external_detectors_are_skipped(self):
         det = fake_detector("shell-detector", builtin=False)
         with mock.patch("sniff.gate._run_one") as run:

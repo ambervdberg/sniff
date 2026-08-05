@@ -32,6 +32,13 @@ from collections import Counter
 from sniff import execution, harness
 
 # detector name -> (key holding the finding's value, lowest value that violates)
+#
+# These floors filter what the *sink already received*, so they can only ever
+# narrow a detector's own `--min`, never widen it: a detector that drops findings
+# below its `--min` never hands them to the sink, and the gate cannot gate on a
+# finding it never saw. Raising a detector's default `--min` above its floor here
+# therefore silently moves the gate up with it. Keep every `--min` default at or
+# below the floor below it, or move both together.
 GATE_THRESHOLDS: dict[str, tuple[str, int]] = {
     "cyclomatic-complexity": ("cyclomatic", 10),
     "cognitive-complexity": ("cognitive", 15),
@@ -149,23 +156,37 @@ def _run_one(detector, path: str) -> dict:
 def scan_fingerprints(detectors, path: str) -> dict[str, dict[str, int]]:
     """Run every built-in detector over `path` -> {detector: {fingerprint: value}}.
 
-    Raises DetectorFailure on any non-zero exit or error. Failing closed is the
-    point: a detector that silently reported nothing is indistinguishable from a
-    clean repo, and a gate that cannot tell those apart is worse than no gate.
-    External (subprocess) detectors are skipped entirely."""
+    Raises DetectorFailure when any detector errors or exits non-zero. Failing
+    closed is the point: a detector that silently reported nothing is
+    indistinguishable from a clean repo, and a gate that cannot tell those apart
+    is worse than no gate.
+
+    Every detector runs even once one has failed, and the failures are reported
+    together. Stopping at the first would hide the rest, so a broken environment
+    (no ast-grep, an unreadable tree) would take one `sniff diff` run per broken
+    detector to diagnose. External (subprocess) detectors are skipped entirely."""
     results: dict[str, dict[str, int]] = {}
+    failures: list[str] = []
 
     for detector in detectors:
         if not _is_builtin(detector):
             continue  # external subprocess detectors have no sink; not gated
-        findings = _collect(detector, path)
+
+        findings, failure = _collect(detector, path)
+        if failure:
+            failures.append(failure)
+            continue
+
         results[detector.name] = fingerprint_findings(detector.name, findings, path)
+
+    if failures:
+        raise DetectorFailure("; ".join(failures))
 
     return results
 
 
-def _collect(detector, path: str) -> list[dict]:
-    """Run one detector with the sink installed and hand back what it recorded.
+def _collect(detector, path: str) -> tuple[list[dict], str | None]:
+    """Run one detector with the sink installed -> (findings, failure or None).
 
     The sink is a module global, so it is uninstalled in a `finally`: leaking it
     would make every later print_table call in the process keep appending to a
@@ -176,14 +197,13 @@ def _collect(detector, path: str) -> list[dict]:
     finally:
         findings, harness.FINDINGS_SINK = harness.FINDINGS_SINK, None
 
-    _raise_if_failed(detector, result)
-    return findings
+    return findings, _failure_of(detector, result)
 
 
-def _raise_if_failed(detector, result: dict) -> None:
-    """Turn a detector's error or non-zero exit into a DetectorFailure."""
+def _failure_of(detector, result: dict) -> str | None:
+    """How this detector failed, or None when it ran cleanly."""
     if not result.get("error") and result.get("exit_code") in (0, None):
-        return
+        return None
 
     cause = result.get("error") or f"exit code {result.get('exit_code')}"
-    raise DetectorFailure(f"detector {detector.name!r} failed: {cause}")
+    return f"detector {detector.name!r} failed: {cause}"
