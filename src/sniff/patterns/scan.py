@@ -27,17 +27,36 @@ from sniff.patterns.paths import IGNORE_DIRS
 SGCONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sgconfig.yml")
 
 
+def find_ast_grep() -> str | None:
+    """Resolve the ast-grep binary, falling back to the interpreter's own bin dir.
+
+    Mirrors harness.find_ast_grep on purpose: this script is also run standalone, so it
+    keeps its no-import-dependency on the harness. `pip install ast-grep-cli` drops the
+    `ast-grep` binary next to whatever interpreter ran the install (Scripts\\ on Windows,
+    bin/ elsewhere), which shutil.which only sees if that directory is on PATH. It is not
+    for `uv tool install sniff-smells` (only the `sniff` shim gets exposed) or for an
+    agent invoking sniff by absolute path. sys.executable is reliable in both cases."""
+    found = shutil.which("ast-grep")
+    if found:
+        return found
+    exe_name = "ast-grep.exe" if os.name == "nt" else "ast-grep"
+    sibling = os.path.join(os.path.dirname(sys.executable), exe_name)
+    return sibling if os.path.isfile(sibling) else None
+
+
 def ast_grep_exe() -> str:
     """Absolute path to ast-grep, resolving Windows .cmd/.exe shims; bare name if not found.
 
     Mirrors harness.ast_grep_exe on purpose: this script is also run standalone, so it
     keeps its no-import-dependency on the harness. Windows CreateProcess ignores PATHEXT
-    for a bare argv[0], so the npm-installed `ast-grep.cmd` shim would raise WinError 2."""
-    return shutil.which("ast-grep") or "ast-grep"
+    for a bare argv[0], so the npm-installed `ast-grep.cmd` shim would raise WinError 2.
+    find_ast_grep also catches the interpreter-sibling case pip installs use; the bare
+    name is the last-resort fallback so a subprocess call still gets a name to fail on."""
+    return find_ast_grep() or "ast-grep"
 
 
 def _require_ast_grep() -> None:
-    if not shutil.which("ast-grep"):
+    if find_ast_grep() is None:
         sys.exit("error: ast-grep is not installed or not on PATH. Install it with: pip install ast-grep-cli")
 
 

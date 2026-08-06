@@ -50,7 +50,7 @@ rule, or `--top-locs N --rule <id>` to expand one rule.
 
 Use `sniff-create` (rule mode) to add a rule, or drop a standard ast-grep rule file
 into `rules/`. Each rule file needs `id`, `language`, `severity`, `message`, `rule`.
-Prerequisites: `ast-grep` on PATH, Python 3.
+Prerequisites: `ast-grep` installed (`pip install ast-grep-cli`), Python 3.
 
 ## Caveats
 

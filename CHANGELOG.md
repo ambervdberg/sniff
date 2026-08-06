@@ -6,6 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [0.16.0] - Unreleased
 
+- sniff finds the bundled ast-grep even when its install directory is not on PATH.
 - most-parameters no longer counts a trailing comma as an extra parameter.
 - no-duplicate-string now skips idiom strings (dunders, encodings, argparse actions, quoted type annotations) and reports file:line locations.
 - `sniff prime` and the sniff skill now explain the baseline/diff agent loop.

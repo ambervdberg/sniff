@@ -166,4 +166,4 @@ A detector meant for everyone belongs in the sniff package instead, as a module 
   skill and the aggregate run always agree.
 - A failing detector yields an error section instead of aborting the run, so one
   broken detector cannot hide the others.
-- Prerequisites: `ast-grep` on PATH (pattern + node-metric detectors), Python 3.
+- Prerequisites: `ast-grep` installed (pattern + node-metric detectors), Python 3.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests for sniff.commands.doctor: `sniff doctor`'s prerequisite checklist.
 
-`run_doctor()` reads the real environment (Python version, ast-grep on PATH,
+`run_doctor()` reads the real environment (Python version, ast-grep detection,
 detector discovery, the cwd's `.sniff/rules` and `.sniff.toml`), so every test
 here chdirs into a scratch directory first: running from the repo root would
 pick up this repo's own `.sniff.toml` and make the assertions depend on
@@ -45,7 +45,11 @@ class PrerequisitesPassTest(DoctorTestCase):
     def test_every_check_passing_returns_zero(self):
         # No .sniff/detectors manifests and no .sniff/rules in the scratch cwd,
         # so discovery finds only the built-ins with no errors or duplicates.
-        with mock.patch.object(doctor.shutil, "which", return_value="/usr/bin/ast-grep"):
+        # Patched at harness.find_ast_grep (not shutil.which): find_ast_grep also
+        # falls back to a sibling of sys.executable, which is a real binary in
+        # this dev venv, so patching shutil.which alone would not simulate
+        # either PASS or FAIL reliably.
+        with mock.patch.object(doctor.harness, "find_ast_grep", return_value="/usr/bin/ast-grep"):
             code, out = self.run_doctor()
 
         self.assertEqual(code, 0)
@@ -53,7 +57,7 @@ class PrerequisitesPassTest(DoctorTestCase):
         # empty detector list ("PASS 0 detector manifest(s) valid") would also
         # contain "PASS" and pass for the wrong reason.
         self.assertRegex(out, r"PASS [1-9]\d* detector manifest\(s\) valid")
-        self.assertIn("PASS ast-grep found on PATH", out)
+        self.assertIn("PASS ast-grep found", out)
         self.assertIn("PASS no duplicate detector names", out)
 
 
@@ -61,18 +65,18 @@ class MissingPrerequisiteTest(DoctorTestCase):
     """The acceptance case: a missing prerequisite fails the gate."""
 
     def test_missing_ast_grep_exits_non_zero(self):
-        with mock.patch.object(doctor.shutil, "which", return_value=None):
+        with mock.patch.object(doctor.harness, "find_ast_grep", return_value=None):
             code, out = self.run_doctor()
 
         self.assertEqual(code, 1)
-        self.assertIn("FAIL ast-grep not found on PATH", out)
+        self.assertIn("FAIL ast-grep not found (pip install ast-grep-cli)", out)
 
     def test_python_below_the_floor_exits_non_zero(self):
         # Must track requires-python in pyproject.toml: PASSing an interpreter
         # pip would already have refused to install sniff on would be worse
         # than the check not existing at all.
         too_old = (3, 9, 0, "final", 0)
-        with mock.patch.object(doctor.shutil, "which", return_value="/usr/bin/ast-grep"), \
+        with mock.patch.object(doctor.harness, "find_ast_grep", return_value="/usr/bin/ast-grep"), \
                 mock.patch.object(doctor.sys, "version_info", too_old):
             code, out = self.run_doctor()
 
@@ -85,7 +89,7 @@ class ManifestAndDuplicateChecksTest(DoctorTestCase):
 
     def test_a_manifest_error_exits_non_zero(self):
         broken = ["bad-detector: script not found: /nope.py"]
-        with mock.patch.object(doctor.shutil, "which", return_value="/usr/bin/ast-grep"), \
+        with mock.patch.object(doctor.harness, "find_ast_grep", return_value="/usr/bin/ast-grep"), \
                 mock.patch.object(discovery, "discover", return_value=([], broken)):
             code, out = self.run_doctor()
 
@@ -95,7 +99,7 @@ class ManifestAndDuplicateChecksTest(DoctorTestCase):
     def test_duplicate_detector_names_exit_non_zero(self):
         dupes = [discovery.Detector(name="alpha", title="one"),
                   discovery.Detector(name="alpha", title="two")]
-        with mock.patch.object(doctor.shutil, "which", return_value="/usr/bin/ast-grep"), \
+        with mock.patch.object(doctor.harness, "find_ast_grep", return_value="/usr/bin/ast-grep"), \
                 mock.patch.object(discovery, "discover", return_value=(dupes, [])):
             code, out = self.run_doctor()
 
@@ -123,7 +127,7 @@ class LocalRuleShadowTest(DoctorTestCase):
         with open(os.path.join(local_rules, "my-own-rule.yml"), "w", encoding="utf-8") as fh:
             fh.write("id: my-own-rule\n")
 
-        with mock.patch.object(doctor.shutil, "which", return_value="/usr/bin/ast-grep"), \
+        with mock.patch.object(doctor.harness, "find_ast_grep", return_value="/usr/bin/ast-grep"), \
                 mock.patch.object(doctor.patterns, "rules_dir", return_value=core_rules):
             code, out = self.run_doctor()
 
@@ -141,7 +145,7 @@ class SniffTomlCheckTest(DoctorTestCase):
         with open(".sniff.toml", "w", encoding="utf-8") as fh:
             fh.write('[detectors]\nskip = "largest-files"\n')
 
-        with mock.patch.object(doctor.shutil, "which", return_value="/usr/bin/ast-grep"):
+        with mock.patch.object(doctor.harness, "find_ast_grep", return_value="/usr/bin/ast-grep"):
             code, out = self.run_doctor()
 
         self.assertEqual(code, 0)
@@ -151,7 +155,7 @@ class SniffTomlCheckTest(DoctorTestCase):
         with open(".sniff.toml", "w", encoding="utf-8") as fh:
             fh.write("this is not a key value line\n")
 
-        with mock.patch.object(doctor.shutil, "which", return_value="/usr/bin/ast-grep"):
+        with mock.patch.object(doctor.harness, "find_ast_grep", return_value="/usr/bin/ast-grep"):
             code, out = self.run_doctor()
 
         self.assertEqual(code, 0)
@@ -169,7 +173,7 @@ class SniffTomlCheckTest(DoctorTestCase):
         os.makedirs(subdir)
         os.chdir(subdir)
 
-        with mock.patch.object(doctor.shutil, "which", return_value="/usr/bin/ast-grep"):
+        with mock.patch.object(doctor.harness, "find_ast_grep", return_value="/usr/bin/ast-grep"):
             code, out = self.run_doctor()
 
         self.assertEqual(code, 0)

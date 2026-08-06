@@ -40,7 +40,7 @@ from sniff.patterns.paths import IGNORE_DIRS, _extra_ignore_patterns, _in_ignore
 from sniff.patterns.render import (
     SEVERITY_ORDER, print_list_rules, print_rule_table, print_rules_ran, render_catalog_table,
 )
-from sniff.patterns.scan import _require_ast_grep, ast_grep_exe, run_scan, scan_multiline_single_comments
+from sniff.patterns.scan import _require_ast_grep, ast_grep_exe, find_ast_grep, run_scan, scan_multiline_single_comments
 
 # How many locations one rule may list before the rest collapse into a "+N more"
 # row. A single noisy rule used to print every hit (118 rows for py-print-statement

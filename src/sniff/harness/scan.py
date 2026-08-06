@@ -13,18 +13,41 @@ from typing import Sequence
 from sniff.harness.files import _in_ignored_dir, detect_languages, is_test_file
 from sniff.harness.model import NAME_PATTERNS, Match, RuleSpec, _NAME_STOPWORDS
 
+def find_ast_grep() -> str | None:
+    """Resolve the ast-grep binary, falling back to the interpreter's own bin dir.
+
+    `pip install ast-grep-cli` drops the `ast-grep` binary next to whatever
+    interpreter ran the install, in the same directory as `python` itself
+    (Scripts\\ on Windows, bin/ elsewhere). shutil.which only sees it there if
+    that directory happens to be on PATH, which is not guaranteed: `uv tool
+    install sniff-smells` shims only the `sniff` entry point onto PATH, and an
+    agent invoking sniff by absolute path (e.g. a CI smoke test calling
+    `/tmp/smoke/bin/sniff` directly) never puts its own venv's bin dir on PATH
+    either. sys.executable is reliable in both cases, so check its sibling
+    before giving up."""
+    found = shutil.which("ast-grep")
+    if found:
+        return found
+    exe_name = "ast-grep.exe" if os.name == "nt" else "ast-grep"
+    sibling = os.path.join(os.path.dirname(sys.executable), exe_name)
+    return sibling if os.path.isfile(sibling) else None
+
+
 def ast_grep_exe() -> str:
     """Absolute path to ast-grep, resolving Windows .cmd/.exe shims; bare name if not found.
 
     Windows CreateProcess does not resolve the `.cmd` shim npm installs for a bare
     "ast-grep" argv[0], so passing the bare name to subprocess raises WinError 2.
-    shutil.which does apply PATHEXT, so the resolved path works on every platform."""
-    return shutil.which("ast-grep") or "ast-grep"
+    shutil.which does apply PATHEXT, so the resolved path works on every platform.
+    find_ast_grep also catches the interpreter-sibling case pip installs use; the
+    bare name is the last-resort fallback so a subprocess call still gets a name
+    to fail on instead of a None."""
+    return find_ast_grep() or "ast-grep"
 
 
 def _require_ast_grep() -> None:
     """Fail fast with a clear message if the ast-grep binary is missing."""
-    if not shutil.which("ast-grep"):
+    if find_ast_grep() is None:
         sys.exit("error: ast-grep is not installed or not on PATH. Install it with: pip install ast-grep-cli")
 
 

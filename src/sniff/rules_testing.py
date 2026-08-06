@@ -8,11 +8,11 @@ rules (no ast-grep yml semantics, see PYTHON_RULES) are exempt from (1)."""
 from __future__ import annotations
 
 import os
-import shutil
+import shutil  # noqa: F401 (re-export: tests patch this module's shutil.which; same shared module as harness.scan's)
 import subprocess
 import sys
 
-from sniff.harness import ast_grep_exe
+from sniff.harness import ast_grep_exe, find_ast_grep
 
 # Rules implemented in Python inside patterns/scan.py, not as ast-grep rules.
 PYTHON_RULES = {"no-multiline-single-comment"}
@@ -47,7 +47,7 @@ def rules_missing_tests(repo_root: str) -> list[str]:
 
 def run_test_rules(repo_root: str) -> int:
     """Coverage check + `ast-grep test`. Prints results, returns 0/1."""
-    if not shutil.which("ast-grep"):
+    if find_ast_grep() is None:
         print("FAIL ast-grep not on PATH", file=sys.stderr)
         return 1
 

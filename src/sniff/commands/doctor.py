@@ -11,11 +11,10 @@ thing.
 from __future__ import annotations
 
 import os
-import shutil
 import sys
 from dataclasses import dataclass
 
-from sniff import config, discovery, patterns
+from sniff import config, discovery, harness, patterns
 from sniff.versioning import _installed_package_version, _upgrade_available_caveat, get_version
 
 
@@ -35,7 +34,7 @@ def _gather_environment_facts() -> EnvironmentFacts:
     return EnvironmentFacts(
         detectors=detectors,
         errors=errors,
-        has_ast_grep=shutil.which("ast-grep") is not None,
+        has_ast_grep=harness.find_ast_grep() is not None,
         installed_version=_installed_package_version(),
     )
 
@@ -58,7 +57,7 @@ def run_doctor() -> int:
 
     lines.append(
         f"{'PASS' if facts.has_ast_grep else 'FAIL'} ast-grep "
-        + ("found on PATH" if facts.has_ast_grep else "not found on PATH (pip install ast-grep-cli)")
+        + ("found" if facts.has_ast_grep else "not found (pip install ast-grep-cli)")
     )
     ok &= facts.has_ast_grep
 
@@ -107,7 +106,7 @@ def run_prime() -> None:
 
     lines.append("PREREQUISITES")
     lines.append(f"  python {'.'.join(str(p) for p in sys.version_info[:3])}")
-    lines.append(f"  ast-grep: {'found on PATH' if facts.has_ast_grep else 'MISSING (pip install ast-grep-cli)'}")
+    lines.append(f"  ast-grep: {'found' if facts.has_ast_grep else 'MISSING (pip install ast-grep-cli)'}")
     lines.append("")
 
     lines.append(f"DETECTORS ({len(facts.detectors)})")
@@ -145,7 +144,7 @@ def run_prime() -> None:
         # and telling an agent a working detector will fail is worse than silence.
         parser_free = ", ".join(d.name for d in facts.detectors if not d.needs_ast_grep)
         caveats.append(
-            f"ast-grep is not on PATH; only {parser_free} will run. "
+            f"ast-grep is not installed; only {parser_free} will run. "
             "Every other detector, sniff-patterns included, parses with it and will fail."
         )
     if facts.errors:

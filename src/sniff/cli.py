@@ -32,7 +32,6 @@ import io
 import json
 import os
 from dataclasses import dataclass
-import shutil  # noqa: F401  (re-export: tests patch run_module.shutil.which)
 import sys
 
 from sniff import config, contribute, discovery, harness, rules_testing

@@ -80,6 +80,7 @@ from sniff.harness.scan import (
     _scan,
     _to_match,
     ast_grep_exe,
+    find_ast_grep,
     run,
 )
 

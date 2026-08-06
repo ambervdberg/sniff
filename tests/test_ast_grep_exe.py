@@ -5,6 +5,14 @@ On Windows the npm-installed binary is an `ast-grep.cmd` shim, which CreateProce
 does not find from a bare argv[0] (WinError 2). shutil.which does apply PATHEXT, so
 every call site must pass its result instead of the literal "ast-grep".
 
+find_ast_grep() also falls back to a sibling of sys.executable when shutil.which
+finds nothing, because `pip install ast-grep-cli` drops the binary next to the
+interpreter and PATH does not always include that directory (uv tool shims, an
+agent invoking sniff by absolute path). Tests that want to simulate "no ast-grep
+anywhere" must mock BOTH shutil.which and os.path.isfile: this dev venv has a real
+ast-grep-cli install, so its sibling binary genuinely exists next to sys.executable,
+and mocking shutil.which alone would let the fallback quietly find it.
+
 Run: python tests/test_ast_grep_exe.py
 """
 
@@ -38,18 +46,47 @@ def _completed(args) -> subprocess.CompletedProcess:
     return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
 
 
+def _expected_sibling() -> str:
+    """The sibling candidate find_ast_grep() builds, mirrored here so a test can
+    assert the fallback returned exactly that path rather than any string."""
+    exe_name = "ast-grep.exe" if os.name == "nt" else "ast-grep"
+    return os.path.join(os.path.dirname(sys.executable), exe_name)
+
+
 class AstGrepExeTest(unittest.TestCase):
     def test_harness_resolves_via_which(self):
         with mock.patch.object(harness.shutil, "which", return_value=SENTINEL):
             self.assertEqual(harness.ast_grep_exe(), SENTINEL)
 
-    def test_harness_falls_back_to_bare_name(self):
-        with mock.patch.object(harness.shutil, "which", return_value=None):
+    def test_harness_falls_back_to_sibling_when_present(self):
+        # which() empty but a binary sits next to sys.executable (the pip-install
+        # layout): find_ast_grep must return that sibling, not give up.
+        with mock.patch.object(harness.shutil, "which", return_value=None), \
+                mock.patch.object(os.path, "isfile", return_value=True):
+            self.assertEqual(harness.ast_grep_exe(), _expected_sibling())
+
+    def test_harness_falls_back_to_bare_name_when_no_sibling(self):
+        # which() empty and no sibling either: last resort is the bare name so a
+        # subprocess call still has something to fail on instead of None.
+        with mock.patch.object(harness.shutil, "which", return_value=None), \
+                mock.patch.object(os.path, "isfile", return_value=False):
             self.assertEqual(harness.ast_grep_exe(), "ast-grep")
 
     def test_format_resolves_via_which(self):
         with mock.patch.object(format_mod.shutil, "which", return_value=SENTINEL):
             self.assertEqual(format_mod.ast_grep_exe(), SENTINEL)
+
+    def test_format_falls_back_to_sibling_when_present(self):
+        # format_mod is the patterns/scan.py mirror, kept import-free from harness
+        # on purpose; it needs the same sibling-fallback coverage.
+        with mock.patch.object(format_mod.shutil, "which", return_value=None), \
+                mock.patch.object(os.path, "isfile", return_value=True):
+            self.assertEqual(format_mod.ast_grep_exe(), _expected_sibling())
+
+    def test_format_falls_back_to_bare_name_when_no_sibling(self):
+        with mock.patch.object(format_mod.shutil, "which", return_value=None), \
+                mock.patch.object(os.path, "isfile", return_value=False):
+            self.assertEqual(format_mod.ast_grep_exe(), "ast-grep")
 
 
 class CallSiteTest(unittest.TestCase):

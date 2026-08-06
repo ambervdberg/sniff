@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import os
@@ -36,6 +37,29 @@ def _path_without_astgrep() -> str:
     exercised."""
     dirs = os.environ.get("PATH", "").split(os.pathsep)
     return os.pathsep.join(d for d in dirs if not shutil.which("ast-grep", path=d))
+
+
+@contextlib.contextmanager
+def _ast_grep_hidden_everywhere():
+    """Strip PATH and relocate the interpreter-sibling ast-grep binary, so a real
+    subprocess genuinely cannot find ast-grep by either route find_ast_grep() tries.
+
+    PATH alone is not enough here: RUN launches this dev venv's own python, and
+    `pip install ast-grep-cli` (a dev dependency of this repo) drops its binary
+    right next to that interpreter, in `.venv/Scripts`. Yields the env dict for
+    a hidden-ast-grep subprocess call; restores the sibling in a finally so the
+    dev venv is left exactly as it was, even if the test body raises."""
+    exe_name = "ast-grep.exe" if os.name == "nt" else "ast-grep"
+    sibling = os.path.join(os.path.dirname(sys.executable), exe_name)
+    hidden_at = sibling + ".hidden-for-test"
+    moved = os.path.isfile(sibling)
+    if moved:
+        os.replace(sibling, hidden_at)
+    try:
+        yield {**SUBPROCESS_ENV, "PATH": _path_without_astgrep()}
+    finally:
+        if moved:
+            os.replace(hidden_at, sibling)
 
 
 class SniffCliHelpTest(unittest.TestCase):
@@ -458,20 +482,20 @@ class SniffBaselineDiffTest(unittest.TestCase):
         self.assertIn("unknown detectors key", proc.stderr)
 
     def test_diff_fails_when_detector_errors(self):
-        # Point the gate at a detector that cannot run: strip ast-grep from
-        # PATH so ast-grep-backed detectors error. Exit must be 1, output
-        # must name the failure, and must NOT say "same or better".
+        # Point the gate at a detector that cannot run: hide ast-grep so
+        # ast-grep-backed detectors error. Exit must be 1, output must name
+        # the failure, and must NOT say "same or better".
         self._run("baseline", "write", self.repo)
-        env = {**SUBPROCESS_ENV, "PATH": _path_without_astgrep()}
-        proc = self._run("diff", self.repo, env=env)
+        with _ast_grep_hidden_everywhere() as env:
+            proc = self._run("diff", self.repo, env=env)
         self.assertEqual(proc.returncode, 1)
         self.assertNotIn("same or better", proc.stdout + proc.stderr)
 
     def test_scan_exit_code_reflects_detector_failure(self):
         # An ast-grep-backed detector that cannot launch must flip the scan's
         # exit code to 1: a broken detector is a failure, not a clean report.
-        env = {**SUBPROCESS_ENV, "PATH": _path_without_astgrep()}
-        proc = self._run("--only", "largest-methods", self.repo, env=env)
+        with _ast_grep_hidden_everywhere() as env:
+            proc = self._run("--only", "largest-methods", self.repo, env=env)
         self.assertEqual(proc.returncode, 1)
 
     def test_scan_with_findings_still_exits_zero(self):
@@ -759,7 +783,7 @@ class ParserFreeCaveatTest(unittest.TestCase):
         detector that only looks parser-free fails this outright."""
         import io
         import contextlib
-        from sniff import harness
+        from sniff.harness import scan as harness_scan
 
         with tempfile.TemporaryDirectory() as root:
             with open(os.path.join(root, "sample.py"), "w", encoding="utf-8") as fh:
@@ -770,8 +794,12 @@ class ParserFreeCaveatTest(unittest.TestCase):
             for module in self._builtin_modules():
                 if getattr(module, "NEEDS_AST_GREP", True):
                     continue
+                # Patched at harness.scan.find_ast_grep (where _require_ast_grep looks
+                # it up), not shutil.which: find_ast_grep also falls back to a sibling
+                # of sys.executable, which is a real binary in this dev venv, so
+                # patching shutil.which alone would not hide it.
                 with self.subTest(detector=module.NAME), \
-                        unittest.mock.patch.object(harness.shutil, "which", return_value=None), \
+                        unittest.mock.patch.object(harness_scan, "find_ast_grep", return_value=None), \
                         contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(module.main([root]), 0,
                                      f"{module.NAME} declares NEEDS_AST_GREP=False but did not run")
@@ -784,8 +812,11 @@ class ParserFreeCaveatTest(unittest.TestCase):
         parser_free = [d.name for d in detectors if not d.needs_ast_grep]
         self.assertGreater(len(parser_free), 1, "expected several parser-free detectors")
 
+        # Patched at harness.find_ast_grep, not shutil.which: find_ast_grep also
+        # falls back to a sibling of sys.executable, which is a real binary in
+        # this dev venv, so patching shutil.which alone would not hide it.
         out = io.StringIO()
-        with unittest.mock.patch.object(run_module.shutil, "which", return_value=None), \
+        with unittest.mock.patch.object(run_module.harness, "find_ast_grep", return_value=None), \
                 unittest.mock.patch.dict(os.environ, {"SNIFF_NO_VERSION_CHECK": "1"}), \
                 contextlib.redirect_stdout(out):
             run_module.run_prime()
