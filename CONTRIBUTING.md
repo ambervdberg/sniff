@@ -51,7 +51,6 @@ hooks/hooks.json     lifecycle hooks, and the single source for BOTH hosts, sinc
                      Code and Codex each auto-discover this exact path
 .claude-plugin/      plugin.json + marketplace.json (Claude Code)
 .codex-plugin/       plugin.json (Codex)
-action.yml           composite GitHub Action behind the README's CI mode
 scripts/             update_docs.py (PR checklist) and bump_version.py (releases only)
 evals/               agent-routing eval harness; see Evals below
 ```
@@ -76,7 +75,7 @@ snippet (must be flagged) and one valid snippet (must stay clean). `no-empty-cat
 and `no-explicit-any.yml` are the ones to copy.
 
 A rule with no fixture file fails `sniff test-rules` by name. The one exception is a rule
-implemented in Python inside `patterns/format.py` rather than as ast-grep YAML, which
+implemented in Python inside `patterns/scan.py` rather than as ast-grep YAML, which
 `ast-grep test` cannot run: those are listed in `PYTHON_RULES` in
 `src/sniff/rules_testing.py` and skipped. Adding to that set means giving up fixture
 coverage, so treat it as a last resort.
@@ -91,6 +90,15 @@ uv run sniff test-rules
 `src/sniff/patterns/`, which the published wheel does not ship, so it works from a
 checkout and nowhere else. That is why it is absent from `sniff --help` and from the
 README's command table, and why it always runs through `uv run` here.
+
+### Future: custom-ranking rules (dormant seam)
+
+A rule that needs a *computed score* (nesting depth, complexity) rather than a plain
+match cannot be expressed as a pattern. The planned hook: such a rule carries an
+`x-harness: <script>` meta key, and a future runner routes it through
+`src/sniff/harness.py` for scoring instead of plain `scan`. The current runner
+ignores `x-harness`, so the seam is designed-in but inert. Until then, score-based
+smells are standalone node-metric skills, not catalog rules.
 
 ## Promoting a local rule from a project that uses sniff
 
@@ -255,7 +263,7 @@ Before opening a PR:
 ## Release
 
 Never hand-edit a version. `python scripts/bump_version.py <new-version>` rewrites all
-six declarations together, and `tests/test_version_consistency.py` fails the build if any
+five declarations together, and `tests/test_version_consistency.py` fails the build if any
 of them drift apart:
 
 - `pyproject.toml`
@@ -263,8 +271,6 @@ of them drift apart:
 - `.codex-plugin/plugin.json`
 - every plugin entry in `.claude-plugin/marketplace.json`
 - `uv.lock`, refreshed by running `uv lock` itself
-- the `ambervdberg/sniff@v<version>` action pin in the README's CI-mode snippet, which
-  users copy verbatim into their own workflow
 
 After bumping, update `CHANGELOG.md`, commit, and tag `v<new-version>`.
 

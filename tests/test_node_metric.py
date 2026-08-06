@@ -7,14 +7,15 @@ Skips cleanly if ast-grep is not on PATH.
 
 from __future__ import annotations
 
-import os
 import shutil
 import tempfile
 import unittest
 
+from conftest import tool_available, write_tree_file
+
 from sniff import node_metric as nm
 
-HAS_AST_GREP = shutil.which("ast-grep") is not None
+HAS_AST_GREP = tool_available("ast-grep")
 
 
 @unittest.skipUnless(HAS_AST_GREP, "ast-grep not on PATH")
@@ -26,8 +27,7 @@ class NestingDepthTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def _write(self, name: str, src: str) -> None:
-        with open(os.path.join(self.root, name), "w", encoding="utf-8") as fh:
-            fh.write(src)
+        write_tree_file(self.root, name, src)
 
     def _depths(self) -> dict[str, int]:
         return {m.name: m.metrics["depth"] for m in nm.nesting_depth(self.root)}
@@ -148,6 +148,14 @@ class NestingDepthTest(unittest.TestCase):
         self.assertEqual(nm.count_params("(a, b, c)"), 3)
         self.assertEqual(nm.count_params("(a, b: Map<x, y>)"), 2)
         self.assertEqual(nm.count_params("(a = {x, y}, b)"), 2)
+
+    def test_count_params_trailing_comma(self):
+        # A trailing comma in a multi-line signature ends the last parameter;
+        # it must not be counted as a separator introducing an extra one.
+        self.assertEqual(nm.count_params("(\n    a,\n    b,\n    c,\n)"), 3)
+        self.assertEqual(nm.count_params("(a, b, c)"), 3)
+        self.assertEqual(nm.count_params("()"), 0)
+        self.assertEqual(nm.count_params("(a,)"), 1)
 
     def _cognitive(self) -> dict[str, int]:
         return {m.name: m.metrics["cognitive"] for m in nm.cognitive(self.root)}

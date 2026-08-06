@@ -3,16 +3,23 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import unittest.mock
 
 from sniff import cli as run_module
 from sniff import discovery
+from sniff import gate
+from sniff import versioning
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "..", "src")
@@ -20,6 +27,39 @@ RUN = [sys.executable, "-m", "sniff.cli"]
 # The release check in `prime` talks to PyPI. Disabled for every subprocess here so
 # the suite never depends on network reachability; the check has its own unit tests.
 SUBPROCESS_ENV = {**os.environ, "PYTHONPATH": SRC, "SNIFF_NO_VERSION_CHECK": "1"}
+
+
+def _path_without_astgrep() -> str:
+    """PATH with every directory containing an `ast-grep` executable removed.
+
+    Shared by any test that needs an ast-grep-backed detector to fail to launch
+    (rather than run and report zero findings), so the failure path itself gets
+    exercised."""
+    dirs = os.environ.get("PATH", "").split(os.pathsep)
+    return os.pathsep.join(d for d in dirs if not shutil.which("ast-grep", path=d))
+
+
+@contextlib.contextmanager
+def _ast_grep_hidden_everywhere():
+    """Strip PATH and relocate the interpreter-sibling ast-grep binary, so a real
+    subprocess genuinely cannot find ast-grep by either route find_ast_grep() tries.
+
+    PATH alone is not enough here: RUN launches this dev venv's own python, and
+    `pip install ast-grep-cli` (a dev dependency of this repo) drops its binary
+    right next to that interpreter, in `.venv/Scripts`. Yields the env dict for
+    a hidden-ast-grep subprocess call; restores the sibling in a finally so the
+    dev venv is left exactly as it was, even if the test body raises."""
+    exe_name = "ast-grep.exe" if os.name == "nt" else "ast-grep"
+    sibling = os.path.join(os.path.dirname(sys.executable), exe_name)
+    hidden_at = sibling + ".hidden-for-test"
+    moved = os.path.isfile(sibling)
+    if moved:
+        os.replace(sibling, hidden_at)
+    try:
+        yield {**SUBPROCESS_ENV, "PATH": _path_without_astgrep()}
+    finally:
+        if moved:
+            os.replace(hidden_at, sibling)
 
 
 class SniffCliHelpTest(unittest.TestCase):
@@ -35,6 +75,11 @@ class SniffCliHelpTest(unittest.TestCase):
         out = self._run("--help")
         self.assertIn("Default: `sniff [DIR]` runs all detectors; `--all` is accepted as an explicit alias.", out)
         self.assertIn("Pattern rules only:  sniff --only sniff-patterns [DIR]", out)
+
+    def test_help_mentions_sniff_toml(self):
+        """.sniff.toml is otherwise undiscoverable from the CLI alone."""
+        out = self._run("--help")
+        self.assertIn(".sniff.toml", out)
 
     def test_list_shows_run_command_for_each_detector(self):
         """Detector list includes copyable run commands for routing."""
@@ -75,6 +120,16 @@ class SniffVersionCommandTest(unittest.TestCase):
         proc = subprocess.run([*RUN, "version"], capture_output=True, text=True, env=SUBPROCESS_ENV)
         self.assertEqual(proc.returncode, 0)
         self.assertRegex(proc.stdout.strip(), r"^sniff \S+$")
+
+
+class SniffVersionFlagTest(unittest.TestCase):
+    """`sniff --version` is a top-level alias for the `sniff version` subcommand."""
+
+    def test_version_flag_matches_version_subcommand(self):
+        flag = subprocess.run([*RUN, "--version"], capture_output=True, text=True, env=SUBPROCESS_ENV)
+        subcommand = subprocess.run([*RUN, "version"], capture_output=True, text=True, env=SUBPROCESS_ENV)
+        self.assertEqual(flag.returncode, 0)
+        self.assertEqual(flag.stdout, subcommand.stdout)
 
 
 class SniffDoctorCommandTest(unittest.TestCase):
@@ -124,10 +179,11 @@ class SniffJsonOutputTest(unittest.TestCase):
             [*RUN, "--list", "--json"], capture_output=True, text=True, check=True, env=SUBPROCESS_ENV,
         )
         data = json.loads(proc.stdout)
-        self.assertIsInstance(data, list)
-        names = {d["name"] for d in data}
+        self.assertIsInstance(data, dict)
+        detectors = data["detectors"]
+        names = {d["name"] for d in detectors}
         self.assertIn("sniff-patterns", names)
-        self.assertIn("script", data[0])
+        self.assertIn("script", detectors[0])
 
     def test_scan_json_is_parseable_per_detector(self):
         proc = subprocess.run(
@@ -164,14 +220,32 @@ class SniffPrimeCommandTest(unittest.TestCase):
         # No scan output (per-detector "## name" markdown sections) should appear.
         self.assertNotIn("## sniff-patterns", proc.stdout)
 
+    def test_prime_names_every_user_facing_subcommand(self):
+        """The COMMON COMMANDS block is the only place an agent learns what sniff
+        can do, so a subcommand missing from it is invisible in practice. Read the
+        names off the dispatcher rather than restating them, or this guard drifts
+        the same way the block it guards did.
+
+        `test-rules` is the one exception: it only ever works from a source
+        checkout and is deliberately kept out of user-facing help."""
+        with open(run_module.__file__, encoding="utf-8") as fh:
+            source = fh.read()
+        dispatched = set(re.findall(r'argv\[:1\] == \["([\w-]+)"\]', source))
+        self.assertIn("diff", dispatched, "dispatcher shape changed; this guard reads nothing")
+
+        proc = subprocess.run([*RUN, "prime"], capture_output=True, text=True, env=SUBPROCESS_ENV)
+        missing = [name for name in sorted(dispatched - {"test-rules"})
+                   if f"sniff {name}" not in proc.stdout]
+        self.assertEqual(missing, [])
+
 
 class SniffUpgradeCaveatTest(unittest.TestCase):
     """`prime` warns when PyPI has a newer release than the installed one."""
 
     def _caveat(self, installed: str, latest: str | None) -> str | None:
         """Resolve the upgrade caveat with the PyPI lookup stubbed to `latest`."""
-        with unittest.mock.patch.object(run_module, "_latest_released_version", return_value=latest):
-            return run_module._upgrade_available_caveat(installed)
+        with unittest.mock.patch.object(versioning, "_latest_released_version", return_value=latest):
+            return versioning._upgrade_available_caveat(installed)
 
     def test_newer_release_names_version_and_upgrade_command(self):
         caveat = self._caveat("0.12.1", "0.13.0")
@@ -202,114 +276,274 @@ class SniffUpgradeCaveatTest(unittest.TestCase):
     def test_env_var_disables_the_network_call(self):
         """The opt-out short-circuits before any request, for offline and CI use."""
         with unittest.mock.patch.dict(os.environ, {"SNIFF_NO_VERSION_CHECK": "1"}), \
-                unittest.mock.patch.object(run_module.urllib.request, "urlopen") as urlopen:
-            self.assertIsNone(run_module._latest_released_version())
+                unittest.mock.patch.object(versioning.urllib.request, "urlopen") as urlopen:
+            self.assertIsNone(versioning._latest_released_version())
         urlopen.assert_not_called()
 
     def test_request_bypasses_the_cdn_cache(self):
         """PyPI's CDN can serve the previous release for a while after an upload,
         so a cached answer would keep prime silent through exactly the release it
         exists to announce."""
-        with unittest.mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SNIFF_NO_VERSION_CHECK", None)
-            with unittest.mock.patch.object(
-                run_module.urllib.request, "urlopen", side_effect=OSError("offline")
-            ) as urlopen:
-                run_module._latest_released_version()
+        with tempfile.TemporaryDirectory() as tmp:
+            # A cache path that never resolves to a real file guarantees a cache
+            # miss regardless of what the dev machine's own cache happens to hold.
+            cache = os.path.join(tmp, "version-cache.json")
+            with unittest.mock.patch.dict(os.environ, {}, clear=False), \
+                    unittest.mock.patch.object(versioning, "_version_cache_path", return_value=cache):
+                os.environ.pop("SNIFF_NO_VERSION_CHECK", None)
+                with unittest.mock.patch.object(
+                    versioning.urllib.request, "urlopen", side_effect=OSError("offline")
+                ) as urlopen:
+                    versioning._latest_released_version()
         request = urlopen.call_args.args[0]
         self.assertEqual(request.get_header("Cache-control"), "no-cache")
 
     def test_network_failure_returns_none_instead_of_raising(self):
-        with unittest.mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("SNIFF_NO_VERSION_CHECK", None)
-            with unittest.mock.patch.object(
-                run_module.urllib.request, "urlopen", side_effect=OSError("offline")
-            ):
-                self.assertIsNone(run_module._latest_released_version())
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = os.path.join(tmp, "version-cache.json")
+            with unittest.mock.patch.dict(os.environ, {}, clear=False), \
+                    unittest.mock.patch.object(versioning, "_version_cache_path", return_value=cache):
+                os.environ.pop("SNIFF_NO_VERSION_CHECK", None)
+                with unittest.mock.patch.object(
+                    versioning.urllib.request, "urlopen", side_effect=OSError("offline")
+                ):
+                    self.assertIsNone(versioning._latest_released_version())
+
+    def test_version_check_uses_fresh_cache_without_network(self):
+        """A cache written within the last 4 hours must short-circuit the network
+        call entirely, not merely prefer the cached value."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = os.path.join(tmp, "version-cache.json")
+            with open(cache, "w", encoding="utf-8") as fh:
+                json.dump({"checked_at": time.time(), "latest": "9.9.9"}, fh)
+            with unittest.mock.patch.object(versioning, "_version_cache_path", return_value=cache), \
+                    unittest.mock.patch.object(
+                        versioning.urllib.request, "urlopen",
+                        side_effect=AssertionError("network hit despite fresh cache"),
+                    ):
+                self.assertEqual(versioning._latest_released_version(), "9.9.9")
+
+    def test_version_check_refreshes_stale_cache(self):
+        """A cache older than 4 hours must be treated as a miss: the network is
+        consulted again and the on-disk cache is rewritten with the fresh answer."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = os.path.join(tmp, "version-cache.json")
+            with open(cache, "w", encoding="utf-8") as fh:
+                json.dump({"checked_at": 0, "latest": "0.0.1"}, fh)
+            fake_response = io.BytesIO(json.dumps({"info": {"version": "9.9.9"}}).encode())
+            with unittest.mock.patch.object(versioning, "_version_cache_path", return_value=cache), \
+                    unittest.mock.patch.object(versioning.urllib.request, "urlopen") as urlopen:
+                urlopen.return_value.__enter__.return_value = fake_response
+                self.assertEqual(versioning._latest_released_version(), "9.9.9")
+            with open(cache, encoding="utf-8") as fh:
+                self.assertEqual(json.load(fh)["latest"], "9.9.9")
+
+    def test_cache_with_non_string_latest_falls_through_to_network(self):
+        """A corrupt cache (e.g. hand-edited to a non-string `latest`) must not crash
+        `sniff prime`; it must be treated as a miss so the network path still runs."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = os.path.join(tmp, "version-cache.json")
+            with open(cache, "w", encoding="utf-8") as fh:
+                json.dump({"checked_at": time.time(), "latest": 123}, fh)
+            fake_response = io.BytesIO(json.dumps({"info": {"version": "9.9.9"}}).encode())
+            with unittest.mock.patch.object(versioning, "_version_cache_path", return_value=cache), \
+                    unittest.mock.patch.object(versioning.urllib.request, "urlopen") as urlopen:
+                urlopen.return_value.__enter__.return_value = fake_response
+                self.assertEqual(versioning._latest_released_version(), "9.9.9")
 
 
 class SniffBaselineDiffTest(unittest.TestCase):
-    """`sniff baseline write` saves counts; `sniff diff` compares against them."""
+    """`sniff baseline write` saves fingerprints; `sniff diff` compares against them."""
 
     def setUp(self):
-        self.tmp = tempfile.mkdtemp()
-        with open(os.path.join(self.tmp, "a.py"), "w", encoding="utf-8") as fh:
+        self.repo = tempfile.mkdtemp()
+        with open(os.path.join(self.repo, "a.py"), "w", encoding="utf-8") as fh:
             fh.write("def foo(a, b, c, d, e, f, g):\n    pass\n")
 
-    def _run(self, *args: str) -> subprocess.CompletedProcess:
-        return subprocess.run([*RUN, *args], capture_output=True, text=True, env=SUBPROCESS_ENV)
+    def _run(
+        self, *args: str, env: dict | None = None, cwd: str | None = None
+    ) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [*RUN, *args], capture_output=True, text=True, env=env or SUBPROCESS_ENV, cwd=cwd
+        )
 
-    def test_baseline_write_saves_json_file(self):
-        proc = self._run("baseline", "write", self.tmp)
+    def test_baseline_write_saves_v3_fingerprints(self):
+        proc = self._run("baseline", "write", self.repo)
         self.assertEqual(proc.returncode, 0)
-        baseline_path = os.path.join(self.tmp, ".sniff", "baseline.json")
-        self.assertTrue(os.path.isfile(baseline_path))
-        with open(baseline_path, encoding="utf-8") as fh:
+        with open(os.path.join(self.repo, ".sniff", "baseline.json")) as fh:
             data = json.load(fh)
-        self.assertIn("most-parameters", data["counts"])
+        self.assertEqual(data["version"], 3)
+        self.assertIn("most-parameters", data["fingerprints"])
 
     def test_diff_without_baseline_errors(self):
-        proc = self._run("diff", self.tmp)
+        proc = self._run("diff", self.repo)
         self.assertEqual(proc.returncode, 1)
         self.assertIn("no baseline", proc.stderr)
 
-    def test_diff_reports_same_or_better_when_unchanged(self):
-        self._run("baseline", "write", self.tmp)
-        proc = self._run("diff", self.tmp)
+    def test_diff_clean_growth_is_not_a_regression(self):
+        # THE core fix: adding a small clean function must not trip the gate.
+        self._run("baseline", "write", self.repo)
+        with open(os.path.join(self.repo, "extra.py"), "w") as fh:
+            fh.write("def tiny(a, b):\n    return a + b\n")
+        proc = self._run("diff", self.repo)
         self.assertEqual(proc.returncode, 0)
         self.assertIn("same or better", proc.stdout)
 
-    def test_diff_detects_regression(self):
-        self._run("baseline", "write", self.tmp)
-        with open(os.path.join(self.tmp, "a.py"), "a", encoding="utf-8") as fh:
-            fh.write("\ndef bar(a, b, c, d, e, f, g, h):\n    pass\n")
-        proc = self._run("diff", self.tmp)
+    def test_diff_detects_new_violation(self):
+        self._run("baseline", "write", self.repo)
+        with open(os.path.join(self.repo, "extra.py"), "w") as fh:
+            fh.write("def wide(a, b, c, d, e, f, g, h):\n    return a\n")
+        proc = self._run("diff", self.repo)
         self.assertEqual(proc.returncode, 1)
-        self.assertIn("worse", proc.stdout)
-        self.assertIn("+1", proc.stdout)
+        self.assertIn("extra.py|wide", proc.stdout)
+
+    def test_diff_rejects_v1_baseline(self):
+        self._run("baseline", "write", self.repo)
+        path = os.path.join(self.repo, ".sniff", "baseline.json")
+        with open(path, "w") as fh:
+            json.dump({"path": ".", "counts": {"most-parameters": 3}}, fh)
+        proc = self._run("diff", self.repo)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("old format", proc.stderr)
+
+    def test_diff_rejects_v2_baseline(self):
+        # v2 fingerprinted the raw, command-line-spelling-dependent file path
+        # (sniff-6yh); any baseline written before the v3 portability fix must
+        # be refreshed, not silently trusted.
+        self._run("baseline", "write", self.repo)
+        path = os.path.join(self.repo, ".sniff", "baseline.json")
+        with open(path) as fh:
+            data = json.load(fh)
+        data["version"] = 2
+        with open(path, "w") as fh:
+            json.dump(data, fh)
+        proc = self._run("diff", self.repo)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("old format", proc.stderr)
+
+    def test_diff_is_stable_across_path_spellings(self):
+        # A baseline written with the relative spelling '.' must still match a
+        # diff run with the absolute path to that same, unchanged directory.
+        # Both spellings are ordinary ways to invoke it. Before the fix,
+        # fingerprints embedded the command-line spelling verbatim, so this
+        # reported false regressions and improvements on a clean repo.
+        self._run("baseline", "write", ".", cwd=self.repo)
+        proc = self._run("diff", os.path.abspath(self.repo))
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("same or better", proc.stdout)
+
+    def test_baseline_write_honours_sniff_toml_detector_skip(self):
+        # sniff-ewd: `[detectors] skip` must remove that detector from the
+        # gate the same way it removes it from a normal scan.
+        with open(os.path.join(self.repo, ".sniff.toml"), "w", encoding="utf-8") as fh:
+            fh.write("[detectors]\nskip = \"most-parameters\"\n")
+        proc = self._run("baseline", "write", self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(os.path.join(self.repo, ".sniff", "baseline.json")) as fh:
+            data = json.load(fh)
+        self.assertNotIn("most-parameters", data["fingerprints"])
+
+    def test_diff_honours_sniff_toml_disabled_rule(self):
+        # sniff-ewd: `[rules] <id> = false` must silence that sniff-patterns
+        # rule in the gate too, not just in a normal scan.
+        with open(os.path.join(self.repo, ".sniff.toml"), "w", encoding="utf-8") as fh:
+            fh.write('[rules]\nno-explicit-any = false\n')
+        with open(os.path.join(self.repo, "loose.ts"), "w", encoding="utf-8") as fh:
+            fh.write("let x: any = 1;\n")
+        self._run("baseline", "write", self.repo)
+        with open(os.path.join(self.repo, ".sniff", "baseline.json")) as fh:
+            data = json.load(fh)
+        rule_fps = data["fingerprints"].get("sniff-patterns", {})
+        self.assertFalse(any(fp.startswith("no-explicit-any|") for fp in rule_fps), rule_fps)
+
+    def test_diff_honours_sniff_toml_ignore_globs(self):
+        # sniff-ewd: `[ignore] globs` must exclude matching files from the
+        # gate's fingerprint scan, the same as it does for a normal scan.
+        with open(os.path.join(self.repo, ".sniff.toml"), "w", encoding="utf-8") as fh:
+            fh.write('[ignore]\nglobs = "generated/**"\n')
+        generated_dir = os.path.join(self.repo, "generated")
+        os.makedirs(generated_dir, exist_ok=True)
+        with open(os.path.join(generated_dir, "wide.py"), "w", encoding="utf-8") as fh:
+            fh.write("def wide(a, b, c, d, e, f, g, h):\n    return a\n")
+        self._run("baseline", "write", self.repo)
+        with open(os.path.join(self.repo, ".sniff", "baseline.json")) as fh:
+            data = json.load(fh)
+        params_fps = data["fingerprints"].get("most-parameters", {})
+        self.assertFalse(any("generated" in fp for fp in params_fps), params_fps)
+
+    def test_baseline_write_warns_on_bad_sniff_toml(self):
+        # sniff-i9x: baseline write/diff load .sniff.toml exactly like a scan
+        # does, so a bad config line must surface here too.
+        with open(os.path.join(self.repo, ".sniff.toml"), "w", encoding="utf-8") as fh:
+            fh.write("[detectors]\nbogus = 1\n")
+        proc = self._run("baseline", "write", self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("warning: .sniff.toml", proc.stderr)
+        self.assertIn("unknown detectors key", proc.stderr)
+
+    def test_diff_fails_when_detector_errors(self):
+        # Point the gate at a detector that cannot run: hide ast-grep so
+        # ast-grep-backed detectors error. Exit must be 1, output must name
+        # the failure, and must NOT say "same or better".
+        self._run("baseline", "write", self.repo)
+        with _ast_grep_hidden_everywhere() as env:
+            proc = self._run("diff", self.repo, env=env)
+        self.assertEqual(proc.returncode, 1)
+        self.assertNotIn("same or better", proc.stdout + proc.stderr)
+
+    def test_scan_exit_code_reflects_detector_failure(self):
+        # An ast-grep-backed detector that cannot launch must flip the scan's
+        # exit code to 1: a broken detector is a failure, not a clean report.
+        with _ast_grep_hidden_everywhere() as env:
+            proc = self._run("--only", "largest-methods", self.repo, env=env)
+        self.assertEqual(proc.returncode, 1)
+
+    def test_scan_with_findings_still_exits_zero(self):
+        # A detector that runs fine and reports smells is not a failure;
+        # findings alone must not flip the exit code.
+        proc = self._run("--only", "most-parameters", self.repo)
+        self.assertEqual(proc.returncode, 0)
+
+    def test_baseline_help_exits_zero_without_write(self):
+        # `sniff baseline --help` (no "write") used to fall through to the
+        # "write" subcommand check, print the usage-error message, and exit 1.
+        proc = self._run("baseline", "--help")
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("usage: sniff baseline write", proc.stdout)
+
+    def test_diff_help_exits_zero_and_lists_comment_flag(self):
+        # `sniff diff --help` used to try isdir("--help") and reject it as a
+        # bad directory (exit 1) instead of printing usage.
+        proc = self._run("diff", "--help")
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("usage: sniff diff", proc.stdout)
+        self.assertIn("--comment", proc.stdout)
+
+    def test_scan_exit_stays_zero_when_external_detector_writes_stderr_but_exits_clean(self):
+        # exit_code is the sole failure authority. An external (manifest,
+        # subprocess) detector that exits 0 but writes incidental text to
+        # stderr is not a failure: the rendered section for it is clean, so
+        # the exit code must agree with what got printed.
+        detector_dir = os.path.join(self.repo, ".sniff", "detectors", "noisy-clean")
+        os.makedirs(detector_dir)
+        with open(os.path.join(detector_dir, "detector.yml"), "w", encoding="utf-8") as fh:
+            fh.write("name: noisy-clean\ntitle: Noisy but clean\nscript: noisy_clean.py\n")
+        with open(os.path.join(detector_dir, "noisy_clean.py"), "w", encoding="utf-8") as fh:
+            fh.write("import sys\nprint('ok')\nprint('warning: noisy', file=sys.stderr)\n")
+
+        proc = self._run("--only", "noisy-clean", self.repo)
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
 
 
 def test_diff_comment_renders_markdown(tmp_path, capsys, monkeypatch):
     (tmp_path / ".sniff").mkdir()
-    (tmp_path / ".sniff" / "baseline.json").write_text('{"counts": {"x": 1}}', encoding="utf-8")
-    monkeypatch.setattr(run_module, "_scan_counts", lambda dets, path: {"x": 3})
+    baseline = {"version": 3, "path": ".", "fingerprints": {"x": {"a.py|foo": 1}}}
+    (tmp_path / ".sniff" / "baseline.json").write_text(json.dumps(baseline), encoding="utf-8")
+    monkeypatch.setattr(gate, "scan_fingerprints", lambda dets, path: {"x": {"a.py|foo": 1, "a.py|bar": 2}})
     rc = run_module.run_diff(["--comment", str(tmp_path)])
     out = capsys.readouterr().out
-    assert rc == 1 and "| DETECTOR |" in out and "**worse**" in out and "+2" in out
-
-
-class CountFindingsTest(unittest.TestCase):
-    """_count_table_rows handles multiple tables; _count_findings reads the true
-    total from a detector's summary line instead of a possibly-capped table."""
-
-    def test_count_table_rows_does_not_double_count_multiple_tables(self):
-        # sniff-patterns prints one "| LOCATION |" table per matched rule; a
-        # global "first row is the header" flag would miscount the second
-        # table's own header as a finding (3 true rows, would read as 4).
-        output = (
-            "### ruleA (warning): 2\n\n"
-            "| LOCATION |\n| --- |\n| loc1 |\n| loc2 |\n\n"
-            "### ruleB (error): 1\n\n"
-            "| LOCATION |\n| --- |\n| loc3 |\n"
-        )
-        self.assertEqual(run_module._count_table_rows(output), 3)
-
-    def test_count_findings_reads_true_total_from_capped_table(self):
-        # "Largest 20 of 262" — the table only shows 20 rows but the true
-        # count is 262; a capped table must not mask a real regression.
-        output = "Largest 20 of 262 methods/functions (python; tests excluded):\n"
-        self.assertEqual(run_module._count_findings(output), 262)
-
-    def test_count_findings_reads_sniff_patterns_total(self):
-        output = "sniff-patterns: 5 findings across 9 rules in '.'\n"
-        self.assertEqual(run_module._count_findings(output), 5)
-
-    def test_count_findings_reads_duplicate_string_total(self):
-        output = "Strings duplicated in 3+ distinct files (71 found; tests excluded):\n"
-        self.assertEqual(run_module._count_findings(output), 71)
-
-    def test_count_findings_falls_back_to_zero_for_no_matches(self):
-        self.assertEqual(run_module._count_findings("No classes matched.\n"), 0)
+    assert rc == 1 and "| DETECTOR |" in out and "**worse**" in out and "a.py|bar" in out
 
 
 class ConfigIgnoreGlobsTest(unittest.TestCase):
@@ -406,6 +640,55 @@ class SniffIgnoreFlagTest(unittest.TestCase):
             self.assertNotIn("docs/sample.py", proc.stdout)    # from .sniff.toml, still applied
 
 
+class ScanConfigWarningsTest(unittest.TestCase):
+    """sniff-i9x: a plain `sniff DIR` scan must surface `.sniff.toml` config
+    warnings too, not only `sniff doctor`."""
+
+    def _tree(self, root: str, files: "dict[str, str]") -> None:
+        for rel, text in files.items():
+            path = os.path.join(root, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(text)
+
+    def test_markdown_scan_prints_config_warning_to_stderr(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._tree(root, {".sniff.toml": "[detectors]\nbogus = 1\n", "a.py": "x = 1\n"})
+
+            proc = subprocess.run(
+                [*RUN, "--only", "sniff-patterns", root],
+                capture_output=True, text=True, env=SUBPROCESS_ENV,
+            )
+
+            self.assertIn("warning: .sniff.toml", proc.stderr)
+            self.assertIn("unknown detectors key", proc.stderr)
+
+    def test_json_scan_stdout_still_parses_while_warning_goes_to_stderr(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._tree(root, {".sniff.toml": "[detectors]\nbogus = 1\n", "a.py": "x = 1\n"})
+
+            proc = subprocess.run(
+                [*RUN, "--json", "--only", "sniff-patterns", root],
+                capture_output=True, text=True, env=SUBPROCESS_ENV,
+            )
+
+            self.assertIn("warning: .sniff.toml", proc.stderr)
+            data = json.loads(proc.stdout)
+            self.assertEqual(data["path"], root)
+            self.assertTrue(any("unknown detectors key" in w for w in data["config_warnings"]))
+
+    def test_clean_sniff_toml_gives_no_warning(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._tree(root, {".sniff.toml": "[detectors]\ntop = 5\n", "a.py": "x = 1\n"})
+
+            proc = subprocess.run(
+                [*RUN, "--only", "sniff-patterns", root],
+                capture_output=True, text=True, env=SUBPROCESS_ENV,
+            )
+
+            self.assertNotIn("warning: .sniff.toml", proc.stderr)
+
+
 class DetectorFlagPassthroughTest(unittest.TestCase):
     """Unknown trailing flags reach a single --only detector, and only then."""
 
@@ -500,7 +783,7 @@ class ParserFreeCaveatTest(unittest.TestCase):
         detector that only looks parser-free fails this outright."""
         import io
         import contextlib
-        from sniff import harness
+        from sniff.harness import scan as harness_scan
 
         with tempfile.TemporaryDirectory() as root:
             with open(os.path.join(root, "sample.py"), "w", encoding="utf-8") as fh:
@@ -511,8 +794,12 @@ class ParserFreeCaveatTest(unittest.TestCase):
             for module in self._builtin_modules():
                 if getattr(module, "NEEDS_AST_GREP", True):
                     continue
+                # Patched at harness.scan.find_ast_grep (where _require_ast_grep looks
+                # it up), not shutil.which: find_ast_grep also falls back to a sibling
+                # of sys.executable, which is a real binary in this dev venv, so
+                # patching shutil.which alone would not hide it.
                 with self.subTest(detector=module.NAME), \
-                        unittest.mock.patch.object(harness.shutil, "which", return_value=None), \
+                        unittest.mock.patch.object(harness_scan, "find_ast_grep", return_value=None), \
                         contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(module.main([root]), 0,
                                      f"{module.NAME} declares NEEDS_AST_GREP=False but did not run")
@@ -525,8 +812,11 @@ class ParserFreeCaveatTest(unittest.TestCase):
         parser_free = [d.name for d in detectors if not d.needs_ast_grep]
         self.assertGreater(len(parser_free), 1, "expected several parser-free detectors")
 
+        # Patched at harness.find_ast_grep, not shutil.which: find_ast_grep also
+        # falls back to a sibling of sys.executable, which is a real binary in
+        # this dev venv, so patching shutil.which alone would not hide it.
         out = io.StringIO()
-        with unittest.mock.patch.object(run_module.shutil, "which", return_value=None), \
+        with unittest.mock.patch.object(run_module.harness, "find_ast_grep", return_value=None), \
                 unittest.mock.patch.dict(os.environ, {"SNIFF_NO_VERSION_CHECK": "1"}), \
                 contextlib.redirect_stdout(out):
             run_module.run_prime()
@@ -547,6 +837,24 @@ class SniffMissingDirTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 1)
         self.assertIn("is not a directory", proc.stderr)
         self.assertNotIn("## ", proc.stdout)
+
+    def test_plain_bad_dir_gets_no_recovery_hint(self):
+        # No detector passthrough flags involved, so there is nothing to hint at.
+        proc = subprocess.run([*RUN, "/no/such/dir"], capture_output=True, text=True, env=SUBPROCESS_ENV)
+        self.assertNotIn("hint:", proc.stderr)
+
+    def test_bad_dir_alongside_detector_flags_gets_a_recovery_hint(self):
+        # `sniff --only <name> --top 3` (forgetting DIR): argparse's optional
+        # positional greedily swallows "3" as the path, leaving "--top" behind
+        # as an unforwardable extra. The bare rejection gave no way out.
+        proc = subprocess.run(
+            [*RUN, "--only", "largest-methods", "--top", "3"],
+            capture_output=True, text=True, env=SUBPROCESS_ENV,
+        )
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("'3' is not a directory", proc.stderr)
+        self.assertIn("hint: detector flags need an explicit DIR before them", proc.stderr)
+        self.assertIn("sniff --only <name> . --top 3", proc.stderr)
 
 
 if __name__ == "__main__":

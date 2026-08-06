@@ -140,8 +140,8 @@ def discover(scan_path: "str | None" = None) -> tuple[list[Detector], list[str]]
 
     Built-in detectors come straight from `sniff.detectors.BUILTIN`, one Detector
     per module, no manifest involved. External, manifest-based detectors are
-    found by globbing skills/*/detector.yml, and, when `scan_path` is given,
-    also `<scan_path>/.sniff/detectors/*/detector.yml` (the project-local
+    found, when `scan_path` is given, at
+    `<scan_path>/.sniff/detectors/*/detector.yml` (the project-local
     convention consumers use to add their own detectors). A manifest whose name
     collides with a built-in (or an already-loaded external detector) is
     rejected as an error and skipped rather than shadowing the existing one.
@@ -154,11 +154,6 @@ def discover(scan_path: "str | None" = None) -> tuple[list[Detector], list[str]]
     ]
     known_names = {d.name for d in detectors}
     errors: list[str] = []
-
-    skill_detectors, skill_errors = _load_manifest_detectors(
-        os.path.join(SKILLS_ROOT, "*", "detector.yml"), known_names)
-    detectors.extend(skill_detectors)
-    errors.extend(skill_errors)
 
     if scan_path is not None:
         project_detectors, project_errors = _load_manifest_detectors(

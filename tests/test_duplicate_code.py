@@ -7,10 +7,13 @@ No ast-grep needed: this detector tokenises with a regex, it does not parse.
 
 from __future__ import annotations
 
-import os
+import contextlib
+import io
 import shutil
 import tempfile
 import unittest
+
+from conftest import write_tree_file
 
 from sniff.detectors import duplicate_code as dc
 
@@ -69,10 +72,7 @@ class DuplicateCodeTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def _write(self, name: str, source: str) -> str:
-        path = os.path.join(self.root, name).replace("\\", "/")
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(source)
-        return path
+        return write_tree_file(self.root, name, source).replace("\\", "/")
 
     def _clones(self, *paths: str, min_tokens: int = dc.DEFAULT_MIN_TOKENS,
                 min_lines: int = dc.DEFAULT_MIN_LINES) -> "list[dc.Clone]":
@@ -213,6 +213,19 @@ class DuplicateCodeTest(unittest.TestCase):
         second = self._write("b.py", comment + "\nother = 2\n")
 
         self.assertEqual(self._clones(first, second), [])
+
+    def test_header_states_ranges_are_normalised(self):
+        # A user diffing the reported ranges sees identifiers/strings differ
+        # (it's a type-2 clone), so the header must say so up front or the
+        # finding reads as wrong.
+        self._write("a.py", HANDLER)
+        self._write("b.py", RENAMED_HANDLER)
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            dc.main([self.root])
+
+        self.assertIn("identifier/string-normalised", out.getvalue())
 
 
 class TokenizerTest(unittest.TestCase):

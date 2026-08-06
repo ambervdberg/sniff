@@ -14,14 +14,17 @@ description: >-
 
 Umbrella entry point that runs **all** detectors in one pass: `sniff-patterns`
 (pattern rule catalog) plus every node-metric and file-metric detector (complexity,
-nesting, parameters, method/class/file size, inline-template size). To run pattern
-rules only, invoke `sniff:sniff-patterns` directly.
+nesting, parameters, method/class/file size, inline-template size, duplication,
+self-admitted debt). To run pattern rules only, invoke `sniff:sniff-patterns` directly.
+
+Detectors run: `cognitive-complexity`, `cyclomatic-complexity`, `deepest-nesting`,
+`duplicate-code`, `large-classes`, `large-inline-templates`, `largest-files`,
+`largest-methods`, `most-imports`, `most-parameters`, `no-duplicate-string`,
+`self-admitted-debt`, `sniff-patterns`.
 
 ## Setup
 
-Ensure sniff is installed. Try `sniff version`. If it fails, install it:
-`uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
-and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
+If `sniff version` fails: `uv tool install sniff-smells` (and `uv tool install ast-grep-cli` if `ast-grep` is missing).
 
 ## Quick start
 
@@ -72,7 +75,7 @@ sniff --ignore <glob> [DIR]          # exclude paths; repeatable, adds to .sniff
 sniff version                        # print installed version
 sniff doctor                         # check prerequisites, exit 0/1
 sniff prime                          # agent-optimized context, never scans
-sniff baseline write [DIR]           # save per-detector counts to .sniff/baseline.json
+sniff baseline write [DIR]           # save per-detector finding fingerprints to .sniff/baseline.json
 sniff diff [DIR]                     # compare current scan to the saved baseline
 sniff diff --comment [DIR]           # same, as a markdown table to paste in a PR
 sniff contribute <rule-id>           # upstream a local .sniff/rules/ rule
@@ -80,12 +83,30 @@ sniff contribute <rule-id>           # upstream a local .sniff/rules/ rule
 
 `DIR` defaults to the current directory.
 
+## JSON output shape
+
+`sniff --json [DIR]` prints one object: `path` (the scanned directory),
+`config_warnings` (array, `.sniff.toml` problems, empty when there are none),
+and `detectors` (array, one entry per detector that ran).
+
+Each detector entry has `detector`, `title`, `exit_code`, `error`, `output`
+(the same markdown table a plain scan prints, as one string), and `findings`:
+an array of structured rows, one object per finding, each row's keys are its
+column names mapped to that row's values. A detector that errored or found
+nothing gets `findings: []`, never a missing key.
+
+## Gate: check your own edits
+
+Agent loop: run `sniff baseline write` before editing, `sniff diff` after.
+Exit 1 means the repo got worse; the output names each regressed detector.
+
 ## Project config
 
 A consumer repo can drop a `.sniff.toml` beside its sources to tune every run:
 
 - `[rules]` disable a pattern rule (`<rule-id> = false`) or change its severity (`<rule-id> = "warning"`).
-- `[detectors]` skip detectors (`skip = "..."`) or override a detector's threshold (`<name>.top = 15`).
+- `[detectors]` skip detectors (`skip = "..."`), cap every detector's table (`top = 5`), or
+  override one detector's threshold (`<name>.top = 15`, which wins over the global `top`).
 - `[ignore]` extra path globs to exclude (`globs = ["gen/**"]`).
 
 With `--only <one detector>`, extra CLI flags are forwarded to that detector and win over `.sniff.toml`.
@@ -107,6 +128,8 @@ Exact names (case-sensitive) for use with `--only` / `--skip`:
 | `most-parameters` | Functions with most parameters |
 | `most-imports` | Files with most imports |
 | `no-duplicate-string` | Duplicate string literals |
+| `duplicate-code` | Copy-pasted blocks of code |
+| `self-admitted-debt` | TODO/FIXME/HACK/XXX markers in comments |
 | `sniff-patterns` | Pattern rule catalog (ast-grep rules) |
 | `large-inline-templates` | Oversized Angular inline templates |
 
@@ -143,4 +166,4 @@ A detector meant for everyone belongs in the sniff package instead, as a module 
   skill and the aggregate run always agree.
 - A failing detector yields an error section instead of aborting the run, so one
   broken detector cannot hide the others.
-- Prerequisites: `ast-grep` on PATH (pattern + node-metric detectors), Python 3.
+- Prerequisites: `ast-grep` installed (pattern + node-metric detectors), Python 3.

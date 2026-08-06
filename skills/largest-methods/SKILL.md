@@ -28,10 +28,8 @@ output into your own context to re-rank it by hand.
 
 Run the detector through the installed sniff CLI:
 
-1. Ensure sniff is installed. Try `sniff version`. If it fails, install it:
-   `uv tool install sniff-smells` (fallback: `pip install --user sniff-smells`),
-   and if `ast-grep` is missing: `uv tool install ast-grep-cli`.
-2. Run: `sniff --only largest-methods [DIR] [--top N] [--lang LANG]
+1. If `sniff version` fails: `uv tool install sniff-smells` (and `uv tool install ast-grep-cli` if `ast-grep` is missing).
+2. Run: `sniff --only largest-methods DIR [--top N] [--lang LANG]
    [--include-tests]`
 3. Report the table; do not paste raw file contents.
 

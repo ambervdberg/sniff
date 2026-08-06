@@ -54,6 +54,31 @@ STRING_LITERAL_SIMPLE = re.compile(
     r'''(['"])(?:\\.|(?!\1).)*?\1'''
 )
 
+# Strings that repeat across files as language or library idiom, not as
+# extractable constants: encoding names passed to open(), and argparse action
+# names. Dunders (e.g. __main__) are matched separately by shape.
+IDIOM_STOPLIST = {
+    "utf-8", "utf8", "ascii", "latin-1",
+    "store", "store_true", "store_false", "store_const", "append", "count", "extend",
+}
+
+# A quoted forward-reference type annotation, e.g. "list[str] | None" or
+# "dict[str, int]". Only strings containing type syntax ([ or |) built purely
+# from identifiers, dots, brackets, commas, pipes and spaces qualify.
+TYPE_EXPRESSION_RE = re.compile(r"[\w.\[\],| ]+")
+
+
+def is_idiom(value: str) -> bool:
+    """True for strings whose cross-file repetition is idiom, not a smell."""
+    if value.startswith("__") and value.endswith("__"):
+        return True
+    if value in IDIOM_STOPLIST:
+        return True
+    if ("[" in value or "|" in value) and TYPE_EXPRESSION_RE.fullmatch(value):
+        return True
+    return False
+
+
 # Matches the text immediately before a string literal when that string is a
 # module specifier: `import ... from '...'`, `export ... from '...'`, a
 # side-effect `import '...'`, dynamic `import('...')`, or `require('...')`.
@@ -64,12 +89,14 @@ IMPORT_SPECIFIER_PREFIX_RE = re.compile(
 )
 
 
-def extract_strings(path: str, min_len: int = 4) -> set[str]:
+def extract_strings(path: str, min_len: int = 4) -> "dict[str, int]":
     """Extract string literals from a source file.
 
     Looks for both "..." and '...' patterns, filters out very short ones (noise),
-    skips pure punctuation and common keywords. Returns set of normalized strings."""
-    strings = set()
+    skips pure punctuation, common keywords and idiom strings (see is_idiom).
+    Returns a dict mapping each normalized string to the line number of its
+    first occurrence in the file."""
+    strings: "dict[str, int]" = {}
 
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as fh:
@@ -105,9 +132,17 @@ def extract_strings(path: str, min_len: int = 4) -> set[str]:
         if value.lower() in {"true", "false", "null", "undefined", "this", "super"}:
             continue
 
+        # Skip idiom strings: dunders, encodings, argparse actions, quoted
+        # type annotations. They repeat by convention, not by copy-paste.
+        if is_idiom(value):
+            continue
+
         # Unescape common sequences for deduplication (treat \" and " as the same).
         normalized = value.replace(r"\"", '"').replace(r"\'", "'")
-        strings.add(normalized)
+
+        # Record the first occurrence's line for the file:line location output.
+        line = content.count("\n", 0, match.start()) + 1
+        strings.setdefault(normalized, line)
 
     return strings
 
@@ -116,7 +151,7 @@ def extract_strings(path: str, min_len: int = 4) -> set[str]:
 class DuplicateString:
     string: str
     count: int  # number of distinct files
-    locations: list[str]  # file:line pointers (up to 3)
+    locations: "list[str]"  # file:line pointers (up to 3)
 
 
 def main(argv: "list[str] | None" = None) -> int:
@@ -152,24 +187,25 @@ def main(argv: "list[str] | None" = None) -> int:
     if not files:
         sys.exit(f"No supported source files found under {args.path!r}.")
 
-    # Extract strings from each file and track which files contain each string.
-    string_files: dict[str, set[str]] = defaultdict(set)
+    # Extract strings from each file and track, per string, the line of its
+    # first occurrence in each file that contains it.
+    string_files: "dict[str, dict[str, int]]" = defaultdict(dict)
 
     for filepath in files:
         extracted = extract_strings(filepath, min_len=args.min_len)
-        for s in extracted:
-            string_files[s].add(filepath)
+        for s, line in extracted.items():
+            string_files[s][filepath] = line
 
     # Filter to strings appearing in threshold+ files and build output.
     duplicates = []
-    for string, file_set in string_files.items():
-        if len(file_set) >= args.threshold:
-            # Take first 3 file locations as examples.
-            locations = sorted(file_set)[:3]
+    for string, file_lines in string_files.items():
+        if len(file_lines) >= args.threshold:
+            # Take first 3 file:line locations as examples.
+            locations = [f"{f}:{file_lines[f]}" for f in sorted(file_lines)[:3]]
             duplicates.append(
                 DuplicateString(
                     string=string,
-                    count=len(file_set),
+                    count=len(file_lines),
                     locations=locations,
                 )
             )

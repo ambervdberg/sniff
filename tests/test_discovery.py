@@ -1,13 +1,19 @@
 from sniff import discovery
 
+# The exact builtin set. A subset check would stay green after a deletion, so
+# adding or removing a detector must fail here until this list is updated too.
+BUILTIN_NAMES = {
+    "cognitive-complexity", "cyclomatic-complexity", "deepest-nesting", "duplicate-code",
+    "large-classes", "large-inline-templates", "largest-files", "largest-methods",
+    "most-imports", "most-parameters", "no-duplicate-string", "self-admitted-debt",
+    "sniff-patterns",
+}
+
 
 def test_discover_returns_all_builtin_detectors():
     detectors, errors = discovery.discover()
-    names = {d.name for d in detectors}
     assert errors == []
-    assert {"largest-methods", "cognitive-complexity", "no-duplicate-string",
-            "sniff-patterns"} <= names
-    assert len(names) >= 11
+    assert {d.name for d in detectors} == BUILTIN_NAMES
 
 
 def test_builtin_detectors_expose_module_main():

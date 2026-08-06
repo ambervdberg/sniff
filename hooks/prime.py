@@ -39,7 +39,12 @@ def plugin_version() -> str:
 
 def main() -> int:
     if shutil.which("sniff"):
-        return subprocess.run(["sniff", "prime"]).returncode
+        # The installed CLI's own exit code is deliberately not propagated. This
+        # hook always exits 0: a session must never fail to start over a context
+        # block, and hooks.json chains interpreters with `||`, so a non-zero exit
+        # here would rerun the whole wrapper under the other interpreter.
+        subprocess.run(["sniff", "prime"])
+        return 0
 
     if shutil.which("uvx"):
         pinned = f"sniff-smells=={plugin_version()}"

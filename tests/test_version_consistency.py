@@ -10,9 +10,6 @@ Code marketplace validation warning.
 
 uv.lock counts too: CI runs `uv sync --locked`, which refuses to resolve when the
 lock records a different version for sniff-smells than pyproject.toml declares.
-
-So does the README: its CI-mode snippet pins the composite action by release tag, and
-readers copy that line verbatim into their own workflow.
 """
 
 import json
@@ -47,17 +44,6 @@ def _locked_version(package):
     return None
 
 
-def _readme_action_pin():
-    """Version the README's CI-mode snippet pins the composite action to, or None.
-
-    Returns None both when the pin is missing and when the README carries two pins that
-    disagree, since either way there is no single version the README declares."""
-    with open(os.path.join(REPO_ROOT, "README.md"), "r", encoding="utf-8") as fh:
-        pins = set(re.findall(r"ambervdberg/sniff@v(\d+\.\d+\.\d+)", fh.read()))
-
-    return pins.pop() if len(pins) == 1 else None
-
-
 def declared_versions():
     """Map of human-readable source -> version string, one entry per declaration."""
     with open(os.path.join(REPO_ROOT, "pyproject.toml"), "r", encoding="utf-8") as fh:
@@ -72,7 +58,6 @@ def declared_versions():
         versions[f"marketplace.json[{entry.get('name', '?')}]"] = entry.get("version")
 
     versions["uv.lock[sniff-smells]"] = _locked_version("sniff-smells")
-    versions["README.md[action pin]"] = _readme_action_pin()
 
     return versions
 
@@ -85,7 +70,7 @@ def test_all_declared_versions_agree():
 def test_every_manifest_declares_a_version():
     """A missing version is drift too: it would make the mismatch test pass on None."""
     versions = declared_versions()
-    assert len(versions) == 6, versions
+    assert len(versions) == 5, versions
     assert all(v is not None for v in versions.values()), versions
 
 

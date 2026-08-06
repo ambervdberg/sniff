@@ -15,14 +15,15 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import textwrap
 import unittest
 from contextlib import redirect_stdout
 
+from conftest import tool_available, write_tree_file
+
 from sniff import harness as h
 
-HAS_AST_GREP = shutil.which("ast-grep") is not None
-HAS_GIT = shutil.which("git") is not None
+HAS_AST_GREP = tool_available("ast-grep")
+HAS_GIT = tool_available("git")
 
 
 def _short_path(path: str) -> str:
@@ -84,6 +85,56 @@ class InIgnoredDirTest(unittest.TestCase):
 
     def test_glob_does_not_match_outside_ignored_dir(self):
         self.assertFalse(h._in_ignored_dir("proj/src/big.ts", "proj"))
+
+    def test_trailing_slash_pattern_matches_a_file_directly_inside_the_dir(self):
+        # A gitignore-style "docs/" entry, pasted straight into .sniff.toml's
+        # [ignore] globs, must exclude the directory it names -- not silently
+        # match nothing, which is what fnmatch("docs/a.md", "docs/") does on
+        # its own (see _normalize_ignore_pattern).
+        os.environ["SNIFF_EXTRA_IGNORE"] = "generated/"
+        self.assertTrue(h._in_ignored_dir("proj/generated/big.ts", "proj"))
+
+    def test_trailing_slash_pattern_matches_a_file_nested_inside_the_dir(self):
+        os.environ["SNIFF_EXTRA_IGNORE"] = "generated/"
+        self.assertTrue(h._in_ignored_dir("proj/generated/sub/deep.py", "proj"))
+
+    def test_bare_name_without_trailing_slash_does_not_gain_directory_syntax(self):
+        # "generated" (no trailing slash) stays today's literal/exact-match
+        # pattern. Only the explicit trailing-slash form means "this dir".
+        os.environ["SNIFF_EXTRA_IGNORE"] = "generated"
+        self.assertFalse(h._in_ignored_dir("proj/generated/big.ts", "proj"))
+
+
+class ExtraIgnorePatternsTest(unittest.TestCase):
+    """_extra_ignore_patterns: the single choke point both --extra-ignore and
+    SNIFF_EXTRA_IGNORE flow through, so a trailing-slash pattern normalizes the
+    same way regardless of which one supplied it."""
+
+    def setUp(self):
+        self._saved = os.environ.get("SNIFF_EXTRA_IGNORE")
+
+    def tearDown(self):
+        if self._saved is None:
+            os.environ.pop("SNIFF_EXTRA_IGNORE", None)
+        else:
+            os.environ["SNIFF_EXTRA_IGNORE"] = self._saved
+
+    def test_trailing_slash_expands_to_a_globstar_via_extra_ignore_arg(self):
+        self.assertEqual(h._extra_ignore_patterns(["docs/"]), ["docs/**"])
+
+    def test_trailing_slash_expands_to_a_globstar_via_env_var(self):
+        os.environ["SNIFF_EXTRA_IGNORE"] = "docs/"
+        self.assertEqual(h._extra_ignore_patterns(), ["docs/**"])
+
+    def test_bare_name_without_slash_is_left_alone(self):
+        # "docs" (no trailing slash) is today's literal/exact-match pattern,
+        # not directory syntax. Expanding it too would start excluding any
+        # file merely named "docs" alongside real directories, which nothing
+        # asked for.
+        self.assertEqual(h._extra_ignore_patterns(["docs"]), ["docs"])
+
+    def test_existing_globstar_pattern_is_untouched(self):
+        self.assertEqual(h._extra_ignore_patterns(["docs/**"]), ["docs/**"])
 
 
 class VendoredDirScopeTest(unittest.TestCase):
@@ -179,10 +230,7 @@ class ScanIntegrationTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def _write(self, rel, body):
-        path = os.path.join(self.root, rel)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(textwrap.dedent(body).lstrip("\n"))
+        return write_tree_file(self.root, rel, body.lstrip("\n"))
 
     def test_detect_languages_skips_ignored_dirs(self):
         langs = h.detect_languages(self.root)
@@ -224,10 +272,7 @@ class FileMetricTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def _write(self, rel, body):
-        path = os.path.join(self.root, rel)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(body)
+        return write_tree_file(self.root, rel, body)
 
     def test_iter_excludes_vendor_generated_and_unknown(self):
         files = h.iter_source_files(self.root, include_tests=True)
@@ -318,10 +363,7 @@ class GitignoreAwarenessTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def _write(self, rel, body):
-        path = os.path.join(self.root, rel)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(body)
+        return write_tree_file(self.root, rel, body)
 
     def _git(self, *args, cwd=None):
         """Run one git command, failing the test on a non-zero exit.
@@ -397,6 +439,20 @@ class GitignoreAwarenessTest(unittest.TestCase):
         self._git_init()
 
         langs = h.detect_languages(self.root, ["generated/**"])
+
+        self.assertIn("typescript", langs)
+        self.assertNotIn("python", langs)
+
+    def test_detect_languages_honors_a_trailing_slash_dir_ignore(self):
+        # A gitignore-style "generated/" entry, copied straight into
+        # .sniff.toml's [ignore] globs, must exclude the whole directory here
+        # too -- the same choke point (_extra_ignore_patterns) this function
+        # and the AST-based detectors both read.
+        self._write("keep/a.ts", "const a = 1;\n")
+        self._write("generated/sub/b.py", "y = 2\n")
+        self._git_init()
+
+        langs = h.detect_languages(self.root, ["generated/"])
 
         self.assertIn("typescript", langs)
         self.assertNotIn("python", langs)

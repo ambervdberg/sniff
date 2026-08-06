@@ -1,0 +1,219 @@
+"""`sniff baseline write` and `sniff diff`: fingerprint-based regression gating.
+
+`run_baseline` snapshots every detector's current fingerprints to
+`.sniff/baseline.json`; `run_diff` re-scans and compares against that
+snapshot. A regression is a fingerprint that is new or whose value climbed
+since the baseline; anything fixed or removed counts as an improvement
+instead. `run_diff`'s exit code is the gate signal CI reads, so it answers
+"did this get worse?" on its own, without folding in unrelated clean growth.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+
+from sniff import config, gate, harness
+from sniff.commands.scan import (
+    discover_with_warnings,
+    readable_here,
+    apply_config_to_detector,
+    select_with_config,
+    warn_config,
+)
+
+
+# -h/--help text for the two subcommands. Printed directly (not via argparse)
+# because argv here is hand-parsed, same as the rest of this module; keeping
+# the help text as plain strings avoids pulling in a parser for two flags.
+BASELINE_HELP = """usage: sniff baseline write [DIR]
+
+Scan DIR and save each detector's current fingerprints to
+<DIR>/.sniff/baseline.json, so a later `sniff diff` can compare against it.
+
+positional arguments:
+  DIR         directory to scan (default: current directory)
+
+options:
+  -h, --help  show this help message and exit
+"""
+
+DIFF_HELP = """usage: sniff diff [DIR] [--comment]
+
+Compare a fresh scan of DIR against its saved baseline. Exits 0 if nothing
+regressed (same or better), 1 if any detector has a new or worsened
+fingerprint.
+
+positional arguments:
+  DIR         directory to scan (default: current directory)
+
+options:
+  --comment   emit the result as a markdown table with a bold verdict line,
+              suitable to paste as a PR comment
+  -h, --help  show this help message and exit
+"""
+
+
+def _configured_detectors(path: str) -> list:
+    """Discovered detectors, narrowed and configured exactly as a normal scan does.
+
+    `sniff baseline write` and `sniff diff` must gate on what `.sniff.toml`
+    actually leaves in a scan, not on the raw discovered set: a repo that
+    disabled a detector (`[detectors] skip`), a rule (`[rules] <id> = false`),
+    or a path (`[ignore] globs`) expects the gate to honour that too. This
+    mirrors cli.py's `main()` wiring (config load, select_with_config,
+    readable_here, apply_config_to_detector) so both paths see the same
+    detector list a plain `sniff PATH` run would."""
+    cfg = config.load(path)
+    warn_config(cfg)  # sniff-i9x: baseline/diff must surface a bad .sniff.toml too, not just a scan.
+    detectors = discover_with_warnings(path)
+    selected, _unknown = select_with_config(detectors, set(), set(), cfg)
+    present = harness.detect_languages(path, cfg.extra_ignores)
+    selected = readable_here(selected, present, set())
+    return [apply_config_to_detector(d, cfg) for d in selected]
+
+
+def run_baseline(argv: list[str]) -> int:
+    """`sniff baseline write [DIR]`: scan DIR, save per-detector fingerprints as JSON.
+
+    Saved to <DIR>/.sniff/baseline.json so a later `sniff diff` can compare
+    against it. Returns 0 on success, 1 on a usage, path, or detector error."""
+    # Checked before the "write" subcommand check below: `sniff baseline --help`
+    # (no "write") and `sniff baseline write --help` must both print usage and
+    # exit 0. Before this check, "--help" fell through to the path check and
+    # was rejected as "'--help' is not a directory" (exit 1).
+    if "-h" in argv or "--help" in argv:
+        print(BASELINE_HELP)
+        return 0
+
+    if not argv or argv[0] != "write":
+        print("usage: sniff baseline write [DIR]", file=sys.stderr)
+        return 1
+
+    path = argv[1] if len(argv) > 1 else "."
+    if not os.path.isdir(path):
+        print(f"error: {path!r} is not a directory. Check the path and try again.", file=sys.stderr)
+        return 1
+
+    try:
+        fingerprints = gate.scan_fingerprints(_configured_detectors(path), path)
+    except gate.DetectorFailure as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    payload = {"version": 3, "path": path, "fingerprints": fingerprints}
+
+    baseline_dir = os.path.join(path, ".sniff")
+    os.makedirs(baseline_dir, exist_ok=True)
+    baseline_path = os.path.join(baseline_dir, "baseline.json")
+    with open(baseline_path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2)
+
+    print(f"sniff: baseline written to {baseline_path} ({len(fingerprints)} detectors)")
+    return 0
+
+
+def run_diff(argv: list[str]) -> int:
+    """`sniff diff [DIR]`: compare a fresh fingerprint scan of DIR against its baseline.
+
+    A regression is a fingerprint that is new (absent from the baseline) or whose
+    value increased; fixed or removed fingerprints count as improvements instead.
+    Returns 0 if no detector regressed (same or better), 1 if any detector has a
+    new or worsened fingerprint, so the exit code alone answers "did this get
+    worse?" without adding clean, unrelated growth to the count.
+
+    --comment switches the table to markdown with a bold verdict line, suitable
+    to paste as a PR comment."""
+    # Same reasoning as run_baseline above: -h/--help must short-circuit before
+    # --comment is stripped and DIR is validated, else "sniff diff --help" hit
+    # isdir("--help") and exited 1 instead of printing usage.
+    if "-h" in argv or "--help" in argv:
+        print(DIFF_HELP)
+        return 0
+
+    comment = "--comment" in argv
+    argv = [a for a in argv if a != "--comment"]
+    path = argv[0] if argv else "."
+    if not os.path.isdir(path):
+        print(f"error: {path!r} is not a directory. Check the path and try again.", file=sys.stderr)
+        return 1
+
+    baseline_path = os.path.join(path, ".sniff", "baseline.json")
+    if not os.path.isfile(baseline_path):
+        print(f"error: no baseline at {baseline_path!r}. Run `sniff baseline write {path}` first.", file=sys.stderr)
+        return 1
+
+    with open(baseline_path, "r", encoding="utf-8") as fh:
+        baseline_data = json.load(fh)
+
+    if baseline_data.get("version") != 3:
+        print(
+            "error: baseline is in an old format. "
+            f"Run `sniff baseline write {path}` to refresh it.",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        current = gate.scan_fingerprints(_configured_detectors(path), path)
+    except gate.DetectorFailure as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    baseline_fps: dict[str, dict[str, int]] = baseline_data.get("fingerprints", {})
+
+    # A fingerprint is a regression when it is new to a detector's set or its
+    # value climbed; the inverse (present in the baseline, gone or lower now)
+    # is an improvement. Comparing on value, not presence alone, is what lets a
+    # repeated duplicate-code block register even though its fingerprint (the
+    # pair of files it spans) does not change between the two scans.
+    names = sorted(set(baseline_fps) | set(current))
+    regressions: dict[str, list[str]] = {}
+    improvements = 0
+    for name in names:
+        before, after = baseline_fps.get(name, {}), current.get(name, {})
+        new = [fp for fp, v in after.items() if v > before.get(fp, 0)]
+        improvements += sum(1 for fp in before if before[fp] > after.get(fp, 0))
+        if new:
+            regressions[name] = sorted(new)
+
+    if comment:
+        return _print_diff_comment(names, regressions)
+    return _print_diff_text(regressions, improvements)
+
+
+def _print_diff_comment(names: list[str], regressions: dict[str, list[str]]) -> int:
+    """Markdown table for `sniff diff --comment`, one row per detector.
+
+    NEW VIOLATIONS lists up to 5 fingerprints per detector, then a `+N more`
+    tally, so a detector with dozens of new violations doesn't blow up a PR
+    comment."""
+    lines = ["| DETECTOR | REGRESSIONS | NEW VIOLATIONS |", "| --- | --- | --- |"]
+    for name in names:
+        new = regressions.get(name, [])
+        shown = ", ".join(new[:5])
+        if len(new) > 5:
+            shown += f", +{len(new) - 5} more"
+        lines.append(f"| {name} | {len(new)} | {shown} |")
+    print("\n".join(lines))
+    print()
+    print("**worse**" if regressions else "**same or better**")
+    return 1 if regressions else 0
+
+
+def _print_diff_text(regressions: dict[str, list[str]], improvements: int) -> int:
+    """Plain-text `sniff diff` output: regression lines when any exist, the
+    exact `same or better` phrase (CI greps for it) when none do."""
+    if regressions:
+        lines = [f"{'DETECTOR':<24} NEW VIOLATIONS"]
+        for name in sorted(regressions):
+            lines.append(f"{name:<24} {', '.join(regressions[name])}")
+        print("\n".join(lines))
+        print()
+        total_new = sum(len(fps) for fps in regressions.values())
+        print(f"worse: {total_new} new violation(s), {improvements} improvement(s)")
+        return 1
+
+    print(f"same or better ({improvements} improvement(s))" if improvements else "same or better")
+    return 0

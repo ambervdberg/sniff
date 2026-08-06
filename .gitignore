@@ -4,8 +4,11 @@
 *.db
 .beads-credential-key
 .beads/proxieddb/
-docs
 *.local.md
+
+# Scratch working files that live under docs/ but are not part of the published site
+docs/local/
+docs/superpowers/
 
 # Python
 __pycache__/

@@ -94,19 +94,23 @@ wheels = [
 
 [[package]]
 name = "sniff-smells"
-version = "0.15.0"
+version = "0.16.0"
 source = { editable = "." }
+dependencies = [
+    { name = "ast-grep-cli" },
+]
 
 [package.optional-dependencies]
 dev = [
-    { name = "ast-grep-cli" },
     { name = "pytest" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "ast-grep-cli", marker = "extra == 'dev'" },
+    { name = "ast-grep-cli" },
     { name = "pytest", marker = "extra == 'dev'" },
+    { name = "tomli", marker = "python_full_version < '3.11' and extra == 'dev'" },
 ]
 provides-extras = ["dev"]
 

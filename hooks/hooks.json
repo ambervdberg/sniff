@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/prime.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/prime.py\" || python \"${CLAUDE_PLUGIN_ROOT}/hooks/prime.py\"",
             "statusMessage": "Loading sniff context"
           }
         ]
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PLUGIN_ROOT}/skills/sniff-create/scripts/detect_costly_search.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/sniff-create/scripts/detect_costly_search.py\" || python \"${CLAUDE_PLUGIN_ROOT}/skills/sniff-create/scripts/detect_costly_search.py\"",
             "statusMessage": "Checking for costly searches"
           }
         ]

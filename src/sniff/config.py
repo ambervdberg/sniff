@@ -18,6 +18,7 @@ class Config:
     severity_overrides: "dict[str, str]" = field(default_factory=dict)
     skip_detectors: "set[str]" = field(default_factory=set)
     thresholds: "dict[str, dict[str, str]]" = field(default_factory=dict)
+    global_top: "str | None" = None
     extra_ignores: "list[str]" = field(default_factory=list)
     warnings: "list[str]" = field(default_factory=list)
 
@@ -110,24 +111,49 @@ def load(scan_dir: str) -> Config:
             continue
         key, value = match.group(1), _value(match.group(2))
 
-        if section == "rules":
-            if value == "false":
-                cfg.disabled_rules.add(key)
-            elif value in ("error", "warning", "info", "hint"):
-                cfg.severity_overrides[key] = value
-            elif value != "true":
-                cfg.warnings.append(f".sniff.toml:{lineno}: rule value must be false or a severity")
-        elif section == "detectors":
-            if key == "skip":
-                cfg.skip_detectors |= {p.strip() for p in value.split(",") if p.strip()}
-            elif "." in key:
-                detector, arg = key.split(".", 1)
-                cfg.thresholds.setdefault(detector, {})[arg] = value
-            else:
-                cfg.warnings.append(f".sniff.toml:{lineno}: unknown detectors key {key!r}")
-        elif section == "ignore":
-            if key == "globs":
-                cfg.extra_ignores += _string_list(value)
-            else:
-                cfg.warnings.append(f".sniff.toml:{lineno}: unknown ignore key {key!r}")
+        parser = _SECTION_PARSERS.get(section)
+        if parser is not None:
+            parser(cfg, key, value, lineno)
     return cfg
+
+
+def _apply_rules_entry(cfg: Config, key: str, value: str, lineno: int) -> None:
+    """A [rules] entry: `false` disables the rule, a severity name overrides it."""
+    if value == "false":
+        cfg.disabled_rules.add(key)
+    elif value in ("error", "warning", "info", "hint"):
+        cfg.severity_overrides[key] = value
+    elif value != "true":
+        cfg.warnings.append(f".sniff.toml:{lineno}: rule value must be false or a severity")
+
+
+def _apply_detectors_entry(cfg: Config, key: str, value: str, lineno: int) -> None:
+    """A [detectors] entry: `skip` is a name list, bare `top` a global cap applied
+    to every detector's table, `<detector>.<arg>` a threshold for one detector."""
+    if key == "skip":
+        cfg.skip_detectors |= {p.strip() for p in value.split(",") if p.strip()}
+    elif key == "top":
+        cfg.global_top = value
+    elif "." in key:
+        detector, arg = key.split(".", 1)
+        cfg.thresholds.setdefault(detector, {})[arg] = value
+    else:
+        cfg.warnings.append(f".sniff.toml:{lineno}: unknown detectors key {key!r}")
+
+
+def _apply_ignore_entry(cfg: Config, key: str, value: str, lineno: int) -> None:
+    """An [ignore] entry: `globs` is the only recognized key."""
+    if key == "globs":
+        cfg.extra_ignores += _string_list(value)
+    else:
+        cfg.warnings.append(f".sniff.toml:{lineno}: unknown ignore key {key!r}")
+
+
+# Section name -> the parser that turns one of its key/value lines into config.
+# Unknown sections are already warned about at the section header, so a missing
+# entry here simply means the line is ignored.
+_SECTION_PARSERS = {
+    "rules": _apply_rules_entry,
+    "detectors": _apply_detectors_entry,
+    "ignore": _apply_ignore_entry,
+}

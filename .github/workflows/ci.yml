@@ -7,14 +7,15 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.14"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       # setup-uv installs the interpreter too, so no separate setup-python step.
       - uses: astral-sh/setup-uv@v9.0.0
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python }}
           enable-cache: true
       # --locked fails the build if uv.lock has drifted from pyproject.toml,
       # so CI exercises the pinned dependency set rather than a fresh resolve.
@@ -22,4 +23,21 @@ jobs:
       - run: uv sync --locked --extra dev
       - run: uv run sniff doctor
       - run: uv run sniff test-rules
+      # SNIFF_TEST_REQUIRE_TOOLS turns a missing ast-grep or git into a hard
+      # error, so an image without them cannot pass by skipping those suites.
       - run: uv run python -m pytest tests -q
+        env:
+          SNIFF_TEST_REQUIRE_TOOLS: "1"
+      # evals/smoke is left out on purpose: it asserts on gitignored results/ dirs.
+      - run: uv run python -m pytest evals/test_scorer.py -q
+  install-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.12"
+      - run: uv build
+      - run: uv venv /tmp/smoke && uv pip install --python /tmp/smoke dist/*.whl
+      - run: /tmp/smoke/bin/sniff doctor
+      - run: /tmp/smoke/bin/sniff version

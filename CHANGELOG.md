@@ -4,6 +4,37 @@ All notable changes to this project are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.16.0] - Unreleased
+
+- sniff finds the bundled ast-grep even when its install directory is not on PATH.
+- most-parameters no longer counts a trailing comma as an extra parameter.
+- no-duplicate-string now skips idiom strings (dunders, encodings, argparse actions, quoted type annotations) and reports file:line locations.
+- `sniff prime` and the sniff skill now explain the baseline/diff agent loop.
+- `sniff diff --help` and `sniff baseline --help` now print usage instead of failing.
+- New `sniff --version` flag, alias for `sniff version`.
+- A rejected scan path now hints that detector flags need an explicit DIR before them.
+- `sniff --json` now includes each detector's findings as structured rows, alongside the markdown table.
+- The ast-grep install hints now name the pip package `ast-grep-cli`.
+- `sniff --list --json` now returns `{"detectors": [...]}` instead of a bare array.
+- `sniff doctor` now validates the same `.sniff.toml` a scan would use, walking up to the repo root.
+- The upgrade hint now also mentions `pip install -U sniff-smells`, and `sniff --help` now mentions `.sniff.toml`.
+- `sniff diff` now flags only new or worsened violations, so adding clean code no longer fails the gate.
+- `sniff baseline` and `sniff diff` now fail with an error naming every detector that could not run.
+- Baselines written by older versions must be refreshed with `sniff baseline write`.
+- A scan now exits non-zero when a detector fails to run.
+- Installing sniff now installs ast-grep automatically.
+- sniff prime now checks PyPI for updates at most once every 4 hours.
+- GitHub Action and its CI docs are removed.
+- The sniff skill again lists every detector, and skills no longer ask for ast-grep where it is not used.
+- `sniff prime` now lists the gate commands (`baseline`, `diff`) and `--skip`, `--all`, `contribute`.
+- Plugin hooks now run on systems where only `python3` exists.
+- An external detector that hangs is killed after 5 minutes instead of stalling the scan.
+- `sniff contribute` leaves your checkout on its original branch when the fixture tests reject the rule.
+- README links to the docs now work from the PyPI page.
+- Ignore globs ending in / now exclude the whole directory.
+- New .sniff.toml setting: [detectors] top = N caps every detector table at N rows.
+- A scan now prints .sniff.toml warnings instead of only sniff doctor.
+
 ## [0.15.0] - 2026-08-03
 
 - New detector `duplicate-code`: the largest blocks of copy-pasted code, ranked by size.

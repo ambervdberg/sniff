@@ -53,6 +53,29 @@ def test_checkout_backend_copies_and_branches(tmp_path, monkeypatch):
                             capture_output=True, text=True).stdout.strip()
     assert branch == "rule/no-x"
 
+def test_failed_fixture_tests_leave_the_checkout_as_it_was(tmp_path, monkeypatch):
+    """The checkout belongs to the user, not to sniff. When the fixture tests
+    reject the rule, nothing may be left behind: no branch, no staged copies."""
+    _mk_local_rule(tmp_path)
+    co = _mk_fake_checkout(tmp_path)
+    before = subprocess.run(["git", "-C", str(co), "branch", "--show-current"],
+                            capture_output=True, text=True).stdout.strip()
+    monkeypatch.setattr(contribute.rules_testing, "run_test_rules", lambda checkout: 1)
+
+    assert contribute._contribute_to_checkout("no-x", str(tmp_path), str(co)) == 1
+
+    assert not (co / "src" / "sniff" / "patterns" / "rules" / "no-x.yml").exists()
+    assert not (co / "src" / "sniff" / "patterns" / "rule-tests" / "no-x.yml").exists()
+    after = subprocess.run(["git", "-C", str(co), "branch", "--show-current"],
+                           capture_output=True, text=True).stdout.strip()
+    assert after == before
+    staged = subprocess.run(["git", "-C", str(co), "diff", "--cached", "--name-only"],
+                            capture_output=True, text=True).stdout.strip()
+    assert staged == ""
+    branches = subprocess.run(["git", "-C", str(co), "branch", "--list", "rule/no-x"],
+                              capture_output=True, text=True).stdout.strip()
+    assert branches == ""
+
 def test_gh_backend_command_sequence(tmp_path, monkeypatch):
     _mk_local_rule(tmp_path)
     calls = []
