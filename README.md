@@ -10,7 +10,7 @@
 
 # sniff
 
-`sniff` prints ranked tables of the repo's "worst" code: longest methods, deepest nesting, empty catches etc in a concise way.
+`sniff` prints ranked tables of the repo's "worst" code: longest methods, deepest nesting, empty catches, and more.
 
 It complements linters and code checkers like ESLint, Ruff, or SonarQube. They judge lines per language; sniff ranks the whole repo.
 
@@ -20,12 +20,10 @@ Measured against an agent working without it: **53% average cost reduction** per
 question, and the agent reads almost no files. See
 [Initial case study](#initial-case-study).
 
-[Install](#install) · [Quickstart](#quickstart) ·
-[Use it from an agent](#use-it-from-an-agent) · [Initial case study](#initial-case-study) ·
-[Detectors vs pattern rules](#detectors-vs-pattern-rules) · [The detectors](#the-detectors) ·
-[Pattern rules](#pattern-rules) · [Commands](#commands) ·
-[Configuration](#configuration) · [Language support](#language-support) ·
-[Hooks](#hooks) · [Contributing](#contributing)
+- [Install](#install) · [Quickstart](#quickstart) · [Use it from an agent](#use-it-from-an-agent)
+- [Detectors vs pattern rules](#detectors-vs-pattern-rules) · [The detectors](#the-detectors) · [Pattern rules](#pattern-rules)
+- [Commands](#commands) · [Configuration](#configuration) · [Language support](#language-support)
+- [Initial case study](#initial-case-study) · [Hooks](#hooks) · [Contributing](#contributing)
 
 ## Install
 
@@ -86,6 +84,7 @@ sniff-patterns: 23 findings, 4 of 22 rules matched in '.' (tests excluded)
 That's the whole output: file and line only, never source code or an AST dump.
 
 **How to read it.** Ranked sections are sorted worst-first and show the top 10 (configurable).
+Test files are skipped by default; see [Configuration](#configuration) to include them.
 
 There is no pass/fail line: `31` is not "failing", it is just the hardest thing to read in this
 repo, so start at the top row and stop caring wherever the numbers flatten out.
@@ -138,8 +137,8 @@ update: `codex plugin marketplace upgrade sniff`, then reinstall from `/plugins`
 
 Add to your AGENTS.md:
 
->For code-quality questions (largest methods, complexity, smells), run `sniff [DIR]` and read its compact tables instead of scanning files.
->Run `sniff prime` once to learn all commands.
+> For code-quality questions (largest methods, complexity, smells), run `sniff [DIR]` and read its compact tables instead of scanning files.
+> Run `sniff prime` once to learn all commands.
 
 Or paste the live output of `sniff prime` into your agent's instructions file for the
 exact command list.
@@ -337,8 +336,8 @@ snapshot you own, not a target sniff enforces. The third command is covered unde
 
 **Exit codes.**
 
-`sniff doctor` and `sniff diff` exit 1 on failure, so both can gate a
-build.
+`sniff doctor` and `sniff diff` exit 1 on failure, so an agent (or a script)
+can stop when its edits made the repo worse.
 
 A plain `sniff [DIR]` exits 0 however many findings it reports: it reports, it does not
 judge. It exits 1 only when the scan itself could not be trusted, meaning a `DIR` that
